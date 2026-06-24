@@ -1,0 +1,201 @@
+# QuantumBPM Enterprise — Production Helm Values
+# Docs: https://quantumbpm.com/docs/enterprise
+# Requires: Enterprise license JWT, OIDC provider, PostgreSQL, Temporal cluster
+#
+# Install (after pushing image to your registry):
+#   helm upgrade --install quantumbpm ./deploy/helm/quantumbpm/chart \
+#     -n bpm --create-namespace \
+#     -f deploy/helm/quantumbpm/values-production.yaml
+
+replicaCount: 3
+
+image:
+  repository: hub.quantumbpm.com/quantumbpm/enterprise
+  tag: latest
+  pullPolicy: IfNotPresent
+  pullSecrets:
+    - quantumbpm-registry
+
+service:
+  type: ClusterIP
+  port: 9060
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: bpm.internal.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: quantumbpm-tls
+      hosts:
+        - bpm.internal.example.com
+
+resources:
+  requests:
+    cpu: "2"
+    memory: 4Gi
+  limits:
+    cpu: "4"
+    memory: 8Gi
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 8
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+
+env:
+  # --- Database (required) ---
+  DATABASE_URL: "postgres://quantumbpm:$(DB_PASSWORD)@quantumbpm-postgresql.bpm.svc.cluster.local:5432/quantumbpm?sslmode=require"
+  DB_PASSWORD:
+    secretKeyRef:
+      name: quantumbpm-db-credentials
+      key: password
+
+  # --- Temporal (required for BPMN) ---
+  TEMPORAL_HOST_PORT: "temporal-frontend.temporal.svc.cluster.local:7233"
+  TEMPORAL_NAMESPACE: "call-campaign"
+  TEMPORAL_TLS_ENABLED: "false"
+  # TEMPORAL_TLS_CERT_PATH: "/etc/temporal/tls/client.pem"
+  # TEMPORAL_TLS_KEY_PATH: "/etc/temporal/tls/client.key"
+  # TEMPORAL_TLS_CA_PATH: "/etc/temporal/tls/ca.pem"
+
+  # --- License (required for Enterprise) ---
+  QUANTUMBPM_LICENSE_JWT:
+    secretKeyRef:
+      name: quantumbpm-license
+      key: license-jwt
+
+  # --- OIDC (required for Enterprise) ---
+  OIDC_ISSUER_URL: "https://auth.internal.example.com/realms/platform"
+  OIDC_CLIENT_ID: "quantumbpm"
+  OIDC_CLIENT_SECRET:
+    secretKeyRef:
+      name: quantumbpm-oidc
+      key: client-secret
+  OIDC_AUDIENCE: "quantumbpm-api"
+  # Map OIDC claim to project roles, e.g. groups or roles claim
+  OIDC_ROLES_CLAIM: "roles"
+
+  # --- Runtime tuning ---
+  REST_MAX_BODY_SIZE: "10mb"
+  BPMN_WORKER_TASK_QUEUE_PREFIX: "qbpm-"
+  FEEL_EVALUATION_BUDGET_MS: "5000"
+  CACHE_TTL_SECONDS: "300"
+
+  # --- Observability ---
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector.observability.svc.cluster.local:4317"
+  OTEL_SERVICE_NAME: "quantumbpm"
+  LOG_LEVEL: "info"
+
+extraVolumeMounts:
+  - name: temporal-tls
+    mountPath: /etc/temporal/tls
+    readOnly: true
+
+extraVolumes:
+  - name: temporal-tls
+    secret:
+      secretName: temporal-client-tls
+      optional: true
+
+livenessProbe:
+  httpGet:
+    path: /health/live
+    port: http
+  initialDelaySeconds: 30
+  periodSeconds: 15
+
+readinessProbe:
+  httpGet:
+    path: /health/ready
+    port: http
+  initialDelaySeconds: 10
+  periodSeconds: 10
+
+postgresql:
+  enabled: true
+  auth:
+    existingSecret: quantumbpm-db-credentials
+    secretKeys:
+      adminPasswordKey: postgres-password
+      userPasswordKey: password
+    username: quantumbpm
+    database: quantumbpm
+  architecture: replication
+  primary:
+    persistence:
+      size: 200Gi
+      storageClass: fast-ssd
+    resources:
+      requests:
+        cpu: "2"
+        memory: 8Gi
+  readReplicas:
+    replicaCount: 1
+
+redis:
+  enabled: true
+  architecture: replication
+  auth:
+    existingSecret: quantumbpm-redis-credentials
+  master:
+    persistence:
+      size: 20Gi
+    resources:
+      requests:
+        cpu: "1"
+        memory: 4Gi
+  replica:
+    replicaCount: 2
+    resources:
+      requests:
+        cpu: "500m"
+        memory: 2Gi
+
+# Activity Worker (your business workers — separate deployment)
+activityWorker:
+  enabled: true
+  replicaCount: 20
+  image:
+    repository: registry.internal.example.com/call-campaign-worker
+    tag: "1.0.0"
+  taskQueue: call-campaign
+  temporalHost: temporal-frontend.temporal.svc.cluster.local:7233
+  temporalNamespace: call-campaign
+  resources:
+    requests:
+      cpu: "1"
+      memory: 2Gi
+    limits:
+      cpu: "2"
+      memory: 4Gi
+  autoscaling:
+    enabled: true
+    minReplicas: 10
+    maxReplicas: 50
+    metrics:
+      - type: External
+        external:
+          metric:
+            name: temporal_activity_schedule_to_start_latency_p99
+          target:
+            type: Value
+            value: "150m"
+  env:
+    REDIS_URL: "redis://:$(REDIS_PASSWORD)@quantumbpm-redis-master.bpm.svc.cluster.local:6379"
+    REDIS_PASSWORD:
+      secretKeyRef:
+        name: quantumbpm-redis-credentials
+        key: password
+    ACTIVITY_REGISTRY_PATH: "/config/activities-registry.yaml"

@@ -1,0 +1,196 @@
+# Temporal Server — Production Helm Values
+# Chart: temporalio/temporal (https://github.com/temporalio/helm-charts)
+# Install:
+#   helm repo add temporalio https://go.temporal.io/helm-charts
+#   helm upgrade --install temporal temporalio/temporal \
+#     -n temporal --create-namespace \
+#     -f deploy/helm/temporal/values-production.yaml
+
+server:
+  replicaCount: 1
+
+  config:
+    persistence:
+      defaultStore: default
+      visibilityStore: visibility
+      numHistoryShards: 2048
+      datastores:
+        default:
+          sql:
+            pluginName: postgres12
+            driverName: postgres12
+            databaseName: temporal
+            connectAddr: temporal-postgresql.temporal.svc.cluster.local:5432
+            connectProtocol: tcp
+            user: temporal
+            existingSecret: temporal-db-credentials
+            secretKey: password
+            maxConns: 50
+            maxIdleConns: 25
+            maxConnLifetime: 1h
+        visibility:
+          sql:
+            pluginName: postgres12
+            driverName: postgres12
+            databaseName: temporal_visibility
+            connectAddr: temporal-postgresql.temporal.svc.cluster.local:5432
+            connectProtocol: tcp
+            user: temporal
+            existingSecret: temporal-db-credentials
+            secretKey: password
+            maxConns: 30
+            maxIdleConns: 15
+            maxConnLifetime: 1h
+
+  frontend:
+    replicaCount: 3
+    resources:
+      requests:
+        cpu: "1"
+        memory: 4Gi
+      limits:
+        cpu: "2"
+        memory: 8Gi
+    service:
+      type: ClusterIP
+      port: 7233
+    metrics:
+      annotations:
+        enabled: true
+
+  history:
+    replicaCount: 5
+    resources:
+      requests:
+        cpu: "4"
+        memory: 8Gi
+      limits:
+        cpu: "8"
+        memory: 16Gi
+    metrics:
+      annotations:
+        enabled: true
+
+  matching:
+    replicaCount: 3
+    resources:
+      requests:
+        cpu: "1"
+        memory: 4Gi
+      limits:
+        cpu: "2"
+        memory: 8Gi
+    metrics:
+      annotations:
+        enabled: true
+
+  worker:
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: "500m"
+        memory: 1Gi
+      limits:
+        cpu: "1"
+        memory: 2Gi
+
+  metrics:
+    annotations:
+      enabled: true
+    prometheus:
+      timerType: histogram
+
+  dynamicConfig:
+    history.cacheSizeBasedLimit:
+      - value: true
+        constraints: {}
+    history.cacheMaxSizeBytes:
+      - value: 8388608
+        constraints: {}
+
+web:
+  enabled: true
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: "250m"
+      memory: 512Mi
+    limits:
+      cpu: "500m"
+      memory: 1Gi
+  ingress:
+    enabled: true
+    className: nginx
+    hosts:
+      - temporal-web.internal.example.com
+    tls:
+      - secretName: temporal-web-tls
+        hosts:
+          - temporal-web.internal.example.com
+
+admintools:
+  enabled: true
+
+schema:
+  setup:
+    enabled: true
+    backoffLimit: 5
+  update:
+    enabled: true
+    backoffLimit: 5
+
+cassandra:
+  enabled: false
+
+mysql:
+  enabled: false
+
+postgresql:
+  enabled: true
+  auth:
+    existingSecret: temporal-db-credentials
+    secretKeys:
+      adminPasswordKey: postgres-password
+      userPasswordKey: password
+    username: temporal
+    database: temporal
+  architecture: replication
+  primary:
+    persistence:
+      enabled: true
+      size: 500Gi
+      storageClass: fast-ssd
+    resources:
+      requests:
+        cpu: "4"
+        memory: 16Gi
+      limits:
+        cpu: "8"
+        memory: 32Gi
+  readReplicas:
+    replicaCount: 2
+    persistence:
+      enabled: true
+      size: 500Gi
+      storageClass: fast-ssd
+    resources:
+      requests:
+        cpu: "2"
+        memory: 8Gi
+
+elasticsearch:
+  enabled: false
+
+prometheus:
+  enabled: true
+  nodeExporter:
+    enabled: false
+
+grafana:
+  enabled: true
+  replicas: 1
+  ingress:
+    enabled: true
+    className: nginx
+    hosts:
+      - temporal-grafana.internal.example.com

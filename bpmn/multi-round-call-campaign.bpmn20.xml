@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:qbpm="https://quantumbpm.com/schema/1.0/bpmn"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  id="Definitions_MultiRoundCallCampaign"
+                  targetNamespace="https://example.com/bpmn/call-campaign">
+
+  <bpmn:process id="MultiRoundCallCampaign" name="多轮呼叫任务管理流程" isExecutable="true">
+
+    <bpmn:startEvent id="StartEvent" name="活动提交">
+      <bpmn:outgoing>F_Start_Load</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:serviceTask id="Task_LoadCampaign" name="加载呼叫活动">
+      <bpmn:extensionElements>
+        <qbpm:activityType>load-campaign</qbpm:activityType>
+        <qbpm:taskQueue>call-campaign</qbpm:taskQueue>
+      </bpmn:extensionElements>
+      <bpmn:incoming>F_Start_Load</bpmn:incoming>
+      <bpmn:outgoing>F_Load_InitRound</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:scriptTask id="Task_SetRoundOne" name="roundNumber=1">
+      <bpmn:extensionElements>
+        <qbpm:scriptType>feel</qbpm:scriptType>
+        <qbpm:script><![CDATA[roundNumber := 1]]></qbpm:script>
+      </bpmn:extensionElements>
+      <bpmn:incoming>F_Load_InitRound</bpmn:incoming>
+      <bpmn:incoming>F_Inc_LoopBack</bpmn:incoming>
+      <bpmn:outgoing>F_Init_Prepare</bpmn:outgoing>
+    </bpmn:scriptTask>
+
+    <bpmn:serviceTask id="Task_PrepareRound" name="准备本轮呼叫">
+      <bpmn:extensionElements>
+        <qbpm:activityType>prepare-call-round</qbpm:activityType>
+        <qbpm:taskQueue>call-campaign</qbpm:taskQueue>
+      </bpmn:extensionElements>
+      <bpmn:incoming>F_Init_Prepare</bpmn:incoming>
+      <bpmn:outgoing>F_Prepare_Execute</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Task_ExecuteRound" name="执行本轮外呼">
+      <bpmn:extensionElements>
+        <qbpm:activityType>execute-call-round</qbpm:activityType>
+        <qbpm:taskQueue>call-campaign</qbpm:taskQueue>
+      </bpmn:extensionElements>
+      <bpmn:incoming>F_Prepare_Execute</bpmn:incoming>
+      <bpmn:outgoing>F_Execute_Wait</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Task_WaitRound" name="等待本轮完成">
+      <bpmn:extensionElements>
+        <qbpm:activityType>wait-round-completion</qbpm:activityType>
+        <qbpm:taskQueue>call-campaign</qbpm:taskQueue>
+      </bpmn:extensionElements>
+      <bpmn:incoming>F_Execute_Wait</bpmn:incoming>
+      <bpmn:outgoing>F_Wait_Aggregate</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Task_AggregateRound" name="汇总本轮结果">
+      <bpmn:extensionElements>
+        <qbpm:activityType>aggregate-round-results</qbpm:activityType>
+        <qbpm:taskQueue>call-campaign</qbpm:taskQueue>
+      </bpmn:extensionElements>
+      <bpmn:incoming>F_Wait_Aggregate</bpmn:incoming>
+      <bpmn:outgoing>F_Aggregate_ReviewGw</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:exclusiveGateway id="Gateway_NeedSupervisor" name="需要主管复核?" default="F_NoReview_Eval">
+      <bpmn:incoming>F_Aggregate_ReviewGw</bpmn:incoming>
+      <bpmn:outgoing>F_NeedReview_User</bpmn:outgoing>
+      <bpmn:outgoing>F_NoReview_Eval</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="F_NeedReview_User" name="remainingContacts&gt;100"
+                       sourceRef="Gateway_NeedSupervisor" targetRef="Task_SupervisorReview">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${remainingContacts &gt; 100}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:userTask id="Task_SupervisorReview" name="主管复核下一轮">
+      <bpmn:extensionElements>
+        <qbpm:activityType>supervisor-review</qbpm:activityType>
+        <qbpm:assigneeRole>supervisor</qbpm:assigneeRole>
+      </bpmn:extensionElements>
+      <bpmn:incoming>F_NeedReview_User</bpmn:incoming>
+      <bpmn:outgoing>F_Review_ApproveGw</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:exclusiveGateway id="Gateway_Approved" name="主管批准?" default="F_Rejected_Finalize">
+      <bpmn:incoming>F_Review_ApproveGw</bpmn:incoming>
+      <bpmn:outgoing>F_Approved_Eval</bpmn:outgoing>
+      <bpmn:outgoing>F_Rejected_Finalize</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="F_Approved_Eval" name="approved"
+                       sourceRef="Gateway_Approved" targetRef="Task_EvalNextRound">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${approved == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:serviceTask id="Task_EvalNextRound" name="评估是否进入下一轮">
+      <bpmn:extensionElements>
+        <qbpm:activityType>evaluate-next-round</qbpm:activityType>
+        <qbpm:taskQueue>call-campaign</qbpm:taskQueue>
+      </bpmn:extensionElements>
+      <bpmn:incoming>F_NoReview_Eval</bpmn:incoming>
+      <bpmn:incoming>F_Approved_Eval</bpmn:incoming>
+      <bpmn:outgoing>F_Eval_ContinueGw</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:exclusiveGateway id="Gateway_Continue" name="继续下一轮?" default="F_Stop_Finalize">
+      <bpmn:incoming>F_Eval_ContinueGw</bpmn:incoming>
+      <bpmn:outgoing>F_Continue_Timer</bpmn:outgoing>
+      <bpmn:outgoing>F_Stop_Finalize</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="F_Continue_Timer" name="continueNextRound"
+                       sourceRef="Gateway_Continue" targetRef="Timer_BetweenRounds">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${continueNextRound == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:intermediateCatchEvent id="Timer_BetweenRounds" name="轮次间隔">
+      <bpmn:incoming>F_Continue_Timer</bpmn:incoming>
+      <bpmn:outgoing>F_Timer_IncRound</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration>${roundIntervalMinutes}M</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:scriptTask id="Task_IncRound" name="roundNumber++">
+      <bpmn:extensionElements>
+        <qbpm:scriptType>feel</qbpm:scriptType>
+        <qbpm:script><![CDATA[roundNumber := roundNumber + 1]]></qbpm:script>
+      </bpmn:extensionElements>
+      <bpmn:incoming>F_Timer_IncRound</bpmn:incoming>
+      <bpmn:outgoing>F_Inc_LoopBack</bpmn:outgoing>
+    </bpmn:scriptTask>
+
+    <bpmn:serviceTask id="Task_Finalize" name="结束活动">
+      <bpmn:extensionElements>
+        <qbpm:activityType>finalize-campaign</qbpm:activityType>
+        <qbpm:taskQueue>call-campaign</qbpm:taskQueue>
+      </bpmn:extensionElements>
+      <bpmn:incoming>F_Stop_Finalize</bpmn:incoming>
+      <bpmn:incoming>F_Rejected_Finalize</bpmn:incoming>
+      <bpmn:outgoing>F_Finalize_End</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="EndEvent" name="活动完成">
+      <bpmn:incoming>F_Finalize_End</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <!-- 顺序流 -->
+    <bpmn:sequenceFlow id="F_Start_Load" sourceRef="StartEvent" targetRef="Task_LoadCampaign"/>
+    <bpmn:sequenceFlow id="F_Load_InitRound" sourceRef="Task_LoadCampaign" targetRef="Task_SetRoundOne"/>
+    <bpmn:sequenceFlow id="F_Init_Prepare" sourceRef="Task_SetRoundOne" targetRef="Task_PrepareRound"/>
+    <bpmn:sequenceFlow id="F_Prepare_Execute" sourceRef="Task_PrepareRound" targetRef="Task_ExecuteRound"/>
+    <bpmn:sequenceFlow id="F_Execute_Wait" sourceRef="Task_ExecuteRound" targetRef="Task_WaitRound"/>
+    <bpmn:sequenceFlow id="F_Wait_Aggregate" sourceRef="Task_WaitRound" targetRef="Task_AggregateRound"/>
+    <bpmn:sequenceFlow id="F_Aggregate_ReviewGw" sourceRef="Task_AggregateRound" targetRef="Gateway_NeedSupervisor"/>
+    <bpmn:sequenceFlow id="F_NoReview_Eval" sourceRef="Gateway_NeedSupervisor" targetRef="Task_EvalNextRound"/>
+    <bpmn:sequenceFlow id="F_Review_ApproveGw" sourceRef="Task_SupervisorReview" targetRef="Gateway_Approved"/>
+    <bpmn:sequenceFlow id="F_Rejected_Finalize" sourceRef="Gateway_Approved" targetRef="Task_Finalize"/>
+    <bpmn:sequenceFlow id="F_Eval_ContinueGw" sourceRef="Task_EvalNextRound" targetRef="Gateway_Continue"/>
+    <bpmn:sequenceFlow id="F_Stop_Finalize" sourceRef="Gateway_Continue" targetRef="Task_Finalize"/>
+    <bpmn:sequenceFlow id="F_Timer_IncRound" sourceRef="Timer_BetweenRounds" targetRef="Task_IncRound"/>
+    <bpmn:sequenceFlow id="F_Inc_LoopBack" sourceRef="Task_IncRound" targetRef="Task_SetRoundOne"/>
+    <bpmn:sequenceFlow id="F_Finalize_End" sourceRef="Task_Finalize" targetRef="EndEvent"/>
+
+  </bpmn:process>
+
+</bpmn:definitions>

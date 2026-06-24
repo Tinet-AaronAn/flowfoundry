@@ -1,0 +1,8 @@
+target/
+.idea/
+*.iml
+.DS_Store
+deploy/k8s/secrets.yaml
+qbpm-data/
+.local/
+dump.rdb

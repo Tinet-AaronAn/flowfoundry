@@ -1,0 +1,95 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: call-campaign-worker
+  namespace: bpm
+  labels:
+    app: call-campaign-worker
+spec:
+  replicas: 20
+  selector:
+    matchLabels:
+      app: call-campaign-worker
+  template:
+    metadata:
+      labels:
+        app: call-campaign-worker
+    spec:
+      containers:
+        - name: worker
+          image: registry.internal.example.com/call-campaign-worker:1.0.0
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: TEMPORAL_HOST
+              value: temporal-frontend.temporal.svc.cluster.local:7233
+            - name: TEMPORAL_NAMESPACE
+              value: call-campaign
+            - name: TEMPORAL_TASK_QUEUE
+              value: call-campaign
+            - name: TEMPORAL_MAX_CONCURRENT_ACTIVITIES
+              value: "50"
+            - name: REDIS_HOST
+              value: quantumbpm-redis-master.bpm.svc.cluster.local
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: quantumbpm-redis-credentials
+                  key: password
+            - name: ACTIVITY_REGISTRY_PATH
+              value: /config/activities-registry.yaml
+          volumeMounts:
+            - name: registry
+              mountPath: /config
+          resources:
+            requests:
+              cpu: "1"
+              memory: 2Gi
+            limits:
+              cpu: "2"
+              memory: 4Gi
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8080
+            initialDelaySeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+            initialDelaySeconds: 15
+      volumes:
+        - name: registry
+          configMap:
+            name: activities-registry
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: activities-registry
+  namespace: bpm
+data:
+  activities-registry.yaml: |
+    # Mounted from registry/activities-registry.yaml at deploy time
+    # kubectl create configmap activities-registry --from-file=activities-registry.yaml=registry/activities-registry.yaml -n bpm --dry-run=client -o yaml | kubectl apply -f -
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: call-campaign-worker
+  namespace: bpm
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: call-campaign-worker
+  minReplicas: 10
+  maxReplicas: 50
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

@@ -1,0 +1,120 @@
+# OrbStack / Docker 全栈本地环境
+# 用法: ./scripts/docker-stack.sh up
+
+name: quantumbpm-platform
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: temporal
+      POSTGRES_PASSWORD: temporal
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U temporal"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  temporal:
+    image: temporalio/auto-setup:1.25.2
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB: postgres12
+      DB_PORT: 5432
+      POSTGRES_USER: temporal
+      POSTGRES_PWD: temporal
+      POSTGRES_SEEDS: postgres
+    ports:
+      - "7233:7233"
+    healthcheck:
+      test: ["CMD-SHELL", "temporal operator cluster health --address $$(hostname -i):7233"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 40s
+
+  temporal-init:
+    image: temporalio/auto-setup:1.25.2
+    depends_on:
+      temporal:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        temporal operator namespace create call-campaign --address temporal:7233 2>/dev/null || true
+        temporal operator namespace describe call-campaign --address temporal:7233
+        echo "namespace call-campaign ready"
+    restart: "no"
+
+  temporal-ui:
+    image: temporalio/ui:2.31.2
+    depends_on:
+      temporal:
+        condition: service_healthy
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_CORS_ORIGINS: http://localhost:3000
+    ports:
+      - "8080:8080"
+
+  quantumbpm-devserver:
+    profiles: ["full"]
+    image: hub.quantumbpm.com/quantumbpm-public/devserver:latest
+    ports:
+      - "9060:9060"
+    volumes:
+      - qbpm-data:/var/lib/devserver
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:9060/"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  worker:
+    build:
+      context: ../worker
+      dockerfile: Dockerfile
+    depends_on:
+      redis:
+        condition: service_healthy
+      temporal:
+        condition: service_healthy
+      temporal-init:
+        condition: service_completed_successfully
+    environment:
+      TEMPORAL_HOST: temporal:7233
+      TEMPORAL_NAMESPACE: call-campaign
+      TEMPORAL_TASK_QUEUE: call-campaign
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ACTIVITY_REGISTRY_PATH: /config/activities-registry.yaml
+      DEV_MAX_ROUNDS: "1"
+      DEV_ROUND_INTERVAL_MINUTES: "1"
+    ports:
+      - "8081:8080"
+    volumes:
+      - ../registry/activities-registry.yaml:/config/activities-registry.yaml:ro
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+volumes:
+  qbpm-data:
