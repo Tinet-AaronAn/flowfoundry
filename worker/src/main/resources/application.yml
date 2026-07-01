@@ -16,6 +16,8 @@ temporal:
   max-concurrent-workflows: ${TEMPORAL_MAX_CONCURRENT_WORKFLOWS:100}
 
 platform:
+  dmn:
+    service-url: ${DMN_SERVICE_URL:}
   activity-registry:
     path: ${ACTIVITY_REGISTRY_PATH:classpath:activities-registry.yaml}
 

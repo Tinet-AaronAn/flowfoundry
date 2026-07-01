@@ -3,10 +3,9 @@ package com.example.platform.worker;
 import com.example.platform.callcampaign.CallCampaignActivitiesImpl;
 import com.example.platform.callcampaign.CallCampaignWorkflowImpl;
 import com.example.platform.config.TemporalProperties;
+import com.example.platform.interpreter.DynamicActivityRouterImpl;
+import com.example.platform.interpreter.FlowInterpreterWorkflowImpl;
 import io.temporal.client.WorkflowClient;
-import io.temporal.client.WorkflowClientOptions;
-import io.temporal.serviceclient.WorkflowServiceStubs;
-import io.temporal.serviceclient.WorkflowServiceStubsOptions;
 import io.temporal.worker.Worker;
 import io.temporal.worker.WorkerFactory;
 import io.temporal.worker.WorkerOptions;
@@ -23,27 +22,25 @@ public class TemporalWorkerBootstrap {
   private static final Logger log = LoggerFactory.getLogger(TemporalWorkerBootstrap.class);
 
   private final TemporalProperties properties;
+  private final WorkflowClient client;
   private final CallCampaignActivitiesImpl activities;
+  private final DynamicActivityRouterImpl dynamicActivityRouter;
 
   private WorkerFactory factory;
 
   public TemporalWorkerBootstrap(
-      TemporalProperties properties, CallCampaignActivitiesImpl activities) {
+      TemporalProperties properties,
+      WorkflowClient client,
+      CallCampaignActivitiesImpl activities,
+      DynamicActivityRouterImpl dynamicActivityRouter) {
     this.properties = properties;
+    this.client = client;
     this.activities = activities;
+    this.dynamicActivityRouter = dynamicActivityRouter;
   }
 
   @EventListener(ApplicationReadyEvent.class)
   public void startWorker() {
-    WorkflowServiceStubs service =
-        WorkflowServiceStubs.newServiceStubs(
-            WorkflowServiceStubsOptions.newBuilder().setTarget(properties.host()).build());
-
-    WorkflowClient client =
-        WorkflowClient.newInstance(
-            service,
-            WorkflowClientOptions.newBuilder().setNamespace(properties.namespace()).build());
-
     factory = WorkerFactory.newInstance(client);
 
     WorkerOptions workerOptions =
@@ -53,8 +50,9 @@ public class TemporalWorkerBootstrap {
             .build();
 
     Worker worker = factory.newWorker(properties.taskQueue(), workerOptions);
-    worker.registerWorkflowImplementationTypes(CallCampaignWorkflowImpl.class);
-    worker.registerActivitiesImplementations(activities);
+    worker.registerWorkflowImplementationTypes(
+        CallCampaignWorkflowImpl.class, FlowInterpreterWorkflowImpl.class);
+    worker.registerActivitiesImplementations(activities, dynamicActivityRouter);
 
     factory.start();
     log.info(

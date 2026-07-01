@@ -1,0 +1,1705 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>QuantumBPM 风格流程画布 - Temporal Runtime</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #101418;
+        --panel: #202224;
+        --panel-2: #171a1f;
+        --panel-3: #2b2d30;
+        --text: #eef2f7;
+        --muted: #9ca3af;
+        --line: #3a3f45;
+        --blue: #2587e6;
+        --orange: #ff7a1a;
+        --green: #22c55e;
+        --red: #ef4444;
+        --purple: #a855f7;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      .shell {
+        display: grid;
+        grid-template-rows: 56px 1fr;
+        height: 100vh;
+      }
+      .topbar {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 0 16px;
+        border-bottom: 1px solid #24282f;
+        background: #111315;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 800;
+      }
+      .logo {
+        width: 28px;
+        height: 28px;
+        border: 3px solid #8b5cf6;
+        border-right-color: transparent;
+        border-radius: 999px;
+      }
+      .mode-tabs {
+        display: flex;
+        background: var(--panel);
+        border-radius: 4px;
+        overflow: hidden;
+      }
+      .mode-tabs button {
+        min-width: 88px;
+        border-radius: 0;
+        background: transparent;
+      }
+      .mode-tabs button.active { background: var(--orange); color: white; }
+      .topbar .spacer { flex: 1; }
+      .app {
+        min-height: 0;
+        display: grid;
+        grid-template-columns: 240px minmax(640px, 1fr) 330px;
+      }
+      aside, main { min-height: 0; overflow: hidden; }
+      .nav {
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        background: var(--panel);
+        border-right: 1px solid var(--line);
+      }
+      .nav-section { padding: 14px; }
+      .nav-title {
+        margin: 12px 0 8px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #f97316;
+        color: var(--muted);
+        font-size: 11px;
+        text-transform: uppercase;
+      }
+      .nav-link {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        padding: 9px 10px;
+        border-radius: 4px;
+        color: #cbd5e1;
+        font-size: 13px;
+      }
+      .nav-link.active { background: #173554; color: white; }
+      .modeler {
+        min-width: 0;
+        display: grid;
+        grid-template-rows: auto auto 1fr;
+      }
+      .model-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 16px;
+        background: var(--bg);
+      }
+      .badge {
+        padding: 3px 8px;
+        border-radius: 999px;
+        background: #4a2b0f;
+        color: #ffb86b;
+        font-size: 11px;
+        font-weight: 700;
+      }
+      .browser-memory {
+        margin: 0 16px 10px;
+        padding: 12px 14px;
+        border: 1px solid #17446d;
+        border-radius: 4px;
+        background: #0f2a44;
+        color: #cce7ff;
+        font-size: 12px;
+      }
+      .workbench {
+        min-height: 0;
+        display: grid;
+        grid-template-columns: 300px 1fr;
+        margin: 0 16px 0;
+        border: 1px solid var(--line);
+        background: var(--panel-2);
+      }
+      .palette {
+        overflow: auto;
+        padding: 12px;
+        background: var(--panel);
+        border-right: 1px solid var(--line);
+      }
+      .palette h2, .properties h2 {
+        margin: 0 0 12px;
+        font-size: 14px;
+      }
+      .search {
+        margin-bottom: 12px;
+      }
+      .switch-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 8px 0 14px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .switch-row input { width: auto; }
+      details {
+        border: 1px solid #30343a;
+        border-radius: 4px;
+        margin-bottom: 10px;
+      }
+      summary {
+        cursor: pointer;
+        padding: 11px;
+        font-weight: 700;
+        font-size: 12px;
+      }
+      .palette-item {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 10px;
+        background: transparent;
+        color: #d1d5db;
+        border-radius: 4px;
+        text-align: left;
+        font-weight: 500;
+      }
+      .palette-item:hover { background: #2f333a; }
+      .glyph {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 16px;
+        height: 16px;
+        border: 2px solid #aeb6c2;
+        color: #aeb6c2;
+        font-size: 10px;
+      }
+      .glyph.event { border-radius: 999px; }
+      .glyph.end { border-color: var(--red); }
+      .glyph.gateway {
+        transform: rotate(45deg);
+        border-color: var(--orange);
+      }
+      .glyph.gateway span { transform: rotate(-45deg); }
+      .glyph.task { border-radius: 3px; }
+      .canvas-area {
+        position: relative;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+      }
+      .toolbar {
+        position: absolute;
+        z-index: 5;
+        top: 12px;
+        left: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .toolbar.right {
+        left: auto;
+        right: 14px;
+      }
+      .canvas {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+        background-color: #111418;
+        background-image: radial-gradient(#2c3139 1px, transparent 1px);
+        background-size: 18px 18px;
+      }
+      .canvas-content {
+        position: absolute;
+        width: 2600px;
+        height: 1400px;
+        transform-origin: 0 0;
+      }
+      svg.edges {
+        position: absolute;
+        inset: 0;
+        width: 2600px;
+        height: 1400px;
+        pointer-events: none;
+      }
+      .edge-hit {
+        pointer-events: stroke;
+        cursor: pointer;
+      }
+      .node {
+        position: absolute;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #f8fafc;
+        cursor: grab;
+        user-select: none;
+      }
+      .node.selected .node-body,
+      .node.selected .gateway-shape,
+      .node.selected .event-shape {
+        outline: 2px dashed var(--blue);
+        outline-offset: 4px;
+      }
+      .node.connecting-source .node-body,
+      .node.connecting-source .gateway-shape,
+      .node.connecting-source .event-shape {
+        outline: 3px solid var(--orange);
+        outline-offset: 5px;
+      }
+      .task-node {
+        width: 132px;
+        min-height: 80px;
+      }
+      .event-node {
+        width: 36px;
+        height: 36px;
+      }
+      .gateway-node {
+        width: 54px;
+        height: 54px;
+      }
+      .node-body {
+        width: 100%;
+        min-height: 80px;
+        display: grid;
+        align-content: center;
+        gap: 6px;
+        padding: 10px;
+        border: 2px solid #7b8492;
+        border-radius: 8px;
+        background: #262a31;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, .25);
+      }
+      .node-kind {
+        color: #9ca3af;
+        font-size: 10px;
+        text-transform: uppercase;
+      }
+      .node-name {
+        font-size: 13px;
+        font-weight: 800;
+        text-align: center;
+        line-height: 1.35;
+      }
+      .node-meta {
+        color: #9ca3af;
+        font-size: 10px;
+        text-align: center;
+        word-break: break-word;
+      }
+      .event-shape {
+        width: 36px;
+        height: 36px;
+        border: 3px solid var(--green);
+        border-radius: 999px;
+        background: #132117;
+      }
+      .event-shape.endEvent { border-color: var(--red); background: #271515; }
+      .event-shape.intermediateCatchEvent { border-color: var(--blue); background: #102033; }
+      .gateway-shape {
+        width: 54px;
+        height: 54px;
+        border: 3px solid var(--orange);
+        background: #1e1b16;
+        transform: rotate(45deg);
+      }
+      .gateway-label {
+        position: absolute;
+        top: 60px;
+        width: 160px;
+        text-align: center;
+        color: #cbd5e1;
+        font-size: 12px;
+        transform: rotate(-45deg) translateX(-54px);
+      }
+      .timer-label, .event-label {
+        position: absolute;
+        top: 42px;
+        min-width: 120px;
+        text-align: center;
+        color: #cbd5e1;
+        font-size: 12px;
+      }
+      .connection-handle {
+        position: absolute;
+        z-index: 4;
+        width: 10px;
+        height: 10px;
+        border: 2px solid #dbeafe;
+        border-radius: 999px;
+        background: var(--blue);
+        box-shadow: 0 0 0 2px rgba(37, 135, 230, .25);
+        cursor: crosshair;
+      }
+      .connection-handle:hover,
+      .connection-handle.active {
+        width: 14px;
+        height: 14px;
+        background: var(--orange);
+        box-shadow: 0 0 0 4px rgba(255, 122, 26, .22);
+      }
+      .connection-handle.left {
+        left: -5px;
+        top: calc(50% - 5px);
+      }
+      .connection-handle.right {
+        right: -5px;
+        top: calc(50% - 5px);
+      }
+      .connection-handle.top {
+        top: -5px;
+        left: calc(50% - 5px);
+      }
+      .connection-handle.bottom {
+        bottom: -5px;
+        left: calc(50% - 5px);
+      }
+      .task-node .connection-handle.left { left: -7px; }
+      .task-node .connection-handle.right { right: -7px; }
+      .gateway-node .connection-handle {
+        transform: rotate(-45deg);
+      }
+      .minimap {
+        position: absolute;
+        right: 14px;
+        bottom: 14px;
+        width: 160px;
+        height: 100px;
+        border: 1px solid #30343a;
+        background: rgba(32, 34, 36, .9);
+      }
+      .properties {
+        overflow: auto;
+        padding: 14px;
+        background: var(--panel);
+        border-left: 1px solid var(--line);
+      }
+      .properties .type {
+        margin-bottom: 12px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .prop-section {
+        margin-bottom: 10px;
+        border-top: 1px solid #383c42;
+        padding-top: 10px;
+      }
+      .prop-section h3 {
+        margin: 0 0 10px;
+        color: #cbd5e1;
+        font-size: 12px;
+        text-transform: uppercase;
+      }
+      label {
+        display: block;
+        margin: 9px 0 5px;
+        color: #cbd5e1;
+        font-size: 12px;
+      }
+      input, select, textarea {
+        width: 100%;
+        border: 1px solid #3f454d;
+        border-radius: 4px;
+        padding: 8px;
+        background: #2a2d31;
+        color: var(--text);
+        font: inherit;
+        font-size: 12px;
+      }
+      textarea {
+        min-height: 76px;
+        resize: vertical;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+      button {
+        border: 0;
+        border-radius: 4px;
+        padding: 8px 10px;
+        background: var(--blue);
+        color: white;
+        font-weight: 700;
+        cursor: pointer;
+        font-size: 12px;
+      }
+      button.secondary { background: #30343a; color: #d1d5db; }
+      button.danger { background: #6f1d1b; }
+      button:disabled { opacity: .45; cursor: not-allowed; }
+      .row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .row > * { flex: 1; }
+      .help {
+        margin-top: 6px;
+        color: var(--muted);
+        font-size: 11px;
+        line-height: 1.5;
+      }
+      .segment {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 4px;
+        padding: 4px;
+        background: #171a1f;
+        border-radius: 4px;
+      }
+      .segment button {
+        background: transparent;
+        color: #cbd5e1;
+      }
+      .segment button.active { background: var(--blue); color: white; }
+      .json-panel {
+        display: none;
+        position: fixed;
+        inset: 72px 80px;
+        z-index: 20;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #0b1020;
+        box-shadow: 0 28px 80px rgba(0, 0, 0, .45);
+      }
+      .json-panel.open { display: grid; grid-template-rows: auto 1fr; }
+      .json-panel header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px;
+        border-bottom: 1px solid var(--line);
+      }
+      .json-panel pre {
+        margin: 0;
+        padding: 16px;
+        overflow: auto;
+        color: #d1e7ff;
+        font-size: 12px;
+      }
+      .status {
+        margin-top: 10px;
+        padding: 10px;
+        border: 1px solid #30343a;
+        border-radius: 4px;
+        background: #171a1f;
+        color: #cbd5e1;
+        font-size: 12px;
+        line-height: 1.5;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <header class="topbar">
+        <div class="brand"><span class="logo"></span><span>QuantumBPM</span></div>
+        <div class="mode-tabs">
+          <button class="active">BPMN</button>
+          <button>DMN</button>
+        </div>
+        <div class="spacer"></div>
+        <button class="secondary" onclick="toggleTheme()">Toggle color scheme</button>
+        <button class="secondary">DU</button>
+      </header>
+      <div class="app">
+        <aside class="nav">
+          <div class="nav-section">
+            <div class="nav-title">BPMN</div>
+            <div class="nav-link">BPMN Definitions</div>
+            <div class="nav-link">Processes</div>
+            <div class="nav-link active">Modeler</div>
+            <div class="nav-link">Instances</div>
+            <div class="nav-link">External Jobs</div>
+            <div class="nav-link">Incidents</div>
+            <div class="nav-link">Active Triggers</div>
+          </div>
+          <div></div>
+          <div class="nav-section">
+            <div class="nav-title">General</div>
+            <div class="nav-link">Overview</div>
+            <label>Current Project</label>
+            <select><option>Dev</option></select>
+            <button class="secondary" style="width:100%;margin-top:10px;" disabled>Create Project</button>
+          </div>
+        </aside>
+        <main class="modeler">
+          <div class="model-header">
+            <button class="secondary" onclick="fitView()">←</button>
+            <span class="badge">BPMN</span>
+            <div style="width:220px">
+              <label>Name</label>
+              <input id="flowName" value="多轮外呼任务调度流程" oninput="updateFlowMeta()" />
+            </div>
+            <div style="width:260px">
+              <label>Definitions ID</label>
+              <input id="flowId" value="Definitions_MultiRoundOutboundScheduler" oninput="updateFlowMeta()" />
+            </div>
+            <div class="spacer"></div>
+            <button onclick="saveToMemory()">Save</button>
+          </div>
+          <div class="browser-memory">
+            Working from browser memory<br />
+            This model is stored locally for the prototype. Compile / Run sends Flow DSL to Spring Boot and Temporal.
+          </div>
+          <div class="workbench">
+            <aside class="palette">
+              <h2>Palette</h2>
+              <input class="search" id="paletteSearch" placeholder="Search elements..." oninput="renderPalette()" />
+              <label class="switch-row"><input type="checkbox" id="advancedMode" onchange="renderPalette()" /> Advanced Mode</label>
+              <div id="paletteItems"></div>
+              <div class="help">基础模式只展示业务常用元素；高级模式展示 QuantumBPM 的完整 BPMN palette。</div>
+            </aside>
+            <section class="canvas-area">
+              <div class="toolbar">
+                <button class="secondary" onclick="setConnectMode()" title="Append / Connect">↘</button>
+                <button class="secondary" onclick="toggleHighlight()" title="Highlight by emphasis">◎</button>
+                <button class="secondary" onclick="toggleGrid()" title="View Settings">⚙</button>
+                <button class="secondary" onclick="autoLayout()">Auto Layout</button>
+                <button class="secondary" onclick="undo()" id="undoBtn">Undo</button>
+                <button class="secondary" onclick="redo()" id="redoBtn">Redo</button>
+                <button class="danger" onclick="deleteSelected()" id="deleteBtn">Delete</button>
+                <button class="secondary" onclick="showJson('dsl')">Global Definitions</button>
+              </div>
+              <div class="toolbar right">
+                <button onclick="showJson('xml')">View XML</button>
+                <button onclick="importJson()">Import</button>
+                <button onclick="exportJson()">Export</button>
+                <button onclick="compileFlow()">Compile</button>
+                <button onclick="runFlow()">Run</button>
+              </div>
+              <div class="canvas" id="canvas">
+                <div class="canvas-content" id="canvasContent">
+                  <svg class="edges" id="edges"></svg>
+                </div>
+                <div class="minimap"></div>
+              </div>
+            </section>
+          </div>
+        </main>
+        <aside class="properties">
+          <h2 id="propTitle">Process</h2>
+          <div id="propType" class="type"></div>
+          <div id="properties"></div>
+          <div class="prop-section">
+            <h3>Runtime</h3>
+            <label>业务输入 JSON</label>
+            <textarea id="runInput">{"campaignId":"demo-campaign","remainingContacts":0,"vipSegment":false,"roundNumber":1,"maxRounds":1,"roundIntervalMinutes":1}</textarea>
+            <label>Workflow ID</label>
+            <input id="workflowId" placeholder="运行后自动填充" />
+            <div class="row" style="margin-top:10px;">
+              <button onclick="queryState()">查询状态</button>
+              <button class="secondary" onclick="completeHumanTask()">完成人工任务</button>
+            </div>
+            <div id="message" class="status">等待操作</div>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <div class="json-panel" id="jsonPanel">
+      <header>
+        <strong id="jsonTitle">JSON</strong>
+        <div class="spacer"></div>
+        <button class="secondary" onclick="copyJsonPanel()">Copy</button>
+        <button class="secondary" onclick="closeJson()">Close</button>
+      </header>
+      <pre id="jsonContent"></pre>
+    </div>
+
+    <script>
+      const paletteGroups = [
+        {
+          name: 'Events',
+          items: [
+            { kind: 'startEvent', label: 'Start Event', basic: true },
+            { kind: 'endEvent', label: 'End Event', basic: true },
+            { kind: 'intermediateCatchEvent', label: 'Intermediate / Boundary', basic: false, config: { timerDefinition: { type: 'duration', value: '1m' }, subtype: 'timer' } }
+          ]
+        },
+        {
+          name: 'Activities',
+          items: [
+            { kind: 'task', label: 'Generic Task', basic: true },
+            { kind: 'serviceTask', label: 'Service Task', basic: true },
+            { kind: 'userTask', label: 'User Task', basic: true },
+            { kind: 'manualTask', label: 'Manual Task', basic: false },
+            { kind: 'sendTask', label: 'Send Task', basic: false },
+            { kind: 'receiveTask', label: 'Receive Task', basic: false },
+            { kind: 'scriptTask', label: 'Script Task', basic: false, config: { scriptFormat: 'feel', script: 'roundNumber := roundNumber + 1' } },
+            { kind: 'businessRuleTask', label: 'Business Rule Task', basic: false, decisionRef: 'demo-decision', decisionVersion: '1.0.0' }
+          ]
+        },
+        {
+          name: 'Gateways',
+          items: [
+            { kind: 'exclusiveGateway', label: 'Exclusive Gateway', basic: true },
+            { kind: 'parallelGateway', label: 'Parallel Gateway', basic: true },
+            { kind: 'inclusiveGateway', label: 'Inclusive Gateway', basic: false },
+            { kind: 'eventBasedGateway', label: 'Event-based Gateway', basic: false }
+          ]
+        },
+        {
+          name: 'Structural',
+          items: [
+            { kind: 'subProcess', label: 'Sub-process', basic: false },
+            { kind: 'adHocSubProcess', label: 'Ad-Hoc Sub-process', basic: false },
+            { kind: 'callActivity', label: 'Call Activity', basic: false },
+            { kind: 'participant', label: 'Participant', basic: false }
+          ]
+        },
+        {
+          name: 'Annotations',
+          items: [{ kind: 'textAnnotation', label: 'Text Annotation', basic: true }]
+        }
+      ];
+
+      const state = {
+        activities: [],
+        selected: { type: 'process', id: null },
+        connectMode: false,
+        connectionSource: null,
+        connectBuffer: [],
+        scale: 1,
+        history: [],
+        future: [],
+        model: {
+          id: 'Definitions_MultiRoundOutboundScheduler',
+          name: '多轮外呼任务调度流程',
+          targetNamespace: 'https://example.com/bpmn/outbound-scheduler',
+          process: {
+            id: 'MultiRoundOutboundScheduler',
+            name: '多轮外呼任务调度流程',
+            isExecutable: true
+          },
+          nodes: [
+            node('StartEvent', 'startEvent', '提交外呼任务', 80, 220),
+            task('Task_LoadCampaign', 'serviceTask', '加载任务配置', 'load-campaign', 160, 198, 3),
+            task('Task_PrepareRound', 'serviceTask', '准备本轮名单', 'prepare-call-round', 330, 198, 3),
+            node('Gateway_ChannelStrategy', 'exclusiveGateway', '名单调度策略?', 520, 210),
+            task('Task_SplitBatch', 'serviceTask', '拆分外呼批次', 'prepare-call-round', 610, 80, 3),
+            human('Task_ManualConfirm', 'userTask', '人工确认名单', 'call-supervisor', 610, 340),
+            task('Task_ExecuteRound', 'serviceTask', '执行本轮外呼', 'execute-call-round', 780, 198, 5),
+            task('Task_WaitCompletion', 'serviceTask', '等待外呼结果', 'wait-round-completion', 950, 198, 3),
+            task('Task_AggregateResult', 'serviceTask', '汇总本轮结果', 'aggregate-round-results', 1120, 198, 3),
+            node('Gateway_RiskCheck', 'exclusiveGateway', '触发风险复核?', 1290, 210),
+            human('Task_RiskReview', 'userTask', '运营复核策略', 'operation-manager', 1380, 90),
+            task('Task_EvaluateNextRound', 'serviceTask', '评估是否进入下一轮', 'evaluate-next-round', 1540, 198, 3),
+            node('Gateway_Continue', 'exclusiveGateway', '继续下一轮?', 1730, 210),
+            node('Timer_BetweenRounds', 'intermediateCatchEvent', '轮次间隔', 1850, 330, {
+              config: { subtype: 'timer', timerDefinition: { type: 'duration', value: '1m' } }
+            }),
+            node('Task_IncRound', 'scriptTask', '轮次加一', 1020, 360, {
+              config: { scriptFormat: 'feel', script: 'roundNumber := roundNumber + 1' }
+            }),
+            task('Task_Finalize', 'serviceTask', '结束并生成报告', 'finalize-campaign', 1830, 198, 3),
+            node('EndEvent', 'endEvent', '任务完成', 2010, 220)
+          ],
+          edges: [
+            edge('F_Start_Load', 'StartEvent', 'Task_LoadCampaign'),
+            edge('F_Load_Prepare', 'Task_LoadCampaign', 'Task_PrepareRound'),
+            edge('F_Prepare_ChannelGw', 'Task_PrepareRound', 'Gateway_ChannelStrategy'),
+            edge('F_Channel_Normal', 'Gateway_ChannelStrategy', 'Task_ExecuteRound', 'default'),
+            edge('F_Channel_SplitBatch', 'Gateway_ChannelStrategy', 'Task_SplitBatch', '${remainingContacts > 500}'),
+            edge('F_Channel_Manual', 'Gateway_ChannelStrategy', 'Task_ManualConfirm', '${vipSegment == true}'),
+            edge('F_Split_Execute', 'Task_SplitBatch', 'Task_ExecuteRound'),
+            edge('F_Manual_Execute', 'Task_ManualConfirm', 'Task_ExecuteRound'),
+            edge('F_Execute_Wait', 'Task_ExecuteRound', 'Task_WaitCompletion'),
+            edge('F_Wait_Aggregate', 'Task_WaitCompletion', 'Task_AggregateResult'),
+            edge('F_Aggregate_RiskGw', 'Task_AggregateResult', 'Gateway_RiskCheck'),
+            edge('F_Risk_Review', 'Gateway_RiskCheck', 'Task_RiskReview', '${complaintRate > 0.03 or failedRate > 0.4}'),
+            edge('F_Risk_No', 'Gateway_RiskCheck', 'Task_EvaluateNextRound', 'default'),
+            edge('F_Risk_Evaluate', 'Task_RiskReview', 'Task_EvaluateNextRound'),
+            edge('F_Evaluate_ContinueGw', 'Task_EvaluateNextRound', 'Gateway_Continue'),
+            edge('F_Continue_Timer', 'Gateway_Continue', 'Timer_BetweenRounds', '${continueNextRound == true}'),
+            edge('F_Stop_Finalize', 'Gateway_Continue', 'Task_Finalize', 'default'),
+            edge('F_Timer_IncRound', 'Timer_BetweenRounds', 'Task_IncRound'),
+            edge('F_Inc_Prepare', 'Task_IncRound', 'Task_PrepareRound'),
+            edge('F_Finalize_End', 'Task_Finalize', 'EndEvent')
+          ]
+        }
+      };
+
+      function node(id, kind, name, x, y, extra = {}) {
+        return {
+          id,
+          kind,
+          name,
+          x,
+          y,
+          documentation: '',
+          emphasis: 'none',
+          inputMapping: {},
+          outputMapping: {},
+          headers: {},
+          loop: 'none',
+          config: {},
+          ...extra
+        };
+      }
+
+      function task(id, kind, name, activityType, x, y, retries) {
+        return node(id, kind, name, x, y, {
+          activityType,
+          maxAttempts: retries,
+          config: { quantumTaskDefinition: { type: activityType, retries: String(retries) } }
+        });
+      }
+
+      function human(id, kind, name, candidateGroups, x, y) {
+        return node(id, kind, name, x, y, {
+          config: { quantumAssignmentDefinition: { candidateGroups } }
+        });
+      }
+
+      function configureDefaultMappings() {
+        const mappings = {
+          Task_LoadCampaign: {
+            inputMapping: { campaignId: '$.input.campaignId' },
+            outputMapping: {
+              maxRounds: '$.input.maxRounds',
+              roundIntervalMinutes: '$.input.roundIntervalMinutes',
+              roundNumber: '$.input.roundNumber',
+              remainingContacts: '$.input.remainingContacts'
+            }
+          },
+          Task_PrepareRound: {
+            inputMapping: { campaignId: '$.input.campaignId', roundNumber: '$.vars.roundNumber' },
+            outputMapping: { batchId: '$.lastResult.batchId', contactCount: '$.lastResult.contactCount' }
+          },
+          Task_SplitBatch: {
+            inputMapping: { campaignId: '$.input.campaignId', roundNumber: '$.vars.roundNumber' },
+            outputMapping: { batchId: '$.lastResult.batchId', contactCount: '$.lastResult.contactCount' }
+          },
+          Task_ExecuteRound: {
+            inputMapping: { campaignId: '$.input.campaignId', roundNumber: '$.vars.roundNumber', batchId: '$.vars.batchId' },
+            outputMapping: { dialerTaskId: '$.lastResult.dialerTaskId', submittedCount: '$.lastResult.submittedCount' }
+          },
+          Task_WaitCompletion: {
+            inputMapping: { campaignId: '$.input.campaignId', roundNumber: '$.vars.roundNumber', dialerTaskId: '$.vars.dialerTaskId' }
+          },
+          Task_AggregateResult: {
+            inputMapping: { campaignId: '$.input.campaignId', roundNumber: '$.vars.roundNumber' },
+            outputMapping: {}
+          },
+          Task_EvaluateNextRound: {
+            inputMapping: {
+              campaignId: '$.input.campaignId',
+              roundNumber: '$.vars.roundNumber',
+              remainingContacts: '$.vars.remainingContacts',
+              maxRounds: '$.vars.maxRounds'
+            },
+            outputMapping: { continueNextRound: '$.lastResult.continueNextRound' }
+          },
+          Task_Finalize: {
+            inputMapping: { campaignId: '$.input.campaignId', totalRoundsExecuted: '$.vars.roundNumber' },
+            outputMapping: { finalStatus: '$.lastResult.finalStatus', reportUrl: '$.lastResult.reportUrl' }
+          }
+        };
+        for (const current of state.model.nodes) {
+          Object.assign(current, mappings[current.id] || {});
+        }
+      }
+
+      function edge(id, from, to, condition = 'default') {
+        return { id, from, to, condition, name: '', documentation: '' };
+      }
+
+      function $(id) { return document.getElementById(id); }
+      function selectedNode() { return state.model.nodes.find(n => n.id === state.selected.id); }
+      function selectedEdge() { return state.model.edges.find(e => e.id === state.selected.id); }
+      function pretty(value) { return JSON.stringify(value, null, 2); }
+
+      async function loadActivities() {
+        try {
+          const res = await fetch('/api/activities');
+          const data = await res.json();
+          state.activities = data.activities || [];
+        } catch (err) {
+          message('无法加载 Activity Registry：' + err.message);
+        }
+        loadFromMemory();
+        renderAll();
+      }
+
+      function renderAll() {
+        renderPalette();
+        renderCanvas();
+        renderProperties();
+        updateButtons();
+      }
+
+      function renderPalette() {
+        const advanced = $('advancedMode').checked;
+        const keyword = $('paletteSearch').value.trim().toLowerCase();
+        $('paletteItems').innerHTML = paletteGroups.map(group => {
+          const items = group.items.filter(item => (advanced || item.basic) && item.label.toLowerCase().includes(keyword));
+          if (items.length === 0) return '';
+          return `<details open><summary>${group.name}</summary>${items.map(item => `
+            <button class="palette-item" onclick='addNodeFromPalette(${JSON.stringify(item)})'>
+              ${glyph(item.kind)} <span>${item.label}</span>
+            </button>
+          `).join('')}</details>`;
+        }).join('');
+      }
+
+      function glyph(kind) {
+        if (kind.includes('Event')) return `<span class="glyph event ${kind === 'endEvent' ? 'end' : ''}"></span>`;
+        if (kind.includes('Gateway')) return `<span class="glyph gateway"><span>◇</span></span>`;
+        return '<span class="glyph task"></span>';
+      }
+
+      function renderCanvas() {
+        const content = $('canvasContent');
+        content.style.transform = `scale(${state.scale})`;
+        [...content.querySelectorAll('.node')].forEach(el => el.remove());
+        for (const current of state.model.nodes) {
+          const el = document.createElement('div');
+          el.className = `node ${nodeClass(current)} ${state.selected.type === 'node' && state.selected.id === current.id ? 'selected' : ''} ${state.connectionSource === current.id ? 'connecting-source' : ''}`;
+          el.style.left = `${current.x}px`;
+          el.style.top = `${current.y}px`;
+          el.innerHTML = nodeHtml(current);
+          el.onclick = evt => {
+            evt.stopPropagation();
+            if (state.connectMode) {
+              handleConnectionClick(evt, current.id, 'node');
+              return;
+            }
+            select('node', current.id);
+          };
+          makeDraggable(el, current);
+          content.appendChild(el);
+        }
+        $('canvas').onclick = () => select('process', null);
+        renderEdges();
+      }
+
+      function nodeClass(current) {
+        if (current.kind.includes('Gateway')) return 'gateway-node';
+        if (current.kind.includes('Event')) return 'event-node';
+        return 'task-node';
+      }
+
+      function nodeHtml(current) {
+        const handles = nodeHandlesHtml(current);
+        if (current.kind.includes('Gateway')) {
+          return `<div class="gateway-shape"><div class="gateway-label">${current.name || current.id}</div></div>${handles}`;
+        }
+        if (current.kind.includes('Event')) {
+          return `<div class="event-shape ${current.kind}"></div><div class="${current.kind === 'intermediateCatchEvent' ? 'timer-label' : 'event-label'}">${current.name || current.id}</div>${handles}`;
+        }
+        return `<div class="node-body"><div class="node-kind">${current.kind}</div><div class="node-name">${current.name || current.id}</div><div class="node-meta">${nodeMeta(current)}</div></div>${handles}`;
+      }
+
+      function nodeHandlesHtml(current) {
+        const active = state.connectionSource === current.id ? ' active' : '';
+        return ['left', 'right', 'top', 'bottom'].map(position =>
+          `<span class="connection-handle ${position}${active}" title="连接 ${current.id}" onclick="handleConnectionClick(event, '${current.id}', '${position}')"></span>`
+        ).join('');
+      }
+
+      function nodeMeta(current) {
+        if (current.activityType) return current.activityType;
+        if (current.decisionRef) return current.decisionRef;
+        if (current.config?.quantumAssignmentDefinition?.candidateGroups) return current.config.quantumAssignmentDefinition.candidateGroups;
+        if (current.config?.script) return current.config.script;
+        return current.id;
+      }
+
+      function renderEdges() {
+        const svg = $('edges');
+        svg.innerHTML = '<defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#2587e6"/></marker></defs>';
+        for (const current of state.model.edges) {
+          const from = state.model.nodes.find(n => n.id === current.from);
+          const to = state.model.nodes.find(n => n.id === current.to);
+          if (!from || !to) continue;
+          const p = edgePoints(from, to);
+          const d = `M ${p.x1} ${p.y1} C ${p.x1 + 80} ${p.y1}, ${p.x2 - 80} ${p.y2}, ${p.x2} ${p.y2}`;
+          const line = svgEl('path', { d, stroke: state.selected.type === 'edge' && state.selected.id === current.id ? '#ff7a1a' : '#2587e6', 'stroke-width': 2, fill: 'none', 'marker-end': 'url(#arrow)' });
+          svg.appendChild(line);
+          const hit = svgEl('path', { d, stroke: 'transparent', 'stroke-width': 18, fill: 'none', class: 'edge-hit' });
+          hit.onclick = evt => { evt.stopPropagation(); select('edge', current.id); };
+          svg.appendChild(hit);
+          if (current.condition && current.condition !== 'default') {
+            svg.appendChild(svgEl('text', { x: (p.x1 + p.x2) / 2 - 60, y: (p.y1 + p.y2) / 2 - 10, fill: '#cbd5e1', 'font-size': 12 }, edgeConditionLabel(current)));
+          }
+        }
+      }
+
+      function edgePoints(from, to) {
+        const fromGateway = from.kind.includes('Gateway');
+        const fromEvent = from.kind.includes('Event');
+        const toGateway = to.kind.includes('Gateway');
+        const toEvent = to.kind.includes('Event');
+        return {
+          x1: from.x + (fromGateway ? 54 : fromEvent ? 36 : 132),
+          y1: from.y + (fromGateway ? 27 : fromEvent ? 18 : 40),
+          x2: to.x,
+          y2: to.y + (toGateway ? 27 : toEvent ? 18 : 40)
+        };
+      }
+
+      function svgEl(name, attrs, text) {
+        const el = document.createElementNS('http://www.w3.org/2000/svg', name);
+        for (const [key, value] of Object.entries(attrs)) el.setAttribute(key, value);
+        if (text) el.textContent = text;
+        return el;
+      }
+
+      function renderProperties() {
+        if (state.selected.type === 'edge') return renderEdgeProperties();
+        if (state.selected.type === 'node') return renderNodeProperties();
+        return renderProcessProperties();
+      }
+
+      function renderProcessProperties() {
+        $('propTitle').textContent = 'Process';
+        $('propType').textContent = '';
+        $('properties').innerHTML = `
+          <div class="prop-section"><h3>General</h3>
+            <label>Process Name</label><input value="${escapeAttr(state.model.process.name)}" oninput="updateProcess('name', this.value)" />
+            <label>Process ID</label><input value="${escapeAttr(state.model.process.id)}" oninput="updateProcess('id', this.value)" />
+            <label class="switch-row"><input type="checkbox" ${state.model.process.isExecutable ? 'checked' : ''} onchange="updateProcess('isExecutable', this.checked)" /> Executable</label>
+            <div class="help">When off, the engine will not run this process, useful for reference-only diagrams.</div>
+          </div>
+          <div class="prop-section"><h3>Flow Actions</h3>
+            <div class="row"><button onclick="showJson('dsl')">View DSL</button><button onclick="showJson('xml')">View XML</button></div>
+          </div>
+        `;
+      }
+
+      function renderNodeProperties() {
+        const n = selectedNode();
+        if (!n) return renderProcessProperties();
+        $('propTitle').textContent = 'Properties';
+        $('propType').textContent = `Type: ${n.kind}`;
+        $('properties').innerHTML = `
+          ${generalSection(n)}
+          <div class="prop-section"><h3>Actions</h3>
+            <button class="danger" onclick="deleteSelected()">Delete Node</button>
+            <div class="help">删除节点会同时删除所有进入和离开该节点的 Sequence Flow。</div>
+          </div>
+          ${routingSection(n)}
+          ${taskDefinitionSection(n)}
+          ${assignmentSection(n)}
+          ${businessRuleSection(n)}
+          ${scriptSection(n)}
+          ${timerSection(n)}
+          ${mappingSection(n, 'inputMapping', 'Input Mappings')}
+          ${mappingSection(n, 'outputMapping', 'Output Mappings')}
+          ${headersSection(n)}
+          ${loopSection(n)}
+        `;
+      }
+
+      function renderEdgeProperties() {
+        const e = selectedEdge();
+        if (!e) return renderProcessProperties();
+        const mode = edgeConditionMode(e);
+        const dmn = dmnCondition(e);
+        $('propTitle').textContent = 'Properties';
+        $('propType').textContent = 'Type: SequenceFlow';
+        $('properties').innerHTML = `
+          <div class="prop-section"><h3>General</h3>
+            <label>ID *</label><input value="${escapeAttr(e.id)}" oninput="updateEdge('id', this.value)" />
+            <label>Name</label><input value="${escapeAttr(e.name || '')}" oninput="updateEdge('name', this.value)" />
+            <label>Documentation</label><textarea oninput="updateEdge('documentation', this.value)">${escapeHtml(e.documentation || '')}</textarea>
+          </div>
+          <div class="prop-section"><h3>Condition</h3>
+            <label>Condition Type</label>
+            <div class="segment">
+              <button class="${mode === 'feel' ? 'active' : ''}" onclick="updateEdgeConditionMode('feel')">FEEL</button>
+              <button class="${mode === 'dmn' ? 'active' : ''}" onclick="updateEdgeConditionMode('dmn')">DMN</button>
+              <button class="${mode === 'default' ? 'active' : ''}" onclick="updateEdgeConditionMode('default')">Default</button>
+            </div>
+            ${mode === 'dmn' ? `
+              <label>Decision Ref</label><input value="${escapeAttr(dmn.decisionRef || '')}" placeholder="risk-routing-decision" oninput="updateEdgeDmn('decisionRef', this.value)" />
+              <label>Decision Version</label><input value="${escapeAttr(dmn.decisionVersion || 'latest')}" oninput="updateEdgeDmn('decisionVersion', this.value)" />
+              <label>Result Path</label><input value="${escapeAttr(dmn.resultPath || 'matched')}" placeholder="matched" oninput="updateEdgeDmn('resultPath', this.value)" />
+              <div class="help">DMN 条件会通过 Temporal Activity 调用外部 Node.js DMN/JS 服务，返回布尔值或 matched 字段后决定是否走这条线。</div>
+            ` : `
+              <label>FEEL Expression</label><input value="${escapeAttr(feelCondition(e))}" placeholder="\${amount > 1000}" oninput="updateEdgeFeel(this.value)" ${mode === 'default' ? 'disabled' : ''} />
+              <div class="help">FEEL 会被 Flow Compiler 编译为 Safe FEEL AST，并在 Temporal Workflow 内确定性执行。</div>
+            `}
+          </div>
+          <div class="prop-section"><h3>Default Flow</h3>
+            <label class="switch-row"><input type="checkbox" ${e.condition === 'default' ? 'checked' : ''} onchange="updateEdge('condition', this.checked ? 'default' : '')" /> Taken when no other condition matches</label>
+          </div>
+          <div class="prop-section"><h3>Actions</h3>
+            <button class="danger" onclick="deleteSelected()">Delete Sequence Flow</button>
+          </div>
+        `;
+      }
+
+      function generalSection(n) {
+        return `<div class="prop-section"><h3>General</h3>
+          <label>ID *</label><input value="${escapeAttr(n.id)}" oninput="updateNode('id', this.value)" />
+          <label>Name</label><input value="${escapeAttr(n.name || '')}" oninput="updateNode('name', this.value)" />
+          <label>Documentation</label><textarea oninput="updateNode('documentation', this.value)">${escapeHtml(n.documentation || '')}</textarea>
+          <label>Emphasis</label>
+          <div class="segment">${['none','primary','alternate','exception'].map(v => `<button class="${n.emphasis === v ? 'active' : ''}" onclick="updateNode('emphasis','${v}')">${v}</button>`).join('')}</div>
+          <div class="help">用于 “Highlight by emphasis” 视图，标记主链路、备选链路和异常链路。</div>
+        </div>`;
+      }
+
+      function routingSection(n) {
+        const outgoing = state.model.edges.filter(e => e.from === n.id);
+        return `<div class="prop-section"><h3>Routing</h3>
+          <label>Default outgoing flow</label>
+          <select onchange="setDefaultFlow(this.value)">
+            <option value="">None</option>
+            ${outgoing.map(e => `<option value="${e.id}" ${e.condition === 'default' ? 'selected' : ''}>${e.id} -> ${e.to}</option>`).join('')}
+          </select>
+          <div class="help">Taken when no other condition matches.</div>
+        </div>`;
+      }
+
+      function taskDefinitionSection(n) {
+        if (!['task','serviceTask','sendTask','businessRuleTask','callActivity'].includes(n.kind)) return '';
+        const options = state.activities.map(a => `<option value="${a.id}" ${a.id === n.activityType ? 'selected' : ''}>${a.name || a.id}</option>`).join('');
+        return `<div class="prop-section"><h3>Task Definition</h3>
+          <label>Task Type</label>
+          <div class="segment"><button class="active">String</button><button>FEEL</button></div>
+          <select onchange="updateActivityType(this.value)"><option value="">Select registered activity</option>${options}</select>
+          <input style="margin-top:8px" value="${escapeAttr(n.activityType || '')}" placeholder="e.g. email-worker" oninput="updateActivityType(this.value)" />
+          <label>Retries</label>
+          <div class="segment"><button class="active">Number</button><button>FEEL</button><button disabled>ISO</button></div>
+          <input type="number" value="${n.maxAttempts || 3}" oninput="updateNodeNumber('maxAttempts', this.value)" />
+        </div>`;
+      }
+
+      function assignmentSection(n) {
+        if (!['userTask','manualTask'].includes(n.kind)) return '';
+        return `<div class="prop-section"><h3>Assignment</h3>
+          <label>Candidate Groups</label><input value="${escapeAttr(n.config?.quantumAssignmentDefinition?.candidateGroups || '')}" oninput="updateConfigPath(['quantumAssignmentDefinition','candidateGroups'], this.value)" />
+          <label>Assignee</label><input value="${escapeAttr(n.config?.quantumAssignmentDefinition?.assignee || '')}" oninput="updateConfigPath(['quantumAssignmentDefinition','assignee'], this.value)" />
+          <div class="help">运行时映射为 Temporal Workflow 等待 Signal，人工任务完成后继续执行。</div>
+        </div>`;
+      }
+
+      function businessRuleSection(n) {
+        if (n.kind !== 'businessRuleTask') return '';
+        return `<div class="prop-section"><h3>Business Rule / DMN</h3>
+          <label>Decision Ref</label><input value="${escapeAttr(n.decisionRef || '')}" oninput="updateNode('decisionRef', this.value)" />
+          <label>Decision Version</label><input value="${escapeAttr(n.decisionVersion || '1.0.0')}" oninput="updateNode('decisionVersion', this.value)" />
+          <div class="help">后端默认映射为 dmn-decision Activity，由 Activity 调用既有 Node.js DMN/JS 服务。</div>
+        </div>`;
+      }
+
+      function scriptSection(n) {
+        if (n.kind !== 'scriptTask') return '';
+        return `<div class="prop-section"><h3>Script</h3>
+          <label>Script Format</label><select onchange="updateConfig('scriptFormat', this.value)"><option ${n.config?.scriptFormat === 'feel' ? 'selected' : ''}>feel</option></select>
+          <label>Script</label><textarea oninput="updateConfig('script', this.value)">${escapeHtml(n.config?.script || '')}</textarea>
+        </div>`;
+      }
+
+      function timerSection(n) {
+        if (!['timerEvent','intermediateCatchEvent','boundaryEvent'].includes(n.kind)) return '';
+        const def = n.config?.timerDefinition || {};
+        return `<div class="prop-section"><h3>Timer Definition</h3>
+          <label>Type</label><select onchange="updateTimer('type', this.value)"><option ${def.type === 'duration' ? 'selected' : ''}>duration</option><option ${def.type === 'date' ? 'selected' : ''}>date</option><option ${def.type === 'cycle' ? 'selected' : ''}>cycle</option></select>
+          <label>Value</label><input value="${escapeAttr(def.value || n.config?.duration || '1m')}" placeholder="1m / PT1M / \${roundIntervalMinutes}M" oninput="updateTimer('value', this.value)" />
+        </div>`;
+      }
+
+      function mappingSection(n, key, title) {
+        return `<div class="prop-section"><h3>${title}</h3>
+          <textarea oninput="updateJsonNode('${key}', this.value)">${pretty(n[key] || {})}</textarea>
+        </div>`;
+      }
+
+      function headersSection(n) {
+        return `<div class="prop-section"><h3>Task Headers</h3>
+          <textarea oninput="updateJsonNode('headers', this.value)">${pretty(n.headers || {})}</textarea>
+        </div>`;
+      }
+
+      function loopSection(n) {
+        return `<div class="prop-section"><h3>Loop</h3>
+          <div class="segment">${[
+            ['none','None'],
+            ['multiInstance','Multi-Instance'],
+            ['standardLoop','Standard']
+          ].map(([value,label]) => `<button class="${n.loop === value ? 'active' : ''}" onclick="updateNode('loop','${value}')">${label}</button>`).join('')}</div>
+        </div>`;
+      }
+
+      function select(type, id) {
+        state.selected = { type, id };
+        renderCanvas();
+        renderProperties();
+        updateButtons();
+      }
+
+      function addNodeFromPalette(item) {
+        pushHistory();
+        const id = `${item.kind}_${Date.now().toString(36)}`;
+        const n = node(id, item.kind, item.label, 180 + state.model.nodes.length * 24, 140 + state.model.nodes.length * 18, {
+          decisionRef: item.decisionRef,
+          decisionVersion: item.decisionVersion,
+          config: item.config ? structuredClone(item.config) : {}
+        });
+        if (['task','serviceTask','sendTask'].includes(item.kind)) {
+          n.activityType = state.activities[0]?.id || '';
+          n.maxAttempts = 3;
+        }
+        if (item.kind === 'businessRuleTask') {
+          n.activityType = 'dmn-decision';
+        }
+        state.model.nodes.push(n);
+        select('node', id);
+      }
+
+      function appendConnect(id) {
+        state.connectBuffer.push(id);
+        state.connectBuffer = state.connectBuffer.slice(-2);
+        if (state.connectBuffer.length === 2 && state.connectBuffer[0] !== state.connectBuffer[1]) {
+          pushHistory();
+          state.model.edges.push(edge(`F_${Date.now().toString(36)}`, state.connectBuffer[0], state.connectBuffer[1]));
+          state.connectBuffer = [];
+          state.connectMode = false;
+          message('已创建 Sequence Flow');
+          renderAll();
+        }
+      }
+
+      function handleConnectionClick(evt, nodeId, position) {
+        evt.stopPropagation();
+        if (!state.connectionSource) {
+          state.connectionSource = nodeId;
+          state.connectMode = true;
+          state.selected = { type: 'node', id: nodeId };
+          message(`连接起点：${nodeId}，请点击目标节点的连接点`);
+          renderAll();
+          return;
+        }
+        if (state.connectionSource === nodeId) {
+          state.connectionSource = null;
+          state.connectMode = false;
+          message('已取消连接');
+          renderAll();
+          return;
+        }
+        createSequenceFlow(state.connectionSource, nodeId);
+      }
+
+      function createSequenceFlow(from, to) {
+        if (!from || !to || from === to) return;
+        const duplicate = state.model.edges.find(e => e.from === from && e.to === to);
+        if (duplicate) {
+          state.connectionSource = null;
+          state.connectMode = false;
+          select('edge', duplicate.id);
+          message(`连线已存在：${duplicate.id}`);
+          return;
+        }
+        pushHistory();
+        const id = `F_${from}_${to}_${Date.now().toString(36)}`;
+        state.model.edges.push(edge(id, from, to));
+        state.connectionSource = null;
+        state.connectMode = false;
+        state.connectBuffer = [];
+        select('edge', id);
+        message(`已创建 Sequence Flow：${id}`);
+      }
+
+      function setConnectMode() {
+        state.connectMode = !state.connectMode;
+        state.connectionSource = null;
+        state.connectBuffer = [];
+        message(state.connectMode ? '连接模式：依次点击两个节点' : '连接模式已关闭');
+      }
+
+      function updateFlowMeta() {
+        state.model.id = $('flowId').value;
+        state.model.name = $('flowName').value;
+      }
+
+      function updateProcess(key, value) {
+        pushHistory();
+        state.model.process[key] = value;
+        if (key === 'name') $('flowName').value = value;
+        renderProperties();
+      }
+
+      function updateNode(key, value) {
+        const n = selectedNode();
+        if (!n) return;
+        pushHistory();
+        if (key === 'id') {
+          const old = n.id;
+          n.id = value;
+          state.selected.id = value;
+          state.model.edges.forEach(e => {
+            if (e.from === old) e.from = value;
+            if (e.to === old) e.to = value;
+          });
+        } else {
+          n[key] = value;
+        }
+        renderAll();
+      }
+
+      function updateNodeNumber(key, value) {
+        updateNode(key, value === '' ? null : Number(value));
+      }
+
+      function updateActivityType(value) {
+        const n = selectedNode();
+        if (!n) return;
+        pushHistory();
+        n.activityType = value;
+        n.config = { ...(n.config || {}), quantumTaskDefinition: { ...(n.config?.quantumTaskDefinition || {}), type: value, retries: String(n.maxAttempts || 3) } };
+        renderAll();
+      }
+
+      function updateConfig(key, value) {
+        const n = selectedNode();
+        pushHistory();
+        n.config = { ...(n.config || {}), [key]: value };
+        renderAll();
+      }
+
+      function updateConfigPath(path, value) {
+        const n = selectedNode();
+        pushHistory();
+        n.config = { ...(n.config || {}) };
+        let current = n.config;
+        for (let i = 0; i < path.length - 1; i++) {
+          current[path[i]] = { ...(current[path[i]] || {}) };
+          current = current[path[i]];
+        }
+        current[path[path.length - 1]] = value;
+        renderAll();
+      }
+
+      function updateTimer(key, value) {
+        const n = selectedNode();
+        pushHistory();
+        n.config = { ...(n.config || {}), timerDefinition: { ...(n.config?.timerDefinition || {}), [key]: value } };
+        renderAll();
+      }
+
+      function updateJsonNode(key, value) {
+        const n = selectedNode();
+        try {
+          pushHistory();
+          n[key] = JSON.parse(value || '{}');
+          renderCanvas();
+        } catch (err) {
+          message('JSON 格式错误：' + err.message);
+        }
+      }
+
+      function updateEdge(key, value) {
+        const e = selectedEdge();
+        if (!e) return;
+        pushHistory();
+        if (key === 'id') {
+          e.id = value;
+          state.selected.id = value;
+        } else {
+          e[key] = value;
+        }
+        renderAll();
+      }
+
+      function edgeConditionMode(edge) {
+        if (!edge.condition || edge.condition === 'default') return 'default';
+        if (typeof edge.condition === 'object' && String(edge.condition.type || edge.condition.language).toLowerCase() === 'dmn') return 'dmn';
+        return 'feel';
+      }
+
+      function feelCondition(edge) {
+        return edgeConditionMode(edge) === 'feel' ? String(edge.condition || '') : '';
+      }
+
+      function dmnCondition(edge) {
+        return edgeConditionMode(edge) === 'dmn' ? edge.condition : {};
+      }
+
+      function edgeConditionLabel(edge) {
+        if (edgeConditionMode(edge) === 'dmn') {
+          return `DMN: ${edge.condition.decisionRef || 'decision'}`;
+        }
+        return String(edge.condition || '');
+      }
+
+      function updateEdgeConditionMode(mode) {
+        const e = selectedEdge();
+        if (!e) return;
+        pushHistory();
+        if (mode === 'default') {
+          e.condition = 'default';
+        } else if (mode === 'dmn') {
+          e.condition = {
+            type: 'dmn',
+            decisionRef: 'demo-decision',
+            decisionVersion: 'latest',
+            resultPath: 'matched'
+          };
+        } else {
+          e.condition = '${amount > 1000}';
+        }
+        renderAll();
+      }
+
+      function updateEdgeFeel(value) {
+        const e = selectedEdge();
+        if (!e) return;
+        pushHistory();
+        e.condition = value || 'default';
+        renderAll();
+      }
+
+      function updateEdgeDmn(key, value) {
+        const e = selectedEdge();
+        if (!e) return;
+        pushHistory();
+        e.condition = {
+          type: 'dmn',
+          ...dmnCondition(e),
+          [key]: value
+        };
+        renderAll();
+      }
+
+      function deleteSelected() {
+        if (state.selected.type === 'node') {
+          deleteNode(state.selected.id);
+          return;
+        }
+        if (state.selected.type === 'edge') {
+          deleteEdge(state.selected.id);
+          return;
+        }
+        message('请先选择一个节点或连线');
+      }
+
+      function deleteNode(id) {
+        const target = state.model.nodes.find(n => n.id === id);
+        if (!target) return;
+        if (!confirm(`删除节点 ${id}？相关连线也会一起删除。`)) return;
+        pushHistory();
+        state.model.nodes = state.model.nodes.filter(n => n.id !== id);
+        state.model.edges = state.model.edges.filter(e => e.from !== id && e.to !== id);
+        state.connectionSource = null;
+        state.connectMode = false;
+        state.connectBuffer = [];
+        state.selected = { type: 'process', id: null };
+        message(`已删除节点：${id}`);
+        renderAll();
+      }
+
+      function deleteEdge(id) {
+        const target = state.model.edges.find(e => e.id === id);
+        if (!target) return;
+        if (!confirm(`删除连线 ${id}？`)) return;
+        pushHistory();
+        state.model.edges = state.model.edges.filter(e => e.id !== id);
+        state.selected = { type: 'process', id: null };
+        message(`已删除连线：${id}`);
+        renderAll();
+      }
+
+      function setDefaultFlow(edgeId) {
+        const n = selectedNode();
+        pushHistory();
+        state.model.edges.filter(e => e.from === n.id).forEach(e => {
+          if (e.id === edgeId) e.condition = 'default';
+          else if (e.condition === 'default') e.condition = '';
+        });
+        renderAll();
+      }
+
+      function makeDraggable(el, n) {
+        let start = null;
+        el.onmousedown = evt => {
+          if (evt.button !== 0) return;
+          if (evt.target.classList.contains('connection-handle')) return;
+          start = { mx: evt.clientX, my: evt.clientY, x: n.x, y: n.y };
+          document.onmousemove = move => {
+            if (!start) return;
+            n.x = start.x + (move.clientX - start.mx) / state.scale;
+            n.y = start.y + (move.clientY - start.my) / state.scale;
+            renderCanvas();
+          };
+          document.onmouseup = () => {
+            if (start) pushHistory(false);
+            start = null;
+            document.onmousemove = null;
+            document.onmouseup = null;
+          };
+        };
+      }
+
+      function autoLayout() {
+        pushHistory();
+        state.model.nodes.forEach((n, i) => {
+          n.x = 80 + (i % 8) * 220;
+          n.y = 180 + Math.floor(i / 8) * 180;
+        });
+        renderAll();
+      }
+
+      function fitView() {
+        state.scale = 0.78;
+        renderCanvas();
+      }
+
+      function toggleGrid() {
+        $('canvas').style.backgroundImage = $('canvas').style.backgroundImage ? '' : 'radial-gradient(#2c3139 1px, transparent 1px)';
+      }
+
+      function toggleHighlight() {
+        const highlight = state.model.nodes.some(n => n._highlighted);
+        state.model.nodes.forEach(n => n._highlighted = !highlight && n.emphasis !== 'none');
+        message('Highlight by emphasis 已切换');
+      }
+
+      function toggleTheme() {
+        document.documentElement.style.setProperty('--bg', getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() === '#101418' ? '#f6f7fb' : '#101418');
+      }
+
+      function pushHistory(render = true) {
+        state.history.push(JSON.stringify(state.model));
+        if (state.history.length > 50) state.history.shift();
+        state.future = [];
+        if (render) updateButtons();
+      }
+
+      function undo() {
+        if (state.history.length === 0) return;
+        state.future.push(JSON.stringify(state.model));
+        state.model = JSON.parse(state.history.pop());
+        select('process', null);
+        renderAll();
+      }
+
+      function redo() {
+        if (state.future.length === 0) return;
+        state.history.push(JSON.stringify(state.model));
+        state.model = JSON.parse(state.future.pop());
+        select('process', null);
+        renderAll();
+      }
+
+      function updateButtons() {
+        $('undoBtn').disabled = state.history.length === 0;
+        $('redoBtn').disabled = state.future.length === 0;
+        $('deleteBtn').disabled = !['node', 'edge'].includes(state.selected.type);
+      }
+
+      function saveToMemory() {
+        localStorage.setItem('temporal-qbpm-modeler', JSON.stringify(state.model));
+        message('已保存到浏览器本地存储');
+      }
+
+      function loadFromMemory() {
+        const saved = localStorage.getItem('temporal-qbpm-modeler');
+        if (saved) {
+          try { state.model = JSON.parse(saved); } catch (ignored) {}
+        }
+        $('flowId').value = state.model.id;
+        $('flowName').value = state.model.name;
+      }
+
+      function buildDsl() {
+        return {
+          dslVersion: '1.0',
+          flow: { id: state.model.id, name: state.model.name, version: '1.0.0' },
+          inputs: { campaignId: { type: 'string', required: true } },
+          variables: {},
+          nodes: state.model.nodes
+            .filter(n => !['textAnnotation','participant','subProcess','adHocSubProcess'].includes(n.kind))
+            .map(n => ({
+              id: n.id,
+              kind: n.kind,
+              activityType: n.activityType,
+              taskQueue: n.taskQueue,
+              timeout: n.timeout,
+              maxAttempts: n.maxAttempts,
+              decisionRef: n.decisionRef,
+              decisionVersion: n.decisionVersion,
+              inputArgs: n.inputArgs,
+              inputMapping: n.inputMapping,
+              outputMapping: n.outputMapping,
+              config: runtimeConfig(n)
+            })),
+          edges: state.model.edges.map(e => ({ from: e.from, to: e.to, condition: e.condition || 'default' }))
+        };
+      }
+
+      function runtimeConfig(n) {
+        const config = { ...(n.config || {}) };
+        if (n.kind === 'intermediateCatchEvent' && config.timerDefinition?.value) {
+          config.duration = normalizeTimerDuration(config.timerDefinition.value);
+        }
+        return config;
+      }
+
+      function normalizeTimerDuration(value) {
+        const text = String(value || '').trim();
+        if (text.startsWith('${')) return '1m';
+        if (/^\d+[smh]$/.test(text)) return text;
+        if (/^\d+M$/.test(text)) return text.toLowerCase();
+        return text || '1m';
+      }
+
+      function buildBpmnJson() {
+        return {
+          id: state.model.id,
+          name: state.model.name,
+          targetNamespace: state.model.targetNamespace,
+          processes: [{
+            ...state.model.process,
+            flowElements: [
+              ...state.model.nodes.map(n => ({
+                id: n.id,
+                name: n.name,
+                type: n.kind,
+                documentation: n.documentation,
+                extensionElements: extensionElements(n),
+                scriptFormat: n.config?.scriptFormat,
+                script: n.config?.script,
+                timerDefinition: n.config?.timerDefinition
+              })),
+              ...state.model.edges.map(e => ({
+                id: e.id,
+                type: 'sequenceFlow',
+                sourceRef: e.from,
+                targetRef: e.to,
+                conditionExpression: e.condition === 'default' ? undefined : e.condition
+              }))
+            ]
+          }]
+        };
+      }
+
+      function extensionElements(n) {
+        const result = {};
+        if (n.config?.quantumTaskDefinition) result.quantumTaskDefinition = n.config.quantumTaskDefinition;
+        if (n.config?.quantumAssignmentDefinition) result.quantumAssignmentDefinition = n.config.quantumAssignmentDefinition;
+        if (n.decisionRef) result.quantumDecisionDefinition = { decisionRef: n.decisionRef, decisionVersion: n.decisionVersion };
+        return Object.keys(result).length ? result : undefined;
+      }
+
+      async function compileFlow() {
+        try {
+          const res = await post('/api/flows/compile', buildDsl());
+          showJsonValue('Execution Plan', res);
+          message('编译成功：Flow DSL 已转换为 Execution Plan');
+        } catch (err) {
+          message('编译失败：' + err.message);
+        }
+      }
+
+      async function runFlow() {
+        try {
+          const input = JSON.parse($('runInput').value || '{}');
+          const res = await post('/api/flows/run', { flow: buildDsl(), input });
+          $('workflowId').value = res.workflowId;
+          showJsonValue('Run Result', res);
+          message(`已启动 Temporal Workflow：${res.workflowId}`);
+        } catch (err) {
+          message('运行失败：' + err.message);
+        }
+      }
+
+      async function queryState() {
+        const id = $('workflowId').value;
+        if (!id) return message('请先运行流程或输入 Workflow ID');
+        try {
+          const res = await fetch(`/api/flows/runs/${encodeURIComponent(id)}`);
+          showJsonValue('Workflow State', await res.json());
+        } catch (err) {
+          message('查询失败：' + err.message);
+        }
+      }
+
+      async function completeHumanTask() {
+        const id = $('workflowId').value;
+        if (!id) return message('请先输入 Workflow ID');
+        const nodeId = prompt('Human Task Node ID', 'Task_ManualConfirm');
+        if (!nodeId) return;
+        await post(`/api/flows/runs/${encodeURIComponent(id)}/human-task`, {
+          nodeId,
+          outcome: 'approved',
+          variables: { approved: true }
+        });
+        message(`已发送人工任务完成 Signal：${nodeId}`);
+      }
+
+      async function post(url, body) {
+        const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const text = await res.text();
+        const data = text ? JSON.parse(text) : null;
+        if (!res.ok) throw new Error(data?.message || text || res.statusText);
+        return data;
+      }
+
+      function showJson(kind) {
+        if (kind === 'xml') {
+          showJsonValue('BPMN JSON / XML Source Model', buildBpmnJson());
+        } else {
+          showJsonValue('Flow DSL', buildDsl());
+        }
+      }
+
+      function showJsonValue(title, value) {
+        $('jsonTitle').textContent = title;
+        $('jsonContent').textContent = pretty(value);
+        $('jsonPanel').classList.add('open');
+      }
+
+      function closeJson() { $('jsonPanel').classList.remove('open'); }
+      function copyJsonPanel() { navigator.clipboard?.writeText($('jsonContent').textContent); }
+      function exportJson() {
+        showJsonValue('Export Model', { model: state.model, dsl: buildDsl(), bpmn: buildBpmnJson() });
+      }
+      function importJson() {
+        const raw = prompt('粘贴导出的 model JSON');
+        if (!raw) return;
+        try {
+          const parsed = JSON.parse(raw);
+          pushHistory();
+          state.model = parsed.model || parsed;
+          renderAll();
+        } catch (err) {
+          message('导入失败：' + err.message);
+        }
+      }
+
+      function message(text) { $('message').textContent = text; }
+      function escapeHtml(value) { return String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c])); }
+      function escapeAttr(value) { return escapeHtml(value); }
+
+      document.addEventListener('keydown', event => {
+        const tag = event.target?.tagName;
+        const isEditing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(tag) || event.target?.isContentEditable;
+        if (isEditing) return;
+        if (event.key === 'Delete' || event.key === 'Backspace') {
+          event.preventDefault();
+          deleteSelected();
+        }
+      });
+
+      configureDefaultMappings();
+      loadActivities();
+    </script>
+  </body>
+</html>
