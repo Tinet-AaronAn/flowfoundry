@@ -110,7 +110,7 @@ public class CampaignStore {
         request.campaignId(),
         request.roundNumber(),
         request.assigneeRole());
-    // QuantumBPM User Task 在 Inbox 完成；此处桩默认自动批准
+    // FlowFoundry User Task 在 Inbox 完成；此处桩默认自动批准
     return new SupervisorReviewResult(true, "auto-approved-stub");
   }
 

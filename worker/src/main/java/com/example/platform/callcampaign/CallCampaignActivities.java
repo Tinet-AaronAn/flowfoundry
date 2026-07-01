@@ -13,7 +13,7 @@ import io.temporal.activity.ActivityInterface;
 import io.temporal.activity.ActivityMethod;
 
 /**
- * QuantumBPM BPMN Service Task 通过 qbpm:activityType 映射到此接口方法。
+ * FlowFoundry BPMN Service Task 通过 flowfoundry:activityType 映射到此接口方法。
  * 方法名与 registry/activities-registry.yaml 中的 id 对应。
  */
 @ActivityInterface

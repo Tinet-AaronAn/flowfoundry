@@ -37,7 +37,7 @@ case "${1:-up}" in
     echo ""
     echo "Endpoints:"
     echo "  Temporal UI  : http://localhost:8080"
-    echo "  QuantumBPM   : http://localhost:9060"
+    echo "  FlowFoundry   : http://localhost:9060"
     echo "  Worker health: http://localhost:8081/actuator/health"
     ;;
   down)

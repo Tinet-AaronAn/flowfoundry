@@ -3,7 +3,7 @@
                   xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
                   xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
                   xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
-                  xmlns:qbpm="https://quantumbpm.com/schema/1.0/bpmn"
+                  xmlns:flowfoundry="https://flowfoundry.com/schema/1.0/bpmn"
                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                   id="Definitions_MultiRoundCallCampaign"
                   targetNamespace="https://example.com/bpmn/call-campaign">
@@ -16,8 +16,8 @@
 
     <bpmn:serviceTask id="Task_LoadCampaign" name="加载呼叫活动">
       <bpmn:extensionElements>
-        <qbpm:activityType>load-campaign</qbpm:activityType>
-        <qbpm:taskQueue>call-campaign</qbpm:taskQueue>
+        <flowfoundry:activityType>load-campaign</flowfoundry:activityType>
+        <flowfoundry:taskQueue>call-campaign</flowfoundry:taskQueue>
       </bpmn:extensionElements>
       <bpmn:incoming>F_Start_Load</bpmn:incoming>
       <bpmn:outgoing>F_Load_InitRound</bpmn:outgoing>
@@ -25,8 +25,8 @@
 
     <bpmn:scriptTask id="Task_SetRoundOne" name="roundNumber=1">
       <bpmn:extensionElements>
-        <qbpm:scriptType>feel</qbpm:scriptType>
-        <qbpm:script><![CDATA[roundNumber := 1]]></qbpm:script>
+        <flowfoundry:scriptType>feel</flowfoundry:scriptType>
+        <flowfoundry:script><![CDATA[roundNumber := 1]]></flowfoundry:script>
       </bpmn:extensionElements>
       <bpmn:incoming>F_Load_InitRound</bpmn:incoming>
       <bpmn:incoming>F_Inc_LoopBack</bpmn:incoming>
@@ -35,8 +35,8 @@
 
     <bpmn:serviceTask id="Task_PrepareRound" name="准备本轮呼叫">
       <bpmn:extensionElements>
-        <qbpm:activityType>prepare-call-round</qbpm:activityType>
-        <qbpm:taskQueue>call-campaign</qbpm:taskQueue>
+        <flowfoundry:activityType>prepare-call-round</flowfoundry:activityType>
+        <flowfoundry:taskQueue>call-campaign</flowfoundry:taskQueue>
       </bpmn:extensionElements>
       <bpmn:incoming>F_Init_Prepare</bpmn:incoming>
       <bpmn:outgoing>F_Prepare_Execute</bpmn:outgoing>
@@ -44,8 +44,8 @@
 
     <bpmn:serviceTask id="Task_ExecuteRound" name="执行本轮外呼">
       <bpmn:extensionElements>
-        <qbpm:activityType>execute-call-round</qbpm:activityType>
-        <qbpm:taskQueue>call-campaign</qbpm:taskQueue>
+        <flowfoundry:activityType>execute-call-round</flowfoundry:activityType>
+        <flowfoundry:taskQueue>call-campaign</flowfoundry:taskQueue>
       </bpmn:extensionElements>
       <bpmn:incoming>F_Prepare_Execute</bpmn:incoming>
       <bpmn:outgoing>F_Execute_Wait</bpmn:outgoing>
@@ -53,8 +53,8 @@
 
     <bpmn:serviceTask id="Task_WaitRound" name="等待本轮完成">
       <bpmn:extensionElements>
-        <qbpm:activityType>wait-round-completion</qbpm:activityType>
-        <qbpm:taskQueue>call-campaign</qbpm:taskQueue>
+        <flowfoundry:activityType>wait-round-completion</flowfoundry:activityType>
+        <flowfoundry:taskQueue>call-campaign</flowfoundry:taskQueue>
       </bpmn:extensionElements>
       <bpmn:incoming>F_Execute_Wait</bpmn:incoming>
       <bpmn:outgoing>F_Wait_Aggregate</bpmn:outgoing>
@@ -62,8 +62,8 @@
 
     <bpmn:serviceTask id="Task_AggregateRound" name="汇总本轮结果">
       <bpmn:extensionElements>
-        <qbpm:activityType>aggregate-round-results</qbpm:activityType>
-        <qbpm:taskQueue>call-campaign</qbpm:taskQueue>
+        <flowfoundry:activityType>aggregate-round-results</flowfoundry:activityType>
+        <flowfoundry:taskQueue>call-campaign</flowfoundry:taskQueue>
       </bpmn:extensionElements>
       <bpmn:incoming>F_Wait_Aggregate</bpmn:incoming>
       <bpmn:outgoing>F_Aggregate_ReviewGw</bpmn:outgoing>
@@ -82,8 +82,8 @@
 
     <bpmn:userTask id="Task_SupervisorReview" name="主管复核下一轮">
       <bpmn:extensionElements>
-        <qbpm:activityType>supervisor-review</qbpm:activityType>
-        <qbpm:assigneeRole>supervisor</qbpm:assigneeRole>
+        <flowfoundry:activityType>supervisor-review</flowfoundry:activityType>
+        <flowfoundry:assigneeRole>supervisor</flowfoundry:assigneeRole>
       </bpmn:extensionElements>
       <bpmn:incoming>F_NeedReview_User</bpmn:incoming>
       <bpmn:outgoing>F_Review_ApproveGw</bpmn:outgoing>
@@ -102,8 +102,8 @@
 
     <bpmn:serviceTask id="Task_EvalNextRound" name="评估是否进入下一轮">
       <bpmn:extensionElements>
-        <qbpm:activityType>evaluate-next-round</qbpm:activityType>
-        <qbpm:taskQueue>call-campaign</qbpm:taskQueue>
+        <flowfoundry:activityType>evaluate-next-round</flowfoundry:activityType>
+        <flowfoundry:taskQueue>call-campaign</flowfoundry:taskQueue>
       </bpmn:extensionElements>
       <bpmn:incoming>F_NoReview_Eval</bpmn:incoming>
       <bpmn:incoming>F_Approved_Eval</bpmn:incoming>
@@ -131,8 +131,8 @@
 
     <bpmn:scriptTask id="Task_IncRound" name="roundNumber++">
       <bpmn:extensionElements>
-        <qbpm:scriptType>feel</qbpm:scriptType>
-        <qbpm:script><![CDATA[roundNumber := roundNumber + 1]]></qbpm:script>
+        <flowfoundry:scriptType>feel</flowfoundry:scriptType>
+        <flowfoundry:script><![CDATA[roundNumber := roundNumber + 1]]></flowfoundry:script>
       </bpmn:extensionElements>
       <bpmn:incoming>F_Timer_IncRound</bpmn:incoming>
       <bpmn:outgoing>F_Inc_LoopBack</bpmn:outgoing>
@@ -140,8 +140,8 @@
 
     <bpmn:serviceTask id="Task_Finalize" name="结束活动">
       <bpmn:extensionElements>
-        <qbpm:activityType>finalize-campaign</qbpm:activityType>
-        <qbpm:taskQueue>call-campaign</qbpm:taskQueue>
+        <flowfoundry:activityType>finalize-campaign</flowfoundry:activityType>
+        <flowfoundry:taskQueue>call-campaign</flowfoundry:taskQueue>
       </bpmn:extensionElements>
       <bpmn:incoming>F_Stop_Finalize</bpmn:incoming>
       <bpmn:incoming>F_Rejected_Finalize</bpmn:incoming>

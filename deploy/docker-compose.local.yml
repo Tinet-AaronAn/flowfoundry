@@ -1,7 +1,7 @@
 # OrbStack / Docker 全栈本地环境
 # 用法: ./scripts/docker-stack.sh up
 
-name: quantumbpm-platform
+name: flowfoundry-platform
 
 services:
   redis:
@@ -71,13 +71,13 @@ services:
     ports:
       - "8080:8080"
 
-  quantumbpm-devserver:
+  flowfoundry-devserver:
     profiles: ["full"]
-    image: hub.quantumbpm.com/quantumbpm-public/devserver:latest
+    image: hub.flowfoundry.com/flowfoundry-public/devserver:latest
     ports:
       - "9060:9060"
     volumes:
-      - qbpm-data:/var/lib/devserver
+      - flowfoundry-data:/var/lib/devserver
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:9060/"]
       interval: 10s
@@ -117,4 +117,4 @@ services:
       start_period: 30s
 
 volumes:
-  qbpm-data:
+  flowfoundry-data:

@@ -1,5 +1,5 @@
 # Activity 注册表 — 多轮呼叫任务管理流程
-# QuantumBPM BPMN Service Task 通过 activityType 字段映射到此注册表
+# FlowFoundry BPMN Service Task 通过 activityType 字段映射到此注册表
 # Worker 启动时加载，用于校验、文档生成、超时/重试默认值
 
 version: "1.0"

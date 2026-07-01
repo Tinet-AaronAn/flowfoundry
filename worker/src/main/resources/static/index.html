@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>QuantumBPM 风格流程画布 - Temporal Runtime</title>
+    <title>FlowFoundry 风格流程画布 - Temporal Runtime</title>
     <style>
       :root {
         color-scheme: dark;
@@ -53,54 +53,116 @@
         border-right-color: transparent;
         border-radius: 999px;
       }
-      .mode-tabs {
-        display: flex;
-        background: var(--panel);
-        border-radius: 4px;
-        overflow: hidden;
-      }
-      .mode-tabs button {
-        min-width: 88px;
-        border-radius: 0;
-        background: transparent;
-      }
-      .mode-tabs button.active { background: var(--orange); color: white; }
       .topbar .spacer { flex: 1; }
+      .spacer { flex: 1; }
       .app {
         min-height: 0;
         display: grid;
-        grid-template-columns: 240px minmax(640px, 1fr) 330px;
+        grid-template-columns: 220px minmax(640px, 1fr) 330px;
       }
       aside, main { min-height: 0; overflow: hidden; }
       .nav {
         display: grid;
-        grid-template-rows: auto 1fr auto;
+        grid-template-rows: auto 1fr;
+        gap: 12px;
+        padding: 14px;
         background: var(--panel);
         border-right: 1px solid var(--line);
       }
-      .nav-section { padding: 14px; }
       .nav-title {
-        margin: 12px 0 8px;
-        padding-bottom: 8px;
-        border-bottom: 1px solid #f97316;
+        margin: 8px 0;
         color: var(--muted);
         font-size: 11px;
+        font-weight: 800;
         text-transform: uppercase;
       }
       .nav-link {
-        display: flex;
-        gap: 8px;
-        align-items: center;
-        padding: 9px 10px;
-        border-radius: 4px;
+        width: 100%;
+        margin-bottom: 6px;
+        background: transparent;
         color: #cbd5e1;
-        font-size: 13px;
+        text-align: left;
       }
       .nav-link.active { background: #173554; color: white; }
+      .workspace {
+        min-width: 0;
+        min-height: 0;
+        background: var(--bg);
+      }
+      .view { display: none; min-height: 0; height: 100%; }
+      .view.active { display: grid; }
       .modeler {
         min-width: 0;
         display: grid;
         grid-template-rows: auto auto 1fr;
+      }
+      .workflow-list {
+        grid-template-rows: auto auto 1fr;
+        padding: 16px;
+        gap: 12px;
+        overflow: auto;
+      }
+      .page-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .page-header h1 {
+        margin: 0;
+        font-size: 18px;
+      }
+      .table {
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        overflow: hidden;
+        background: var(--panel);
+      }
+      .table-row {
+        display: grid;
+        grid-template-columns: 1.5fr 90px 110px 160px 320px;
+        gap: 8px;
+        align-items: center;
+        padding: 10px 12px;
+        border-bottom: 1px solid #30343a;
+        font-size: 12px;
+      }
+      .table-row.header {
+        color: var(--muted);
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+      .table-row:last-child { border-bottom: 0; }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 3px 8px;
+        border-radius: 999px;
+        background: #273142;
+        color: #cbd5e1;
+        font-size: 11px;
+        font-weight: 700;
+      }
+      .pill.active { background: #12351f; color: #86efac; }
+      .pill.draft { background: #3a2b12; color: #fdba74; }
+      .pill.retired { background: #3b1f23; color: #fca5a5; }
+      .debug-panel {
+        grid-template-rows: auto auto 1fr;
+        padding: 16px;
+        gap: 12px;
+        overflow: auto;
+      }
+      .debug-log {
+        min-height: 280px;
+        white-space: pre-wrap;
+        overflow: auto;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 12px;
+        background: #0b1020;
+        color: #d1e7ff;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 12px;
       }
       .model-header {
         display: flex;
@@ -180,6 +242,8 @@
         font-weight: 500;
       }
       .palette-item:hover { background: #2f333a; }
+      .palette-item[draggable="true"] { cursor: grab; }
+      .palette-item[draggable="true"]:active { cursor: grabbing; }
       .glyph {
         display: inline-flex;
         align-items: center;
@@ -225,6 +289,10 @@
         background-image: radial-gradient(#2c3139 1px, transparent 1px);
         background-size: 18px 18px;
       }
+      .canvas.drag-over {
+        outline: 2px dashed var(--orange);
+        outline-offset: -10px;
+      }
       .canvas-content {
         position: absolute;
         width: 2600px;
@@ -262,6 +330,10 @@
       .node.connecting-source .event-shape {
         outline: 3px solid var(--orange);
         outline-offset: 5px;
+      }
+      .node.connecting-source .connection-handle {
+        background: var(--orange);
+        box-shadow: 0 0 0 4px rgba(255, 122, 26, .22);
       }
       .task-node {
         width: 132px;
@@ -506,39 +578,42 @@
   <body>
     <div class="shell">
       <header class="topbar">
-        <div class="brand"><span class="logo"></span><span>QuantumBPM</span></div>
-        <div class="mode-tabs">
-          <button class="active">BPMN</button>
-          <button>DMN</button>
-        </div>
+        <div class="brand"><span class="logo"></span><span>FlowFoundry</span></div>
         <div class="spacer"></div>
-        <button class="secondary" onclick="toggleTheme()">Toggle color scheme</button>
-        <button class="secondary">DU</button>
+        <span class="badge">Flow DSL + Temporal</span>
       </header>
       <div class="app">
         <aside class="nav">
-          <div class="nav-section">
-            <div class="nav-title">BPMN</div>
-            <div class="nav-link">BPMN Definitions</div>
-            <div class="nav-link">Processes</div>
-            <div class="nav-link active">Modeler</div>
-            <div class="nav-link">Instances</div>
-            <div class="nav-link">External Jobs</div>
-            <div class="nav-link">Incidents</div>
-            <div class="nav-link">Active Triggers</div>
+          <div>
+            <div class="nav-title">Workflow</div>
+            <button class="nav-link active" id="navWorkflows" onclick="switchView('workflows')">Workflow 列表</button>
+            <button class="nav-link" id="navModeler" onclick="switchView('modeler')">流程画布</button>
+            <button class="nav-link" id="navDebug" onclick="switchView('debug')">模拟运行 / 调试</button>
           </div>
-          <div></div>
-          <div class="nav-section">
-            <div class="nav-title">General</div>
-            <div class="nav-link">Overview</div>
-            <label>Current Project</label>
-            <select><option>Dev</option></select>
-            <button class="secondary" style="width:100%;margin-top:10px;" disabled>Create Project</button>
-          </div>
+          <div class="help">当前管理数据存放在浏览器本地，后续可替换为后端 Workflow Definition Repository。</div>
         </aside>
-        <main class="modeler">
+        <main class="workspace">
+          <section class="workflow-list view active" id="workflowListView">
+            <div class="page-header">
+              <h1>Workflow 管理</h1>
+              <div class="spacer"></div>
+              <button onclick="createWorkflow()">新建 Workflow</button>
+              <button class="secondary" onclick="saveWorkflowDefinition()">保存当前版本</button>
+            </div>
+            <div class="row">
+              <input id="workflowSearch" placeholder="按名称或 ID 搜索 Workflow..." oninput="renderWorkflowList()" />
+              <select id="workflowStatusFilter" onchange="renderWorkflowList()">
+                <option value="">全部状态</option>
+                <option value="draft">Draft</option>
+                <option value="active">Active</option>
+                <option value="retired">Retired</option>
+              </select>
+            </div>
+            <div class="table" id="workflowTable"></div>
+          </section>
+          <section class="modeler view" id="modelerView">
           <div class="model-header">
-            <button class="secondary" onclick="fitView()">←</button>
+            <button class="secondary" onclick="fitView()">Fit View</button>
             <span class="badge">BPMN</span>
             <div style="width:220px">
               <label>Name</label>
@@ -559,29 +634,24 @@
             <aside class="palette">
               <h2>Palette</h2>
               <input class="search" id="paletteSearch" placeholder="Search elements..." oninput="renderPalette()" />
-              <label class="switch-row"><input type="checkbox" id="advancedMode" onchange="renderPalette()" /> Advanced Mode</label>
               <div id="paletteItems"></div>
-              <div class="help">基础模式只展示业务常用元素；高级模式展示 QuantumBPM 的完整 BPMN palette。</div>
+              <div class="help">这里只展示当前已接入 Flow DSL、Compiler 和 Temporal Interpreter 的元素。</div>
             </aside>
             <section class="canvas-area">
               <div class="toolbar">
-                <button class="secondary" onclick="setConnectMode()" title="Append / Connect">↘</button>
-                <button class="secondary" onclick="toggleHighlight()" title="Highlight by emphasis">◎</button>
-                <button class="secondary" onclick="toggleGrid()" title="View Settings">⚙</button>
                 <button class="secondary" onclick="autoLayout()">Auto Layout</button>
                 <button class="secondary" onclick="undo()" id="undoBtn">Undo</button>
                 <button class="secondary" onclick="redo()" id="redoBtn">Redo</button>
                 <button class="danger" onclick="deleteSelected()" id="deleteBtn">Delete</button>
-                <button class="secondary" onclick="showJson('dsl')">Global Definitions</button>
+                <button class="secondary" onclick="showJson('dsl')">View DSL</button>
               </div>
               <div class="toolbar right">
-                <button onclick="showJson('xml')">View XML</button>
                 <button onclick="importJson()">Import</button>
                 <button onclick="exportJson()">Export</button>
                 <button onclick="compileFlow()">Compile</button>
                 <button onclick="runFlow()">Run</button>
               </div>
-              <div class="canvas" id="canvas">
+              <div class="canvas" id="canvas" ondragover="allowCanvasDrop(event)" ondragenter="setCanvasDragOver(true)" ondragleave="setCanvasDragOver(false)" ondrop="dropPaletteNode(event)">
                 <div class="canvas-content" id="canvasContent">
                   <svg class="edges" id="edges"></svg>
                 </div>
@@ -589,6 +659,22 @@
               </div>
             </section>
           </div>
+          </section>
+          <section class="debug-panel view" id="debugView">
+            <div class="page-header">
+              <h1>模拟运行 / 调试</h1>
+              <div class="spacer"></div>
+              <button onclick="simulateFlow()">完整模拟</button>
+              <button class="secondary" onclick="stepSimulation()">单步执行</button>
+              <button class="secondary" onclick="resetSimulation()">重置</button>
+            </div>
+            <div class="prop-section">
+              <h3>模拟输入</h3>
+              <textarea id="debugInput">{"campaignId":"demo-campaign","remainingContacts":0,"vipSegment":false,"roundNumber":1,"maxRounds":1,"roundIntervalMinutes":1}</textarea>
+              <div class="help">模拟运行不会调用 Temporal，也不会执行真实 Activity；它用于验证节点路径、默认分支、简单 FEEL 条件和 DMN 条件配置。</div>
+            </div>
+            <div class="debug-log" id="debugLog">等待模拟运行</div>
+          </section>
         </main>
         <aside class="properties">
           <h2 id="propTitle">Process</h2>
@@ -627,7 +713,7 @@
           items: [
             { kind: 'startEvent', label: 'Start Event', basic: true },
             { kind: 'endEvent', label: 'End Event', basic: true },
-            { kind: 'intermediateCatchEvent', label: 'Intermediate / Boundary', basic: false, config: { timerDefinition: { type: 'duration', value: '1m' }, subtype: 'timer' } }
+            { kind: 'intermediateCatchEvent', label: 'Timer Event', basic: true, config: { timerDefinition: { type: 'duration', value: '1m' }, subtype: 'timer' } }
           ]
         },
         {
@@ -636,42 +722,29 @@
             { kind: 'task', label: 'Generic Task', basic: true },
             { kind: 'serviceTask', label: 'Service Task', basic: true },
             { kind: 'userTask', label: 'User Task', basic: true },
-            { kind: 'manualTask', label: 'Manual Task', basic: false },
-            { kind: 'sendTask', label: 'Send Task', basic: false },
-            { kind: 'receiveTask', label: 'Receive Task', basic: false },
-            { kind: 'scriptTask', label: 'Script Task', basic: false, config: { scriptFormat: 'feel', script: 'roundNumber := roundNumber + 1' } },
-            { kind: 'businessRuleTask', label: 'Business Rule Task', basic: false, decisionRef: 'demo-decision', decisionVersion: '1.0.0' }
+            { kind: 'scriptTask', label: 'Script Task', basic: true, config: { scriptFormat: 'feel', script: 'roundNumber := roundNumber + 1' } },
+            { kind: 'businessRuleTask', label: 'Business Rule Task / DMN', basic: true, decisionRef: 'demo-decision', decisionVersion: '1.0.0' }
           ]
         },
         {
           name: 'Gateways',
           items: [
-            { kind: 'exclusiveGateway', label: 'Exclusive Gateway', basic: true },
-            { kind: 'parallelGateway', label: 'Parallel Gateway', basic: true },
-            { kind: 'inclusiveGateway', label: 'Inclusive Gateway', basic: false },
-            { kind: 'eventBasedGateway', label: 'Event-based Gateway', basic: false }
+            { kind: 'exclusiveGateway', label: 'Exclusive Gateway', basic: true }
           ]
-        },
-        {
-          name: 'Structural',
-          items: [
-            { kind: 'subProcess', label: 'Sub-process', basic: false },
-            { kind: 'adHocSubProcess', label: 'Ad-Hoc Sub-process', basic: false },
-            { kind: 'callActivity', label: 'Call Activity', basic: false },
-            { kind: 'participant', label: 'Participant', basic: false }
-          ]
-        },
-        {
-          name: 'Annotations',
-          items: [{ kind: 'textAnnotation', label: 'Text Annotation', basic: true }]
         }
       ];
 
       const state = {
         activities: [],
+        currentView: 'workflows',
+        workflows: [],
+        activeWorkflowId: null,
+        activeVersion: '1.0.0',
+        simulation: null,
+        paletteDragItem: null,
         selected: { type: 'process', id: null },
-        connectMode: false,
         connectionSource: null,
+        connectionSourceHandle: null,
         connectBuffer: [],
         scale: 1,
         history: [],
@@ -755,13 +828,13 @@
         return node(id, kind, name, x, y, {
           activityType,
           maxAttempts: retries,
-          config: { quantumTaskDefinition: { type: activityType, retries: String(retries) } }
+          config: { flowFoundryTaskDefinition: { type: activityType, retries: String(retries) } }
         });
       }
 
       function human(id, kind, name, candidateGroups, x, y) {
         return node(id, kind, name, x, y, {
-          config: { quantumAssignmentDefinition: { candidateGroups } }
+          config: { flowFoundryAssignmentDefinition: { candidateGroups } }
         });
       }
 
@@ -839,17 +912,34 @@
         renderPalette();
         renderCanvas();
         renderProperties();
+        renderWorkflowList();
+        renderNavigation();
         updateButtons();
       }
 
+      function renderNavigation() {
+        $('navWorkflows').classList.toggle('active', state.currentView === 'workflows');
+        $('navModeler').classList.toggle('active', state.currentView === 'modeler');
+        $('navDebug').classList.toggle('active', state.currentView === 'debug');
+      }
+
+      function switchView(view) {
+        state.currentView = view;
+        $('workflowListView').classList.toggle('active', view === 'workflows');
+        $('modelerView').classList.toggle('active', view === 'modeler');
+        $('debugView').classList.toggle('active', view === 'debug');
+        renderNavigation();
+        if (view === 'workflows') renderWorkflowList();
+        if (view === 'debug') resetSimulation(false);
+      }
+
       function renderPalette() {
-        const advanced = $('advancedMode').checked;
         const keyword = $('paletteSearch').value.trim().toLowerCase();
         $('paletteItems').innerHTML = paletteGroups.map(group => {
-          const items = group.items.filter(item => (advanced || item.basic) && item.label.toLowerCase().includes(keyword));
+          const items = group.items.filter(item => item.label.toLowerCase().includes(keyword));
           if (items.length === 0) return '';
           return `<details open><summary>${group.name}</summary>${items.map(item => `
-            <button class="palette-item" onclick='addNodeFromPalette(${JSON.stringify(item)})'>
+            <button class="palette-item" draggable="true" data-item="${escapeAttr(encodeURIComponent(JSON.stringify(item)))}" ondragstart="startPaletteDrag(event, this.dataset.item)" ondragend="setCanvasDragOver(false)">
               ${glyph(item.kind)} <span>${item.label}</span>
             </button>
           `).join('')}</details>`;
@@ -874,10 +964,6 @@
           el.innerHTML = nodeHtml(current);
           el.onclick = evt => {
             evt.stopPropagation();
-            if (state.connectMode) {
-              handleConnectionClick(evt, current.id, 'node');
-              return;
-            }
             select('node', current.id);
           };
           makeDraggable(el, current);
@@ -914,7 +1000,7 @@
       function nodeMeta(current) {
         if (current.activityType) return current.activityType;
         if (current.decisionRef) return current.decisionRef;
-        if (current.config?.quantumAssignmentDefinition?.candidateGroups) return current.config.quantumAssignmentDefinition.candidateGroups;
+        if (current.config?.flowFoundryAssignmentDefinition?.candidateGroups) return current.config.flowFoundryAssignmentDefinition.candidateGroups;
         if (current.config?.script) return current.config.script;
         return current.id;
       }
@@ -926,7 +1012,7 @@
           const from = state.model.nodes.find(n => n.id === current.from);
           const to = state.model.nodes.find(n => n.id === current.to);
           if (!from || !to) continue;
-          const p = edgePoints(from, to);
+          const p = edgePoints(from, to, current);
           const d = `M ${p.x1} ${p.y1} C ${p.x1 + 80} ${p.y1}, ${p.x2 - 80} ${p.y2}, ${p.x2} ${p.y2}`;
           const line = svgEl('path', { d, stroke: state.selected.type === 'edge' && state.selected.id === current.id ? '#ff7a1a' : '#2587e6', 'stroke-width': 2, fill: 'none', 'marker-end': 'url(#arrow)' });
           svg.appendChild(line);
@@ -939,17 +1025,27 @@
         }
       }
 
-      function edgePoints(from, to) {
-        const fromGateway = from.kind.includes('Gateway');
-        const fromEvent = from.kind.includes('Event');
-        const toGateway = to.kind.includes('Gateway');
-        const toEvent = to.kind.includes('Event');
-        return {
-          x1: from.x + (fromGateway ? 54 : fromEvent ? 36 : 132),
-          y1: from.y + (fromGateway ? 27 : fromEvent ? 18 : 40),
-          x2: to.x,
-          y2: to.y + (toGateway ? 27 : toEvent ? 18 : 40)
+      function edgePoints(from, to, flow) {
+        const start = handlePoint(from, flow.fromHandle || 'right');
+        const end = handlePoint(to, flow.toHandle || 'left');
+        return { x1: start.x, y1: start.y, x2: end.x, y2: end.y };
+      }
+
+      function handlePoint(n, position) {
+        const size = nodeSize(n);
+        const points = {
+          left: { x: n.x, y: n.y + size.height / 2 },
+          right: { x: n.x + size.width, y: n.y + size.height / 2 },
+          top: { x: n.x + size.width / 2, y: n.y },
+          bottom: { x: n.x + size.width / 2, y: n.y + size.height }
         };
+        return points[position] || points.right;
+      }
+
+      function nodeSize(n) {
+        if (n.kind.includes('Gateway')) return { width: 54, height: 54 };
+        if (n.kind.includes('Event')) return { width: 36, height: 36 };
+        return { width: 132, height: 80 };
       }
 
       function svgEl(name, attrs, text) {
@@ -976,7 +1072,7 @@
             <div class="help">When off, the engine will not run this process, useful for reference-only diagrams.</div>
           </div>
           <div class="prop-section"><h3>Flow Actions</h3>
-            <div class="row"><button onclick="showJson('dsl')">View DSL</button><button onclick="showJson('xml')">View XML</button></div>
+            <button onclick="showJson('dsl')">View DSL</button>
           </div>
         `;
       }
@@ -1049,9 +1145,6 @@
           <label>ID *</label><input value="${escapeAttr(n.id)}" oninput="updateNode('id', this.value)" />
           <label>Name</label><input value="${escapeAttr(n.name || '')}" oninput="updateNode('name', this.value)" />
           <label>Documentation</label><textarea oninput="updateNode('documentation', this.value)">${escapeHtml(n.documentation || '')}</textarea>
-          <label>Emphasis</label>
-          <div class="segment">${['none','primary','alternate','exception'].map(v => `<button class="${n.emphasis === v ? 'active' : ''}" onclick="updateNode('emphasis','${v}')">${v}</button>`).join('')}</div>
-          <div class="help">用于 “Highlight by emphasis” 视图，标记主链路、备选链路和异常链路。</div>
         </div>`;
       }
 
@@ -1072,11 +1165,9 @@
         const options = state.activities.map(a => `<option value="${a.id}" ${a.id === n.activityType ? 'selected' : ''}>${a.name || a.id}</option>`).join('');
         return `<div class="prop-section"><h3>Task Definition</h3>
           <label>Task Type</label>
-          <div class="segment"><button class="active">String</button><button>FEEL</button></div>
           <select onchange="updateActivityType(this.value)"><option value="">Select registered activity</option>${options}</select>
           <input style="margin-top:8px" value="${escapeAttr(n.activityType || '')}" placeholder="e.g. email-worker" oninput="updateActivityType(this.value)" />
           <label>Retries</label>
-          <div class="segment"><button class="active">Number</button><button>FEEL</button><button disabled>ISO</button></div>
           <input type="number" value="${n.maxAttempts || 3}" oninput="updateNodeNumber('maxAttempts', this.value)" />
         </div>`;
       }
@@ -1084,8 +1175,8 @@
       function assignmentSection(n) {
         if (!['userTask','manualTask'].includes(n.kind)) return '';
         return `<div class="prop-section"><h3>Assignment</h3>
-          <label>Candidate Groups</label><input value="${escapeAttr(n.config?.quantumAssignmentDefinition?.candidateGroups || '')}" oninput="updateConfigPath(['quantumAssignmentDefinition','candidateGroups'], this.value)" />
-          <label>Assignee</label><input value="${escapeAttr(n.config?.quantumAssignmentDefinition?.assignee || '')}" oninput="updateConfigPath(['quantumAssignmentDefinition','assignee'], this.value)" />
+          <label>Candidate Groups</label><input value="${escapeAttr(n.config?.flowFoundryAssignmentDefinition?.candidateGroups || '')}" oninput="updateConfigPath(['flowFoundryAssignmentDefinition','candidateGroups'], this.value)" />
+          <label>Assignee</label><input value="${escapeAttr(n.config?.flowFoundryAssignmentDefinition?.assignee || '')}" oninput="updateConfigPath(['flowFoundryAssignmentDefinition','assignee'], this.value)" />
           <div class="help">运行时映射为 Temporal Workflow 等待 Signal，人工任务完成后继续执行。</div>
         </div>`;
       }
@@ -1145,14 +1236,54 @@
         updateButtons();
       }
 
-      function addNodeFromPalette(item) {
+      function startPaletteDrag(event, encodedItem) {
+        const item = JSON.parse(decodeURIComponent(encodedItem));
+        state.paletteDragItem = item;
+        event.dataTransfer.effectAllowed = 'copy';
+        event.dataTransfer.setData('application/json', JSON.stringify(item));
+        event.dataTransfer.setData('text/plain', item.kind);
+      }
+
+      function allowCanvasDrop(event) {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'copy';
+      }
+
+      function setCanvasDragOver(active) {
+        $('canvas').classList.toggle('drag-over', Boolean(active));
+      }
+
+      function dropPaletteNode(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        setCanvasDragOver(false);
+        const raw = event.dataTransfer.getData('application/json');
+        const item = raw ? JSON.parse(raw) : state.paletteDragItem;
+        state.paletteDragItem = null;
+        if (!item) return;
+        const point = canvasPointFromEvent(event);
+        addNodeFromPalette(item, point);
+      }
+
+      function canvasPointFromEvent(event) {
+        const rect = $('canvas').getBoundingClientRect();
+        return {
+          x: Math.max(0, (event.clientX - rect.left) / state.scale),
+          y: Math.max(0, (event.clientY - rect.top) / state.scale)
+        };
+      }
+
+      function addNodeFromPalette(item, point = null) {
         pushHistory();
         const id = `${item.kind}_${Date.now().toString(36)}`;
+        const position = point || { x: 180 + state.model.nodes.length * 24, y: 140 + state.model.nodes.length * 18 };
         const n = node(id, item.kind, item.label, 180 + state.model.nodes.length * 24, 140 + state.model.nodes.length * 18, {
           decisionRef: item.decisionRef,
           decisionVersion: item.decisionVersion,
           config: item.config ? structuredClone(item.config) : {}
         });
+        n.x = Math.round(position.x);
+        n.y = Math.round(position.y);
         if (['task','serviceTask','sendTask'].includes(item.kind)) {
           n.activityType = state.activities[0]?.id || '';
           n.maxAttempts = 3;
@@ -1162,71 +1293,61 @@
         }
         state.model.nodes.push(n);
         select('node', id);
-      }
-
-      function appendConnect(id) {
-        state.connectBuffer.push(id);
-        state.connectBuffer = state.connectBuffer.slice(-2);
-        if (state.connectBuffer.length === 2 && state.connectBuffer[0] !== state.connectBuffer[1]) {
-          pushHistory();
-          state.model.edges.push(edge(`F_${Date.now().toString(36)}`, state.connectBuffer[0], state.connectBuffer[1]));
-          state.connectBuffer = [];
-          state.connectMode = false;
-          message('已创建 Sequence Flow');
-          renderAll();
-        }
+        message(`已添加节点：${item.label}`);
       }
 
       function handleConnectionClick(evt, nodeId, position) {
         evt.stopPropagation();
         if (!state.connectionSource) {
           state.connectionSource = nodeId;
-          state.connectMode = true;
+          state.connectionSourceHandle = position;
           state.selected = { type: 'node', id: nodeId };
-          message(`连接起点：${nodeId}，请点击目标节点的连接点`);
+          message(`连接起点：${nodeId}.${position}，请点击另一个节点的圆点完成连接`);
           renderAll();
           return;
         }
         if (state.connectionSource === nodeId) {
           state.connectionSource = null;
-          state.connectMode = false;
+          state.connectionSourceHandle = null;
           message('已取消连接');
           renderAll();
           return;
         }
-        createSequenceFlow(state.connectionSource, nodeId);
+        createSequenceFlow(state.connectionSource, nodeId, state.connectionSourceHandle, position);
       }
 
-      function createSequenceFlow(from, to) {
+      function createSequenceFlow(from, to, fromHandle = 'right', toHandle = 'left') {
         if (!from || !to || from === to) return;
         const duplicate = state.model.edges.find(e => e.from === from && e.to === to);
         if (duplicate) {
           state.connectionSource = null;
-          state.connectMode = false;
+          state.connectionSourceHandle = null;
           select('edge', duplicate.id);
           message(`连线已存在：${duplicate.id}`);
           return;
         }
         pushHistory();
         const id = `F_${from}_${to}_${Date.now().toString(36)}`;
-        state.model.edges.push(edge(id, from, to));
+        state.model.edges.push({ ...edge(id, from, to), fromHandle, toHandle });
         state.connectionSource = null;
-        state.connectMode = false;
+        state.connectionSourceHandle = null;
         state.connectBuffer = [];
         select('edge', id);
         message(`已创建 Sequence Flow：${id}`);
       }
 
-      function setConnectMode() {
-        state.connectMode = !state.connectMode;
-        state.connectionSource = null;
-        state.connectBuffer = [];
-        message(state.connectMode ? '连接模式：依次点击两个节点' : '连接模式已关闭');
-      }
-
       function updateFlowMeta() {
         state.model.id = $('flowId').value;
         state.model.name = $('flowName').value;
+        const workflow = activeWorkflow();
+        if (workflow) {
+          workflow.id = state.model.id;
+          state.activeWorkflowId = state.model.id;
+          workflow.name = state.model.name;
+          workflow.updatedAt = new Date().toISOString();
+          persistWorkflowStore();
+          renderWorkflowList();
+        }
       }
 
       function updateProcess(key, value) {
@@ -1263,7 +1384,7 @@
         if (!n) return;
         pushHistory();
         n.activityType = value;
-        n.config = { ...(n.config || {}), quantumTaskDefinition: { ...(n.config?.quantumTaskDefinition || {}), type: value, retries: String(n.maxAttempts || 3) } };
+        n.config = { ...(n.config || {}), flowFoundryTaskDefinition: { ...(n.config?.flowFoundryTaskDefinition || {}), type: value, retries: String(n.maxAttempts || 3) } };
         renderAll();
       }
 
@@ -1398,7 +1519,7 @@
         state.model.nodes = state.model.nodes.filter(n => n.id !== id);
         state.model.edges = state.model.edges.filter(e => e.from !== id && e.to !== id);
         state.connectionSource = null;
-        state.connectMode = false;
+        state.connectionSourceHandle = null;
         state.connectBuffer = [];
         state.selected = { type: 'process', id: null };
         message(`已删除节点：${id}`);
@@ -1461,20 +1582,6 @@
         renderCanvas();
       }
 
-      function toggleGrid() {
-        $('canvas').style.backgroundImage = $('canvas').style.backgroundImage ? '' : 'radial-gradient(#2c3139 1px, transparent 1px)';
-      }
-
-      function toggleHighlight() {
-        const highlight = state.model.nodes.some(n => n._highlighted);
-        state.model.nodes.forEach(n => n._highlighted = !highlight && n.emphasis !== 'none');
-        message('Highlight by emphasis 已切换');
-      }
-
-      function toggleTheme() {
-        document.documentElement.style.setProperty('--bg', getComputedStyle(document.documentElement).getPropertyValue('--bg').trim() === '#101418' ? '#f6f7fb' : '#101418');
-      }
-
       function pushHistory(render = true) {
         state.history.push(JSON.stringify(state.model));
         if (state.history.length > 50) state.history.shift();
@@ -1505,23 +1612,227 @@
       }
 
       function saveToMemory() {
-        localStorage.setItem('temporal-qbpm-modeler', JSON.stringify(state.model));
-        message('已保存到浏览器本地存储');
+        saveWorkflowDefinition();
       }
 
       function loadFromMemory() {
-        const saved = localStorage.getItem('temporal-qbpm-modeler');
-        if (saved) {
-          try { state.model = JSON.parse(saved); } catch (ignored) {}
+        loadWorkflowStore();
+        if (state.workflows.length === 0) {
+          const saved = localStorage.getItem('temporal-flowfoundry-modeler');
+          if (saved) {
+            try { state.model = JSON.parse(saved); } catch (ignored) {}
+          }
+          state.activeWorkflowId = state.model.id;
+          state.activeVersion = '1.0.0';
+          state.workflows = [workflowRecordFromModel(state.model, 'draft', state.activeVersion)];
+          persistWorkflowStore();
         }
+        const active = state.workflows.find(w => w.status === 'active') || state.workflows[0];
+        if (active) openWorkflow(active.id, active.version, false);
+        syncModelHeader();
+      }
+
+      function loadWorkflowStore() {
+        try {
+          state.workflows = JSON.parse(localStorage.getItem('temporal-flow-workflows') || '[]');
+        } catch (ignored) {
+          state.workflows = [];
+        }
+      }
+
+      function persistWorkflowStore() {
+        localStorage.setItem('temporal-flow-workflows', JSON.stringify(state.workflows));
+      }
+
+      function workflowRecordFromModel(model, status = 'draft', version = '1.0.0') {
+        const now = new Date().toISOString();
+        return {
+          id: model.id,
+          name: model.name,
+          version,
+          status,
+          updatedAt: now,
+          versions: [{
+            version,
+            status,
+            createdAt: now,
+            model: structuredClone(model)
+          }]
+        };
+      }
+
+      function activeWorkflow() {
+        return state.workflows.find(w => w.id === state.activeWorkflowId);
+      }
+
+      function activeWorkflowVersion(workflow = activeWorkflow()) {
+        return workflow?.versions?.find(v => v.version === state.activeVersion);
+      }
+
+      function saveWorkflowDefinition() {
+        const now = new Date().toISOString();
+        let workflow = activeWorkflow();
+        if (!workflow) {
+          workflow = workflowRecordFromModel(state.model, 'draft', state.activeVersion || '1.0.0');
+          state.workflows.push(workflow);
+          state.activeWorkflowId = workflow.id;
+        }
+        workflow.id = state.model.id;
+        workflow.name = state.model.name;
+        workflow.version = state.activeVersion || workflow.version || '1.0.0';
+        workflow.updatedAt = now;
+        let version = activeWorkflowVersion(workflow);
+        if (!version) {
+          version = { version: workflow.version, status: workflow.status, createdAt: now, model: structuredClone(state.model) };
+          workflow.versions.push(version);
+        }
+        version.model = structuredClone(state.model);
+        version.status = workflow.status;
+        persistWorkflowStore();
+        renderWorkflowList();
+        message(`已保存 Workflow：${workflow.name} v${version.version}`);
+      }
+
+      function syncModelHeader() {
         $('flowId').value = state.model.id;
         $('flowName').value = state.model.name;
+      }
+
+      function renderWorkflowList() {
+        const table = $('workflowTable');
+        if (!table) return;
+        const keyword = ($('workflowSearch')?.value || '').trim().toLowerCase();
+        const status = $('workflowStatusFilter')?.value || '';
+        const rows = state.workflows
+          .filter(w => (!keyword || w.name.toLowerCase().includes(keyword) || w.id.toLowerCase().includes(keyword)) && (!status || w.status === status))
+          .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+        table.innerHTML = `
+          <div class="table-row header"><div>Name / ID</div><div>Version</div><div>Status</div><div>Updated</div><div>Actions</div></div>
+          ${rows.map(w => workflowRowHtml(w)).join('') || '<div class="table-row"><div>暂无 Workflow</div><div></div><div></div><div></div><div></div></div>'}
+        `;
+      }
+
+      function workflowRowHtml(w) {
+        const versions = (w.versions || []).map(v => `<option value="${escapeAttr(v.version)}" ${v.version === w.version ? 'selected' : ''}>v${escapeHtml(v.version)}</option>`).join('');
+        return `<div class="table-row">
+          <div><strong>${escapeHtml(w.name)}</strong><div class="help">${escapeHtml(w.id)}</div></div>
+          <div><select onchange="openWorkflow('${escapeAttr(w.id)}', this.value, false)">${versions}</select></div>
+          <div><span class="pill ${escapeAttr(w.status)}">${escapeHtml(w.status)}</span></div>
+          <div>${escapeHtml(formatDate(w.updatedAt))}</div>
+          <div class="row">
+            <button class="secondary" onclick="openWorkflow('${escapeAttr(w.id)}')">打开</button>
+            <button class="secondary" onclick="renameWorkflow('${escapeAttr(w.id)}')">改名</button>
+            <button class="secondary" onclick="createWorkflowVersion('${escapeAttr(w.id)}')">新版本</button>
+            <button class="secondary" onclick="setWorkflowStatus('${escapeAttr(w.id)}', '${w.status === 'active' ? 'retired' : 'active'}')">${w.status === 'active' ? '停用' : '启用'}</button>
+            <button class="danger" onclick="deleteWorkflow('${escapeAttr(w.id)}')">删除</button>
+          </div>
+        </div>`;
+      }
+
+      function createWorkflow() {
+        const name = prompt('Workflow 名称', '新建业务流程');
+        if (!name) return;
+        const id = `Definitions_${Date.now().toString(36)}`;
+        const model = structuredClone(state.model);
+        model.id = id;
+        model.name = name;
+        model.process = { ...model.process, id: id.replace(/^Definitions_/, 'Process_'), name };
+        const workflow = workflowRecordFromModel(model, 'draft', '1.0.0');
+        state.workflows.push(workflow);
+        persistWorkflowStore();
+        openWorkflow(id, '1.0.0');
+      }
+
+      function openWorkflow(id, version = null, navigate = true) {
+        const workflow = state.workflows.find(w => w.id === id);
+        if (!workflow) return;
+        const selectedVersion =
+          workflow.versions.find(v => v.version === version) ||
+          workflow.versions.find(v => v.version === workflow.version) ||
+          workflow.versions[workflow.versions.length - 1];
+        if (!selectedVersion) return;
+        state.activeWorkflowId = workflow.id;
+        state.activeVersion = selectedVersion.version;
+        workflow.version = selectedVersion.version;
+        state.model = structuredClone(selectedVersion.model);
+        state.history = [];
+        state.future = [];
+        state.selected = { type: 'process', id: null };
+        syncModelHeader();
+        if (navigate) switchView('modeler');
+        renderAll();
+        message(`已打开 Workflow：${workflow.name} v${selectedVersion.version}`);
+      }
+
+      function createWorkflowVersion(id) {
+        const workflow = state.workflows.find(w => w.id === id);
+        if (!workflow) return;
+        const version = prompt('新版本号', nextVersion(workflow.version || '1.0.0'));
+        if (!version || workflow.versions.some(v => v.version === version)) return;
+        const source = workflow.versions.find(v => v.version === workflow.version) || workflow.versions[workflow.versions.length - 1];
+        workflow.version = version;
+        workflow.status = 'draft';
+        workflow.updatedAt = new Date().toISOString();
+        workflow.versions.push({ version, status: 'draft', createdAt: workflow.updatedAt, model: structuredClone(source.model) });
+        persistWorkflowStore();
+        openWorkflow(id, version);
+      }
+
+      function renameWorkflow(id) {
+        const workflow = state.workflows.find(w => w.id === id);
+        if (!workflow) return;
+        const name = prompt('Workflow 新名称', workflow.name);
+        if (!name) return;
+        workflow.name = name;
+        workflow.updatedAt = new Date().toISOString();
+        workflow.versions.forEach(v => {
+          v.model.name = name;
+          v.model.process = { ...v.model.process, name };
+        });
+        if (state.activeWorkflowId === id) {
+          state.model.name = name;
+          state.model.process = { ...state.model.process, name };
+          syncModelHeader();
+        }
+        persistWorkflowStore();
+        renderWorkflowList();
+      }
+
+      function setWorkflowStatus(id, status) {
+        const workflow = state.workflows.find(w => w.id === id);
+        if (!workflow) return;
+        workflow.status = status;
+        workflow.updatedAt = new Date().toISOString();
+        const version = workflow.versions.find(v => v.version === workflow.version);
+        if (version) version.status = status;
+        persistWorkflowStore();
+        renderWorkflowList();
+      }
+
+      function deleteWorkflow(id) {
+        const workflow = state.workflows.find(w => w.id === id);
+        if (!workflow || !confirm(`删除 Workflow ${workflow.name}？`)) return;
+        state.workflows = state.workflows.filter(w => w.id !== id);
+        persistWorkflowStore();
+        if (state.activeWorkflowId === id && state.workflows[0]) openWorkflow(state.workflows[0].id, state.workflows[0].version, false);
+        renderWorkflowList();
+      }
+
+      function nextVersion(version) {
+        const parts = String(version).split('.').map(n => Number(n));
+        if (parts.length < 3 || parts.some(Number.isNaN)) return `${version}.1`;
+        parts[2] += 1;
+        return parts.join('.');
+      }
+
+      function formatDate(value) {
+        return value ? new Date(value).toLocaleString() : '-';
       }
 
       function buildDsl() {
         return {
           dslVersion: '1.0',
-          flow: { id: state.model.id, name: state.model.name, version: '1.0.0' },
+          flow: { id: state.model.id, name: state.model.name, version: state.activeVersion || '1.0.0' },
           inputs: { campaignId: { type: 'string', required: true } },
           variables: {},
           nodes: state.model.nodes
@@ -1592,9 +1903,9 @@
 
       function extensionElements(n) {
         const result = {};
-        if (n.config?.quantumTaskDefinition) result.quantumTaskDefinition = n.config.quantumTaskDefinition;
-        if (n.config?.quantumAssignmentDefinition) result.quantumAssignmentDefinition = n.config.quantumAssignmentDefinition;
-        if (n.decisionRef) result.quantumDecisionDefinition = { decisionRef: n.decisionRef, decisionVersion: n.decisionVersion };
+        if (n.config?.flowFoundryTaskDefinition) result.flowFoundryTaskDefinition = n.config.flowFoundryTaskDefinition;
+        if (n.config?.flowFoundryAssignmentDefinition) result.flowFoundryAssignmentDefinition = n.config.flowFoundryAssignmentDefinition;
+        if (n.decisionRef) result.flowFoundryDecisionDefinition = { decisionRef: n.decisionRef, decisionVersion: n.decisionVersion };
         return Object.keys(result).length ? result : undefined;
       }
 
@@ -1642,6 +1953,151 @@
           variables: { approved: true }
         });
         message(`已发送人工任务完成 Signal：${nodeId}`);
+      }
+
+      function resetSimulation(render = true) {
+        state.simulation = null;
+        if (render) $('debugLog').textContent = '等待模拟运行';
+      }
+
+      function ensureSimulation() {
+        if (state.simulation) return state.simulation;
+        let input = {};
+        try {
+          input = JSON.parse($('debugInput').value || '{}');
+        } catch (err) {
+          $('debugLog').textContent = '模拟输入 JSON 格式错误：' + err.message;
+          return null;
+        }
+        const start = state.model.nodes.find(n => n.kind === 'startEvent') || state.model.nodes[0];
+        state.simulation = {
+          input,
+          vars: { ...input },
+          currentNodeId: start?.id,
+          visited: [],
+          done: false,
+          log: []
+        };
+        return state.simulation;
+      }
+
+      function simulateFlow() {
+        const sim = ensureSimulation();
+        if (!sim) return;
+        let guard = 0;
+        while (!sim.done && guard < 100) {
+          runSimulationStep(sim);
+          guard += 1;
+        }
+        if (guard >= 100) sim.log.push('停止：超过 100 步，可能存在循环或缺少终止条件。');
+        renderSimulationLog();
+      }
+
+      function stepSimulation() {
+        const sim = ensureSimulation();
+        if (!sim || sim.done) return renderSimulationLog();
+        runSimulationStep(sim);
+        renderSimulationLog();
+      }
+
+      function runSimulationStep(sim) {
+        const current = state.model.nodes.find(n => n.id === sim.currentNodeId);
+        if (!current) {
+          sim.done = true;
+          sim.log.push('停止：找不到当前节点。');
+          return;
+        }
+        sim.visited.push(current.id);
+        state.selected = { type: 'node', id: current.id };
+        sim.log.push(`进入 ${current.id} (${current.kind}) - ${current.name || ''}`);
+        applySimulatedNodeEffects(current, sim);
+        if (current.kind === 'endEvent') {
+          sim.done = true;
+          sim.log.push('流程结束。');
+          renderCanvas();
+          return;
+        }
+        const next = selectSimulatedNext(current, sim);
+        if (!next) {
+          sim.done = true;
+          sim.log.push('停止：没有可走的出边。');
+        } else {
+          sim.log.push(`选择出边 ${next.id} -> ${next.to}`);
+          sim.currentNodeId = next.to;
+        }
+        renderCanvas();
+      }
+
+      function applySimulatedNodeEffects(node, sim) {
+        if (node.kind === 'scriptTask' && node.config?.script) {
+          const match = String(node.config.script).match(/^(\w+)\s*:=\s*(\w+)\s*\+\s*(\d+)$/);
+          if (match) {
+            sim.vars[match[1]] = Number(resolveSimValue(match[2], sim)) + Number(match[3]);
+            sim.log.push(`脚本更新变量：${match[1]} = ${sim.vars[match[1]]}`);
+          }
+        } else if (node.kind === 'userTask') {
+          sim.log.push('模拟人工任务：自动视为 approved。');
+        } else if (node.kind === 'businessRuleTask') {
+          sim.vars.matched = true;
+          sim.log.push(`模拟 DMN：${node.decisionRef || 'decision'} -> matched=true`);
+        } else if (node.activityType) {
+          sim.log.push(`模拟 Activity：${node.activityType}`);
+        }
+      }
+
+      function selectSimulatedNext(node, sim) {
+        const outgoing = state.model.edges.filter(e => e.from === node.id);
+        if (outgoing.length === 0) return null;
+        const conditional = outgoing.filter(e => e.condition && e.condition !== 'default');
+        const matched = conditional.find(e => evaluateSimCondition(e.condition, sim));
+        if (matched) return matched;
+        return outgoing.find(e => e.condition === 'default') || outgoing[0];
+      }
+
+      function evaluateSimCondition(condition, sim) {
+        if (!condition || condition === 'default') return true;
+        if (typeof condition === 'object') {
+          sim.log.push(`模拟 DMN 条件：${condition.decisionRef || 'decision'} -> true`);
+          return true;
+        }
+        const expression = String(condition).replace(/^\$\{|\}$/g, '').trim();
+        if (expression.includes(' or ')) return expression.split(/\s+or\s+/).some(part => evaluateSimCondition('${' + part + '}', sim));
+        if (expression.includes(' and ')) return expression.split(/\s+and\s+/).every(part => evaluateSimCondition('${' + part + '}', sim));
+        const match = expression.match(/^([\w.]+)\s*(==|=|!=|>=|<=|>|<)\s*(.+)$/);
+        if (!match) return Boolean(resolveSimValue(expression, sim));
+        const left = resolveSimValue(match[1], sim);
+        const right = parseSimLiteral(match[3], sim);
+        switch (match[2]) {
+          case '=':
+          case '==': return left === right;
+          case '!=': return left !== right;
+          case '>': return Number(left) > Number(right);
+          case '<': return Number(left) < Number(right);
+          case '>=': return Number(left) >= Number(right);
+          case '<=': return Number(left) <= Number(right);
+          default: return false;
+        }
+      }
+
+      function resolveSimValue(path, sim) {
+        const key = String(path).replace(/^vars\.|^input\./, '');
+        if (Object.prototype.hasOwnProperty.call(sim.vars, key)) return sim.vars[key];
+        return sim.input[key];
+      }
+
+      function parseSimLiteral(value, sim) {
+        const text = String(value).trim().replace(/^['"]|['"]$/g, '');
+        if (text === 'true') return true;
+        if (text === 'false') return false;
+        if (!Number.isNaN(Number(text))) return Number(text);
+        return resolveSimValue(text, sim) ?? text;
+      }
+
+      function renderSimulationLog() {
+        const sim = state.simulation;
+        $('debugLog').textContent = sim
+          ? `${sim.log.join('\n')}\n\n变量快照：${pretty(sim.vars)}`
+          : '等待模拟运行';
       }
 
       async function post(url, body) {

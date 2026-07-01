@@ -31,11 +31,11 @@ spec:
             - name: TEMPORAL_MAX_CONCURRENT_ACTIVITIES
               value: "50"
             - name: REDIS_HOST
-              value: quantumbpm-redis-master.bpm.svc.cluster.local
+              value: flowfoundry-redis-master.bpm.svc.cluster.local
             - name: REDIS_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: quantumbpm-redis-credentials
+                  name: flowfoundry-redis-credentials
                   key: password
             - name: ACTIVITY_REGISTRY_PATH
               value: /config/activities-registry.yaml

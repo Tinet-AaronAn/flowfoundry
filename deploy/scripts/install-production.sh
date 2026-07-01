@@ -35,8 +35,8 @@ kubectl create configmap activities-registry \
   -n bpm --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f "$ROOT/deploy/k8s/call-campaign-worker.yaml"
 
-echo "==> QuantumBPM Enterprise"
-echo "    Configure license + OIDC in deploy/helm/quantumbpm/values-production.yaml"
-echo "    helm upgrade --install quantumbpm <enterprise-chart> -n bpm -f deploy/helm/quantumbpm/values-production.yaml"
+echo "==> FlowFoundry Enterprise"
+echo "    Configure license + OIDC in deploy/helm/flowfoundry/values-production.yaml"
+echo "    helm upgrade --install flowfoundry <enterprise-chart> -n bpm -f deploy/helm/flowfoundry/values-production.yaml"
 
-echo "Done. Import BPMN: bpmn/multi-round-call-campaign.bpmn20.xml into QuantumBPM Modeler"
+echo "Done. Import BPMN: bpmn/multi-round-call-campaign.bpmn20.xml into FlowFoundry Modeler"

@@ -1,15 +1,15 @@
-# QuantumBPM + Temporal 流程编排平台 — 可开工交付物
+# FlowFoundry + Temporal 流程编排平台 — 可开工交付物
 
-基于 QuantumBPM（BPMN/DMN 可视化）+ Temporal（Durable Execution）的多轮呼叫任务管理示例，包含生产级 Helm 配置、Activity 注册表、Redis 幂等骨架与完整 Worker 实现。
+基于 FlowFoundry（BPMN/DMN 可视化）+ Temporal（Durable Execution）的多轮呼叫任务管理示例，包含生产级 Helm 配置、Activity 注册表、Redis 幂等骨架与完整 Worker 实现。
 
 ## 仓库结构
 
 ```
-quantumbpm-temporal-platform/
+flowfoundry-temporal-platform/
 ├── deploy/
 │   ├── helm/
 │   │   ├── temporal/values-production.yaml      # Temporal 生产 Helm values
-│   │   └── quantumbpm/values-production.yaml    # QuantumBPM Enterprise values
+│   │   └── flowfoundry/values-production.yaml    # FlowFoundry Enterprise values
 │   ├── k8s/
 │   │   ├── namespaces.yaml
 │   │   ├── secrets.example.yaml
@@ -66,12 +66,12 @@ cd worker
 mvn spring-boot:run
 ```
 
-### 4. QuantumBPM 本地评估（可选）
+### 4. FlowFoundry 本地评估（可选）
 
 ```bash
 docker run --rm -p 9060:9060 \
-  -v "$PWD/qbpm-data:/var/lib/devserver" \
-  hub.quantumbpm.com/quantumbpm-public/devserver:latest
+  -v "$PWD/flowfoundry-data:/var/lib/devserver" \
+  hub.flowfoundry.com/flowfoundry-public/devserver:latest
 ```
 
 打开 http://localhost:9060 ，导入 `bpmn/multi-round-call-campaign.bpmn20.xml`。
@@ -88,8 +88,8 @@ brew install --cask orbstack          # 或从 https://orbstack.dev 下载 DMG
 chmod +x scripts/docker-stack.sh scripts/smoke-test.sh
 ./scripts/docker-stack.sh up
 
-# 可选：启动 QuantumBPM DevServer
-docker compose -f deploy/docker-compose.local.yml --profile full up -d quantumbpm-devserver
+# 可选：启动 FlowFoundry DevServer
+docker compose -f deploy/docker-compose.local.yml --profile full up -d flowfoundry-devserver
 
 # 验证 + 端到端冒烟
 ./scripts/check-progress.sh
@@ -99,7 +99,7 @@ docker compose -f deploy/docker-compose.local.yml --profile full up -d quantumbp
 Docker 模式访问地址：
 - Temporal UI: http://localhost:8080
 - Worker 健康检查: http://localhost:8081/actuator/health
-- QuantumBPM: http://localhost:9060（`--profile full` 时）
+- FlowFoundry: http://localhost:9060（`--profile full` 时）
 - Temporal gRPC: localhost:7233
 
 本地开发环境变量（`deploy/docker-compose.local.yml`）：
@@ -111,20 +111,20 @@ Docker 模式访问地址：
 ```bash
 # 1. 编辑密钥
 cp deploy/k8s/secrets.example.yaml deploy/k8s/secrets.yaml
-# 填写 DB / Redis / OIDC / QuantumBPM License
+# 填写 DB / Redis / OIDC / FlowFoundry License
 
 # 2. 一键安装（Temporal + Worker）
 chmod +x deploy/scripts/install-production.sh
 SKIP_SECRETS=1 ./deploy/scripts/install-production.sh
 
-# 3. QuantumBPM Enterprise（需厂商 License）
-helm upgrade --install quantumbpm <enterprise-chart> \
-  -n bpm -f deploy/helm/quantumbpm/values-production.yaml
+# 3. FlowFoundry Enterprise（需厂商 License）
+helm upgrade --install flowfoundry <enterprise-chart> \
+  -n bpm -f deploy/helm/flowfoundry/values-production.yaml
 ```
 
 ## BPMN → Activity 映射
 
-| BPMN 节点 | qbpm:activityType | Java 方法 |
+| BPMN 节点 | flowfoundry:activityType | Java 方法 |
 |-----------|-------------------|-----------|
 | 加载呼叫活动 | load-campaign | `loadCampaign` |
 | 准备本轮呼叫 | prepare-call-round | `prepareCallRound` |
@@ -166,15 +166,15 @@ idempotentExecutor.execute("execute-call-round", Map.of(
 ## 生产 Checklist
 
 - [ ] `numHistoryShards: 2048` 已确认（创建后不可改）
-- [ ] QuantumBPM Enterprise License + OIDC 已配置
+- [ ] FlowFoundry Enterprise License + OIDC 已配置
 - [ ] Temporal namespace `call-campaign` 已创建
 - [ ] Redis 集群 AOF 持久化已开启
 - [ ] Worker HPA 与 Schedule-to-Start 告警已配置
 - [ ] `DialerService` 替换为真实外呼平台 Adapter
-- [ ] BPMN 已在 QuantumBPM 发布并通过仿真
+- [ ] BPMN 已在 FlowFoundry 发布并通过仿真
 
 ## 参考
 
 - [Temporal Helm Charts](https://github.com/temporalio/helm-charts)
-- [QuantumBPM Enterprise Docs](https://quantumbpm.com/docs/enterprise)
+- [FlowFoundry Enterprise Docs](https://flowfoundry.com/docs/enterprise)
 - [Temporal Activity 幂等](https://temporal.io/blog/idempotency-and-durable-execution)

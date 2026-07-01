@@ -37,7 +37,7 @@ check "worker-jar" test -f "$ROOT/worker/target/call-campaign-worker-1.0.0-SNAPS
 check "bpmn-file" test -f "$ROOT/bpmn/multi-round-call-campaign.bpmn20.xml"
 check "registry-file" test -f "$ROOT/registry/activities-registry.yaml"
 check "helm-temporal" test -f "$ROOT/deploy/helm/temporal/values-production.yaml"
-check "helm-quantumbpm" test -f "$ROOT/deploy/helm/quantumbpm/values-production.yaml"
+check "helm-flowfoundry" test -f "$ROOT/deploy/helm/flowfoundry/values-production.yaml"
 
 if [[ "$MODE" == "docker" ]]; then
   check "compose-redis" docker compose -f "$ROOT/deploy/docker-compose.local.yml" ps redis | grep -q Up
@@ -45,10 +45,10 @@ if [[ "$MODE" == "docker" ]]; then
   check "compose-worker" docker compose -f "$ROOT/deploy/docker-compose.local.yml" ps worker | grep -q Up
   check "worker-health" curl -sf http://127.0.0.1:8081/actuator/health
   check "temporal-ui" curl -sf -o /dev/null http://127.0.0.1:8080
-  if docker compose -f "$ROOT/deploy/docker-compose.local.yml" --profile full ps quantumbpm-devserver 2>/dev/null | grep -q Up; then
-    check "quantumbpm-ui" curl -sf -o /dev/null http://127.0.0.1:9060
+  if docker compose -f "$ROOT/deploy/docker-compose.local.yml" --profile full ps flowfoundry-devserver 2>/dev/null | grep -q Up; then
+    check "flowfoundry-ui" curl -sf -o /dev/null http://127.0.0.1:9060
   else
-    REPORT+=("SKIP quantumbpm-ui (start with: docker compose --profile full up -d quantumbpm-devserver)")
+    REPORT+=("SKIP flowfoundry-ui (start with: docker compose --profile full up -d flowfoundry-devserver)")
   fi
   check "temporal-health" temporal operator cluster health --address 127.0.0.1:7233
   check "namespace-call-campaign" temporal operator namespace describe call-campaign --address 127.0.0.1:7233
