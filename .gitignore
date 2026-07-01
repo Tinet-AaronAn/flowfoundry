@@ -6,3 +6,6 @@ deploy/k8s/secrets.yaml
 flowfoundry-data/
 .local/
 dump.rdb
+node_modules/
+playwright-report/
+test-results/
