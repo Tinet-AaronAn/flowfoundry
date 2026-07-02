@@ -1,16 +1,21 @@
 const { expect } = require('@playwright/test');
 
 const activityRegistry = [
-  { id: 'load-campaign', name: '加载任务配置' },
-  { id: 'prepare-call-round', name: '准备本轮名单' },
-  { id: 'execute-call-round', name: '执行本轮外呼' },
-  { id: 'wait-round-completion', name: '等待外呼结果' },
-  { id: 'aggregate-round-results', name: '汇总本轮结果' },
-  { id: 'evaluate-next-round', name: '评估是否进入下一轮' },
-  { id: 'finalize-campaign', name: '结束并生成报告' },
-  { id: 'send-message', name: '发送消息' },
-  { id: 'dmn-decision', name: 'DMN 决策' },
+  { id: 'load-campaign', name: 'Load campaign config' },
+  { id: 'prepare-call-round', name: 'Prepare call list' },
+  { id: 'execute-call-round', name: 'Execute outbound round' },
+  { id: 'wait-round-completion', name: 'Wait for round result' },
+  { id: 'aggregate-round-results', name: 'Aggregate round result' },
+  { id: 'evaluate-next-round', name: 'Evaluate next round' },
+  { id: 'finalize-campaign', name: 'Finalize and generate report' },
+  { id: 'send-message', name: 'Send message' },
+  { id: 'dmn-decision', name: 'DMN decision' },
 ];
+
+const DEMO_NODE = {
+  loadCampaign: 'Load campaign config',
+  prepareRound: 'Prepare call list',
+};
 
 async function mockBackend(page, state = {}) {
   state.compileRequests = [];
@@ -64,19 +69,26 @@ async function mockBackend(page, state = {}) {
 
 async function openModeler(page) {
   await page.goto('/');
-  await page.getByRole('button', { name: '流程画布' }).click();
+  await page.locator('#navModeler').click();
   await expect(page.locator('#modelerView')).toHaveClass(/active/);
   await expect(page.locator('#paletteItems')).toContainText('Service Task');
 }
 
 async function openFreshModeler(page) {
-  await page.addInitScript(() => localStorage.clear());
+  await page.addInitScript(() => {
+    localStorage.clear();
+    localStorage.setItem('flowfoundry-locale', 'en');
+  });
   await openModeler(page);
 }
 
+
 async function importModel(page, model) {
-  page.once('dialog', dialog => dialog.accept(JSON.stringify({ model })));
-  await page.getByRole('button', { name: 'Import' }).click();
+  await page.evaluate(m => {
+    state.model = m;
+    syncParticipantAssignments();
+    renderAll();
+  }, model);
   await expect(page.locator('.node')).toHaveCount(model.nodes.length);
 }
 
@@ -84,25 +96,85 @@ function nodeLocator(page, text) {
   return page.locator('.node', { hasText: text }).first();
 }
 
+function nodeById(page, id) {
+  return page.locator(`.node[data-node-id="${id}"]`);
+}
+
+function connectionHandle(page, nodeId, handle) {
+  return page.locator(
+    `.connection-handle[data-node-id="${nodeId}"][data-handle="${handle}"]`,
+  );
+}
+
 async function clickNode(page, text) {
   const node = nodeLocator(page, text);
   await expect(node).toBeVisible();
-  await node.click();
+  const nodeId = await node.getAttribute('data-node-id');
+  if (nodeId) {
+    await page.evaluate(id => select('node', id), nodeId);
+  } else {
+    await node.click({ force: true });
+  }
   await expect(node).toHaveClass(/selected/);
   return node;
 }
 
-async function dragLocatorTo(locator, target) {
-  const box = await locator.boundingBox();
+async function clickNodeById(page, id) {
+  const node = nodeById(page, id);
+  await expect(node).toBeVisible();
+  await page.evaluate(nodeId => select('node', nodeId), id);
+  await expect(node).toHaveClass(/selected/);
+  return node;
+}
+
+async function selectEdge(page, edgeId) {
+  await page.evaluate(id => {
+    select('edge', id);
+  }, edgeId);
+  await expect(page.locator('#propType')).toContainText('SequenceFlow');
+}
+
+async function modelState(page) {
+  return page.evaluate(() => JSON.parse(JSON.stringify(state.model)));
+}
+
+async function dragBetween(page, sourceLocator, targetPoint) {
+  const box = await sourceLocator.boundingBox();
   if (!box) throw new Error('Source locator has no bounding box');
-  await locator.page().mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  await locator.page().mouse.down();
-  await locator.page().mouse.move(target.x, target.y, { steps: 12 });
-  await locator.page().mouse.up();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(targetPoint.x, targetPoint.y, { steps: 12 });
+  await page.mouse.up();
+}
+
+async function dragLocatorTo(page, locator, target) {
+  await dragBetween(page, locator, target);
 }
 
 async function dragNodeTo(page, nodeText, target) {
-  await dragLocatorTo(nodeLocator(page, nodeText), target);
+  await dragLocatorTo(page, nodeLocator(page, nodeText), target);
+}
+
+async function dragConnection(page, fromNodeId, fromHandle, toNodeId, toHandle) {
+  const from = connectionHandle(page, fromNodeId, fromHandle);
+  const to = connectionHandle(page, toNodeId, toHandle);
+  await expect(from).toBeVisible();
+  await expect(to).toBeVisible();
+  const toBox = await to.boundingBox();
+  if (!toBox) throw new Error('Target connection handle has no bounding box');
+  await dragBetween(page, from, {
+    x: toBox.x + toBox.width / 2,
+    y: toBox.y + toBox.height / 2,
+  });
+}
+
+async function getViewportState(page) {
+  return page.evaluate(() => ({
+    scale: state.scale,
+    panX: state.panX,
+    panY: state.panY,
+    viewportLocked: state.viewportLocked,
+  }));
 }
 
 async function jsonPanelValue(page) {
@@ -111,21 +183,35 @@ async function jsonPanelValue(page) {
 }
 
 async function clickCanvasToolbarButton(page, name) {
-  await page.locator('#modelerView .toolbar').first().getByRole('button', { name }).click();
+  await page.locator('#modelerView .toolbar').first().getByRole('button', { name, exact: true }).click();
 }
 
 async function clickRightToolbarButton(page, name) {
-  await page.locator('#modelerView .toolbar.right').getByRole('button', { name }).click();
+  await page.locator('#modelerView .toolbar.right').getByRole('button', { name, exact: true }).click();
+}
+
+async function dragPaletteItemToCanvas(page, label, position = null) {
+  const paletteItem = page.locator('.palette-item', { hasText: label });
+  const canvas = page.locator('#canvas');
+  const before = await page.locator('.node').count();
+  const canvasBox = await canvas.boundingBox();
+  if (!canvasBox) throw new Error('Canvas is not visible');
+  const target = position || {
+    x: canvasBox.width / 2,
+    y: canvasBox.height / 2,
+  };
+  await paletteItem.dragTo(canvas, { targetPosition: target });
+  await expect(page.locator('.node')).toHaveCount(before + 1, { timeout: 10_000 });
 }
 
 function modelBase(nodes, edges = []) {
   return {
     id: `Definitions_E2E_${Date.now()}`,
-    name: 'E2E 流程',
+    name: 'E2E Flow',
     targetNamespace: 'https://example.com/e2e',
     process: {
       id: `Process_E2E_${Date.now()}`,
-      name: 'E2E 流程',
+      name: 'E2E Flow',
       isExecutable: true,
     },
     nodes,
@@ -170,18 +256,19 @@ function edge(id, from, to, condition = 'default') {
 }
 
 function participantWorkflow() {
-  const p = participant('Participant_Ops', '运营团队', 80, 120, 560, 420, 'ops-team');
+  const p = participant('Participant_Ops', 'Ops Team', 80, 120, 900, 520, 'ops-team');
+  const ops = { participantId: 'Participant_Ops' };
   return modelBase([
     p,
-    node('StartEvent', 'startEvent', '开始', 150, 260),
-    node('Task_Service', 'serviceTask', '服务任务', 230, 238, { activityType: 'load-campaign', maxAttempts: 3 }),
-    node('Gateway_Main', 'exclusiveGateway', '是否继续?', 340, 252),
-    node('Task_User', 'userTask', '人工复核', 420, 235, { config: { flowFoundryAssignmentDefinition: { candidateGroups: 'ops' } } }),
-    node('Sub_Process', 'subProcess', '子流程', 470, 180, { width: 160, height: 180 }),
-    node('Sub_Start', 'startEvent', 'Sub Start', 500, 252, { parentSubProcessId: 'Sub_Process', subProcessBoundary: 'start' }),
-    node('Sub_Task', 'sendTask', '子流程发送', 535, 230, { activityType: 'send-message', parentSubProcessId: 'Sub_Process' }),
-    node('Sub_End', 'endEvent', 'Sub End', 600, 252, { parentSubProcessId: 'Sub_Process', subProcessBoundary: 'end' }),
-    node('EndEvent', 'endEvent', '结束', 600, 310),
+    node('StartEvent', 'startEvent', 'Start', 150, 260, ops),
+    node('Task_Service', 'serviceTask', 'Service Task', 230, 238, { activityType: 'load-campaign', maxAttempts: 3, ...ops }),
+    node('Gateway_Main', 'exclusiveGateway', 'Continue?', 360, 252, ops),
+    node('Task_User', 'userTask', 'Manual Review', 300, 360, { config: { flowFoundryAssignmentDefinition: { candidateGroups: 'ops' } }, ...ops }),
+    node('Sub_Process', 'subProcess', 'Sub-process', 520, 200, { width: 240, height: 220, ...ops }),
+    node('Sub_Start', 'startEvent', 'Sub Start', 560, 300, { parentSubProcessId: 'Sub_Process', subProcessBoundary: 'start', ...ops }),
+    node('Sub_Task', 'sendTask', 'Sub Send', 590, 260, { activityType: 'send-message', parentSubProcessId: 'Sub_Process', ...ops }),
+    node('Sub_End', 'endEvent', 'Sub End', 680, 300, { parentSubProcessId: 'Sub_Process', subProcessBoundary: 'end', ...ops }),
+    node('EndEvent', 'endEvent', 'End', 760, 360, ops),
   ], [
     edge('F_Start_Service', 'StartEvent', 'Task_Service'),
     edge('F_Service_Gateway', 'Task_Service', 'Gateway_Main'),
@@ -192,24 +279,23 @@ function participantWorkflow() {
 }
 
 function nodeTypeMatrixWorkflow() {
-  const p = participant('Participant_All', '全节点参与方', 40, 80, 1680, 760, 'all-nodes');
+  const p = participant('Participant_All', 'All Node Participant', 40, 80, 1680, 760, 'all-nodes');
   const specs = [
-    ['Start', 'startEvent', '开始'],
+    ['Start', 'startEvent', 'Start'],
     ['Task_Generic', 'task', 'Generic Task'],
     ['Task_Service', 'serviceTask', 'Service Task', { activityType: 'load-campaign', maxAttempts: 3 }],
-    ['Task_User', 'userTask', 'User Task', { config: { flowFoundryAssignmentDefinition: { candidateGroups: 'ops' } } }],
-    ['Task_Manual', 'manualTask', 'Manual Task', { config: { flowFoundryAssignmentDefinition: { candidateGroups: 'manual' } } }],
+    ['Task_User', 'userTask', 'Human Task', { config: { flowFoundryHumanTask: { mode: 'managed' }, flowFoundryAssignmentDefinition: { candidateGroups: 'ops' } } }],
+    ['Task_Human_Offline', 'userTask', 'Human Task Offline', { config: { flowFoundryHumanTask: { mode: 'offline' } } }],
     ['Task_Send', 'sendTask', 'Send Task', { activityType: 'send-message', maxAttempts: 3 }],
     ['Task_Receive', 'receiveTask', 'Receive Task', { config: { signalName: 'callback', waitMode: 'signal' } }],
-    ['Task_Script', 'scriptTask', 'Script Task', { config: { scriptFormat: 'feel', script: 'roundNumber := roundNumber + 1' } }],
-    ['Task_Rule', 'businessRuleTask', 'Business Rule Task', { activityType: 'dmn-decision', decisionRef: 'risk-check', decisionVersion: '1.0.0' }],
+    ['Task_Script', 'scriptTask', 'Script Task', { activityType: 'dmn-decision', decisionRef: 'risk-check', decisionVersion: '1.0.0' }],
+    ['Task_Workflow', 'workflow', 'Workflow Task', { config: { childWorkflowId: 'Definitions_Child', childWorkflowVersion: '1.0.0', childWorkflowName: 'Child Workflow' } }],
     ['Gateway_Exclusive', 'exclusiveGateway', 'Exclusive Gateway'],
     ['Gateway_Parallel', 'parallelGateway', 'Parallel Gateway'],
     ['Gateway_Inclusive', 'inclusiveGateway', 'Inclusive Gateway'],
     ['Gateway_Event', 'eventBasedGateway', 'Event Gateway'],
     ['Timer', 'intermediateCatchEvent', 'Timer Event', { config: { timerDefinition: { type: 'duration', value: '1m' }, subtype: 'timer' } }],
-    ['Boundary', 'boundaryEvent', 'Boundary Event', { config: { timerDefinition: { type: 'duration', value: '1m' }, attachedToRef: 'Task_Service' } }],
-    ['End', 'endEvent', '结束'],
+    ['End', 'endEvent', 'End'],
   ];
   const nodes = [p, ...specs.map(([id, kind, name, extra], index) => {
     const col = index % 4;
@@ -222,27 +308,366 @@ function nodeTypeMatrixWorkflow() {
 
 function invalidParticipantWorkflow() {
   return modelBase([
-    participant('Participant_A', '参与方 A', 80, 120, 400, 260, 'team-a'),
-    node('StartEvent', 'startEvent', '开始', 160, 220),
+    participant('Participant_A', 'Participant A', 80, 120, 400, 260, 'team-a'),
+    node('StartEvent', 'startEvent', 'Start', 160, 220),
     node('Task_Outside', 'serviceTask', 'Outside Task', 480, 220, { activityType: 'load-campaign', maxAttempts: 3 }),
-    node('EndEvent', 'endEvent', '结束', 420, 220),
+    node('EndEvent', 'endEvent', 'End', 420, 220),
   ], [
     edge('F_Start_Task', 'StartEvent', 'Task_Outside'),
     edge('F_Task_End', 'Task_Outside', 'EndEvent'),
   ]);
 }
 
+function simpleConnectionWorkflow() {
+  return modelBase([
+    node('StartEvent', 'startEvent', 'Start', 120, 180),
+    node('Task_A', 'serviceTask', 'Task A', 360, 158, { activityType: 'load-campaign', maxAttempts: 3 }),
+    node('Task_B', 'serviceTask', 'Task B', 620, 158, { activityType: 'send-message', maxAttempts: 3 }),
+  ], []);
+}
+
+function connectedWorkflow() {
+  return modelBase([
+    node('StartEvent', 'startEvent', 'Start', 120, 180),
+    node('Task_A', 'serviceTask', 'Task A', 360, 158, { activityType: 'load-campaign', maxAttempts: 3 }),
+    node('Task_B', 'serviceTask', 'Task B', 620, 158, { activityType: 'send-message', maxAttempts: 3 }),
+  ], [
+    edge('F_Start_TaskA', 'StartEvent', 'Task_A'),
+  ]);
+}
+
+const PLATFORM_ID_PATTERN = /^(workflow|event|subprocess|task|gateway|participant)_[a-z0-9]{8}$/;
+
+function createShortId() {
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  let id = '';
+  for (let i = 0; i < 8; i += 1) {
+    id += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return id;
+}
+
+function compareVersions(left, right) {
+  const l = left.split('.').map(Number);
+  const r = right.split('.').map(Number);
+  for (let i = 0; i < 3; i += 1) {
+    if (l[i] !== r[i]) return l[i] - r[i];
+  }
+  return 0;
+}
+
+function nextPatchVersion(version) {
+  const parts = version.split('.').map(Number);
+  parts[2] += 1;
+  return parts.join('.');
+}
+
+function participantAnnotationWorkflow() {
+  const p = participant('Participant_Notes', 'Notes Team', 120, 100, 720, 420, 'notes-team');
+  const ops = { participantId: 'Participant_Notes' };
+  return modelBase([
+    p,
+    node('Task_Inside', 'serviceTask', 'Inside Task', 260, 240, { activityType: 'load-campaign', maxAttempts: 3, ...ops }),
+    node('Annotation_1', 'textAnnotation', 'Sticky note', 300, 160, {
+      documentation: 'Bound to participant',
+      width: 180,
+      height: 72,
+      ...ops,
+    }),
+  ], []);
+}
+
+function partialContainmentWorkflow() {
+  const p = participant('Participant_Edge', 'Edge Pool', 80, 120, 520, 300, 'edge-pool');
+  return modelBase([
+    p,
+    node('Task_Edge', 'serviceTask', 'Edge Task', 108, 220, {
+      activityType: 'load-campaign',
+      maxAttempts: 3,
+      participantId: 'Participant_Edge',
+    }),
+    node('EndEvent', 'endEvent', 'End', 420, 220, { participantId: 'Participant_Edge' }),
+  ], [
+    edge('F_Task_End', 'Task_Edge', 'EndEvent'),
+  ]);
+}
+
+function workflowRecordFromStore(wf) {
+  return {
+    id: wf.id,
+    name: wf.name,
+    version: wf.currentVersion,
+    status: wf.status,
+    updatedAt: wf.updatedAt,
+    versions: wf.versions.map(v => ({
+      version: v.version,
+      status: v.status,
+      createdAt: v.createdAt,
+      model: v.model,
+    })),
+  };
+}
+
+function emptyWorkflowModel(workflowId, name) {
+  return {
+    id: workflowId,
+    name,
+    targetNamespace: 'https://example.com/flowfoundry',
+    process: {
+      id: workflowId.replace(/^workflow_/, 'process_'),
+      name,
+      isExecutable: true,
+    },
+    nodes: [],
+    edges: [],
+  };
+}
+
+async function mockWorkflowBackend(page, store = {}) {
+  const PREFIXES = {
+    workflow: 'workflow_',
+    event: 'event_',
+    subprocess: 'subprocess_',
+    task: 'task_',
+    gateway: 'gateway_',
+    participant: 'participant_',
+  };
+
+  if (!store.workflows) store.workflows = new Map();
+  if (!store.idRegistry) store.idRegistry = new Set();
+  store.idRequests = store.idRequests || [];
+  store.workflowApiLog = store.workflowApiLog || [];
+
+  const allocateId = kind => {
+    const prefix = PREFIXES[kind];
+    if (!prefix) throw new Error(`Unsupported id kind: ${kind}`);
+    for (let attempt = 0; attempt < 32; attempt += 1) {
+      const id = `${prefix}${createShortId()}`;
+      if (!store.idRegistry.has(id)) {
+        store.idRegistry.add(id);
+        return id;
+      }
+    }
+    throw new Error(`Failed to allocate id for kind: ${kind}`);
+  };
+
+  const fulfillJson = async (route, status, body) => {
+    await route.fulfill({
+      status,
+      contentType: 'application/json',
+      body: JSON.stringify(body),
+    });
+  };
+
+  await page.route(/\/api\/workflows(\/.*)?$/, async route => {
+    const request = route.request();
+    const method = request.method();
+    const url = new URL(request.url());
+    const rest = url.pathname.replace(/^\/api\/workflows\/?/, '');
+    store.workflowApiLog.push({ method, path: rest });
+
+    if (rest === 'ids/kinds' && method === 'GET') {
+      return fulfillJson(route, 200, { kinds: Object.keys(PREFIXES) });
+    }
+
+    if (rest === 'ids' && method === 'POST') {
+      const body = request.postDataJSON();
+      store.idRequests.push(body);
+      const id = allocateId(body.kind);
+      return fulfillJson(route, 200, { kind: body.kind, id });
+    }
+
+    if (rest === '' && method === 'GET') {
+      const keyword = (url.searchParams.get('keyword') || '').trim().toLowerCase();
+      const status = url.searchParams.get('status') || '';
+      let items = [...store.workflows.values()];
+      if (keyword) {
+        items = items.filter(
+          wf => wf.name.toLowerCase().includes(keyword) || wf.id.toLowerCase().includes(keyword),
+        );
+      }
+      if (status) items = items.filter(wf => wf.status === status);
+      items.sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
+      return fulfillJson(route, 200, items.map(workflowRecordFromStore));
+    }
+
+    if (rest === '' && method === 'POST') {
+      const body = request.postDataJSON();
+      const id = allocateId('workflow');
+      const now = new Date().toISOString();
+      const model = body.model
+        ? JSON.parse(JSON.stringify(body.model))
+        : emptyWorkflowModel(id, body.name);
+      model.id = id;
+      model.name = body.name;
+      const wf = {
+        id,
+        name: body.name,
+        status: 'draft',
+        currentVersion: '1.0.0',
+        createdAt: now,
+        updatedAt: now,
+        versions: [{
+          version: '1.0.0',
+          status: 'draft',
+          createdAt: now,
+          model,
+        }],
+      };
+      store.workflows.set(id, wf);
+      return fulfillJson(route, 201, workflowRecordFromStore(wf));
+    }
+
+    const parts = rest.split('/').map(part => decodeURIComponent(part));
+    const workflowId = parts[0];
+    const wf = store.workflows.get(workflowId);
+
+    if (parts.length === 1) {
+      if (method === 'GET') {
+        if (!wf) return fulfillJson(route, 404, { message: 'Workflow not found' });
+        return fulfillJson(route, 200, workflowRecordFromStore(wf));
+      }
+      if (method === 'PATCH') {
+        if (!wf) return fulfillJson(route, 404, { message: 'Workflow not found' });
+        const body = request.postDataJSON();
+        if (body.name) {
+          wf.name = body.name;
+          wf.versions.forEach(version => {
+            version.model.name = body.name;
+            if (version.model.process) version.model.process.name = body.name;
+          });
+        }
+        if (body.status) {
+          wf.status = body.status;
+          const current = wf.versions.find(v => v.version === wf.currentVersion);
+          if (current) current.status = body.status;
+        }
+        if (body.activeVersion) {
+          if (!wf.versions.some(v => v.version === body.activeVersion)) {
+            return fulfillJson(route, 404, { message: 'Workflow version not found' });
+          }
+          wf.currentVersion = body.activeVersion;
+        }
+        wf.updatedAt = new Date().toISOString();
+        return fulfillJson(route, 200, workflowRecordFromStore(wf));
+      }
+      if (method === 'DELETE') {
+        if (!wf) return fulfillJson(route, 404, { message: 'Workflow not found' });
+        store.workflows.delete(workflowId);
+        return route.fulfill({ status: 204, body: '' });
+      }
+    }
+
+    if (parts[1] === 'versions') {
+      if (!wf) return fulfillJson(route, 404, { message: 'Workflow not found' });
+
+      if (parts.length === 2 && method === 'POST') {
+        const body = request.postDataJSON();
+        const sourceVersion = body.sourceVersion || wf.currentVersion;
+        const source = wf.versions.find(v => v.version === sourceVersion);
+        if (!source) return fulfillJson(route, 404, { message: 'Workflow version not found' });
+        const latest = [...wf.versions].map(v => v.version).sort(compareVersions).pop();
+        const newVersion = body.version || nextPatchVersion(latest);
+        if (wf.versions.some(v => v.version === newVersion)) {
+          return fulfillJson(route, 409, { message: `Workflow version already exists: ${newVersion}` });
+        }
+        const now = new Date().toISOString();
+        const model = body.model
+          ? JSON.parse(JSON.stringify(body.model))
+          : JSON.parse(JSON.stringify(source.model));
+        wf.versions.push({ version: newVersion, status: 'draft', createdAt: now, model });
+        wf.currentVersion = newVersion;
+        wf.status = 'draft';
+        wf.updatedAt = now;
+        return fulfillJson(route, 201, workflowRecordFromStore(wf));
+      }
+
+      if (parts.length === 3) {
+        const version = parts[2];
+        const versionEntity = wf.versions.find(v => v.version === version);
+        if (!versionEntity) return fulfillJson(route, 404, { message: 'Workflow version not found' });
+
+        if (method === 'GET') {
+          return fulfillJson(route, 200, {
+            version: versionEntity.version,
+            status: versionEntity.status,
+            createdAt: versionEntity.createdAt,
+            model: versionEntity.model,
+          });
+        }
+
+        if (method === 'PUT') {
+          const body = request.postDataJSON();
+          if (body.name) {
+            wf.name = body.name;
+            versionEntity.model.name = body.name;
+          }
+          if (body.model) versionEntity.model = JSON.parse(JSON.stringify(body.model));
+          if (body.status) {
+            wf.status = body.status;
+            versionEntity.status = body.status;
+          }
+          wf.currentVersion = version;
+          wf.updatedAt = new Date().toISOString();
+          return fulfillJson(route, 200, workflowRecordFromStore(wf));
+        }
+      }
+    }
+
+    return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ message: 'Not found' }) });
+  });
+}
+
+async function mockBackendWithWorkflow(page, store = {}) {
+  await mockBackend(page, store);
+  await mockWorkflowBackend(page, store);
+}
+
+async function openFreshApp(page) {
+  await page.addInitScript(() => {
+    localStorage.clear();
+    localStorage.setItem('flowfoundry-locale', 'en');
+  });
+  await page.goto('/');
+  await expect(page.locator('#workflowListView')).toHaveClass(/active/);
+  await page.waitForFunction(() => typeof state !== 'undefined' && Array.isArray(state.workflows));
+}
+
+async function switchToModeler(page) {
+  await page.locator('#navModeler').click();
+  await expect(page.locator('#modelerView')).toHaveClass(/active/);
+  await expect(page.locator('#paletteItems')).toContainText('Service Task');
+}
+
 module.exports = {
+  DEMO_NODE,
+  PLATFORM_ID_PATTERN,
   mockBackend,
+  mockWorkflowBackend,
+  mockBackendWithWorkflow,
   openFreshModeler,
+  openFreshApp,
+  switchToModeler,
   importModel,
   clickNode,
+  clickNodeById,
+  selectEdge,
+  modelState,
   dragNodeTo,
+  dragConnection,
+  dragPaletteItemToCanvas,
+  getViewportState,
   jsonPanelValue,
   clickCanvasToolbarButton,
   clickRightToolbarButton,
   nodeLocator,
+  nodeById,
+  connectionHandle,
   participantWorkflow,
   nodeTypeMatrixWorkflow,
   invalidParticipantWorkflow,
+  simpleConnectionWorkflow,
+  connectedWorkflow,
+  participantAnnotationWorkflow,
+  partialContainmentWorkflow,
 };

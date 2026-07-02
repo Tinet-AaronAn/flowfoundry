@@ -1,10 +1,20 @@
       function buildDsl() {
         assertParticipantContainment();
-        const runtimeNodes = state.model.nodes.filter(isRuntimeNode);
+        validateStartEventUniqueness(state.model);
+        return buildDslForModel(state.model, state.activeVersion || '1.0.0', new Set([state.model.id]));
+      }
+
+      function buildDslForModel(model, version = '1.0.0', seenWorkflowIds = new Set()) {
+        const runtimeNodes = model.nodes.filter(isRuntimeNode);
         const runtimeNodeIds = new Set(runtimeNodes.map(n => n.id));
         return {
           dslVersion: '1.0',
-          flow: { id: state.model.id, name: state.model.name, version: state.activeVersion || '1.0.0' },
+          flow: {
+            id: model.id,
+            name: model.name,
+            version,
+            edgeRouting: model.process?.edgeRouting || 'orthogonal'
+          },
           inputs: { campaignId: { type: 'string', required: true } },
           variables: {},
           nodes: runtimeNodes.map(n => ({
@@ -19,21 +29,21 @@
               inputArgs: n.inputArgs,
               inputMapping: n.inputMapping,
               outputMapping: n.outputMapping,
-              config: runtimeConfig(n)
+              config: runtimeConfig(n, model, seenWorkflowIds)
             })),
-          edges: state.model.edges
+          edges: model.edges
             .filter(e => runtimeNodeIds.has(e.from) && runtimeNodeIds.has(e.to))
             .map(e => ({ from: e.from, to: e.to, condition: e.condition || 'default' }))
         };
       }
 
       function isRuntimeNode(n) {
-        return !isDefaultSubProcessBoundaryNode(n) && !['textAnnotation','participant','subProcess'].includes(n.kind);
+        return !['textAnnotation','participant','subProcess'].includes(n.kind);
       }
 
-      function runtimeConfig(n) {
+      function runtimeConfig(n, model = state.model, seenWorkflowIds = new Set()) {
         const config = { ...(n.config || {}) };
-        const participant = participantById(n.participantId);
+        const participant = participantByIdInModel(n.participantId, model);
         if (participant) {
           config.flowFoundryParticipant = {
             participantId: participant.id,
@@ -44,7 +54,40 @@
         if (n.kind === 'intermediateCatchEvent' && config.timerDefinition?.value) {
           config.duration = normalizeTimerDuration(config.timerDefinition.value);
         }
+        if (n.kind === 'workflow') {
+          config.flowFoundryChildWorkflow = {
+            childWorkflowId: config.childWorkflowId || '',
+            childWorkflowVersion: config.childWorkflowVersion || 'latest',
+            name: config.childWorkflowName || ''
+          };
+          const childDefinition = childWorkflowDefinition(n, seenWorkflowIds);
+          if (childDefinition) config.childWorkflowDefinition = childDefinition;
+        }
+        if (['userTask', 'humanTask', 'manualTask'].includes(n.kind)) {
+          config.flowFoundryHumanTask = {
+            mode: n.config?.flowFoundryHumanTask?.mode || (n.kind === 'manualTask' ? 'offline' : 'managed'),
+          };
+        }
         return config;
+      }
+
+      function participantByIdInModel(id, model) {
+        return model.nodes.find(node => node.id === id && isParticipantContainer(node));
+      }
+
+      function childWorkflowDefinition(node, seenWorkflowIds) {
+        const workflowId = node.config?.childWorkflowId;
+        if (!workflowId || seenWorkflowIds.has(workflowId)) return null;
+        const workflow = state.workflows.find(w => w.id === workflowId);
+        if (!workflow) return null;
+        const version =
+          workflow.versions?.find(v => v.version === node.config?.childWorkflowVersion) ||
+          workflow.versions?.find(v => v.version === workflow.version) ||
+          workflow.versions?.[workflow.versions.length - 1];
+        if (!version?.model) return null;
+        const nextSeen = new Set(seenWorkflowIds);
+        nextSeen.add(workflowId);
+        return buildDslForModel(version.model, version.version, nextSeen);
       }
 
       function normalizeTimerDuration(value) {
@@ -89,7 +132,15 @@
         const result = {};
         if (n.config?.flowFoundryTaskDefinition) result.flowFoundryTaskDefinition = n.config.flowFoundryTaskDefinition;
         if (n.config?.flowFoundryAssignmentDefinition) result.flowFoundryAssignmentDefinition = n.config.flowFoundryAssignmentDefinition;
+        if (n.config?.flowFoundryHumanTask) result.flowFoundryHumanTask = n.config.flowFoundryHumanTask;
         if (n.decisionRef) result.flowFoundryDecisionDefinition = { decisionRef: n.decisionRef, decisionVersion: n.decisionVersion };
+        if (n.kind === 'workflow') {
+          result.flowFoundryChildWorkflow = {
+            childWorkflowId: n.config?.childWorkflowId || '',
+            childWorkflowVersion: n.config?.childWorkflowVersion || 'latest',
+            name: n.config?.childWorkflowName || ''
+          };
+        }
         if (n.kind === 'participant') result.flowFoundryParticipant = { participantRef: n.config?.participantRef || '' };
         if (n.participantId) {
           const participant = participantById(n.participantId);
@@ -105,10 +156,12 @@
       async function compileFlow() {
         try {
           const res = await post('/api/flows/compile', buildDsl());
-          showJsonValue('Execution Plan', res);
-          message('编译成功：Flow DSL 已转换为 Execution Plan');
+          state.lastCompiledPlan = res;
+          updateCompiledPlanButton();
+          showJsonValue(t('json.compiledPlanTitle'), res);
+          message(t('message.compileSuccess'));
         } catch (err) {
-          message('编译失败：' + err.message);
+          message(t('message.compileFailed', { error: err.message }));
         }
       }
 
@@ -117,178 +170,30 @@
           const input = JSON.parse($('runInput').value || '{}');
           const res = await post('/api/flows/run', { flow: buildDsl(), input });
           $('workflowId').value = res.workflowId;
+          recordFlowRun({ workflowId: res.workflowId, input });
+          resetSimulation(false);
+          highlightRuntimeNode(res.currentNodeId || null);
+          switchView('simulation');
           showJsonValue('Run Result', res);
-          message(`已启动 Temporal Workflow：${res.workflowId}`);
+          message(t('message.runSuccess', { workflowId: res.workflowId }));
         } catch (err) {
-          message('运行失败：' + err.message);
+          message(t('message.runFailed', { error: err.message }));
         }
       }
 
       async function queryState() {
-        const id = $('workflowId').value;
-        if (!id) return message('请先运行流程或输入 Workflow ID');
-        try {
-          const res = await fetch(`/api/flows/runs/${encodeURIComponent(id)}`);
-          showJsonValue('Workflow State', await res.json());
-        } catch (err) {
-          message('查询失败：' + err.message);
-        }
+        return queryRunState($('workflowId').value);
       }
 
       async function completeHumanTask() {
         const id = $('workflowId').value;
-        if (!id) return message('请先输入 Workflow ID');
-        const nodeId = prompt('Human Task Node ID', 'Task_ManualConfirm');
+        if (!id) return message(t('message.queryWorkflowRequired'));
+        const nodeId = prompt(t('prompt.humanTaskNodeId'), 'Task_ManualConfirm');
         if (!nodeId) return;
         await post(`/api/flows/runs/${encodeURIComponent(id)}/human-task`, {
           nodeId,
           outcome: 'approved',
           variables: { approved: true }
         });
-        message(`已发送人工任务完成 Signal：${nodeId}`);
-      }
-
-      function resetSimulation(render = true) {
-        state.simulation = null;
-        if (render) $('debugLog').textContent = '等待模拟运行';
-      }
-
-      function ensureSimulation() {
-        if (state.simulation) return state.simulation;
-        let input = {};
-        try {
-          input = JSON.parse($('debugInput').value || '{}');
-        } catch (err) {
-          $('debugLog').textContent = '模拟输入 JSON 格式错误：' + err.message;
-          return null;
-        }
-        const start = state.model.nodes.find(n => n.kind === 'startEvent') || state.model.nodes[0];
-        state.simulation = {
-          input,
-          vars: { ...input },
-          currentNodeId: start?.id,
-          visited: [],
-          done: false,
-          log: []
-        };
-        return state.simulation;
-      }
-
-      function simulateFlow() {
-        const sim = ensureSimulation();
-        if (!sim) return;
-        let guard = 0;
-        while (!sim.done && guard < 100) {
-          runSimulationStep(sim);
-          guard += 1;
-        }
-        if (guard >= 100) sim.log.push('停止：超过 100 步，可能存在循环或缺少终止条件。');
-        renderSimulationLog();
-      }
-
-      function stepSimulation() {
-        const sim = ensureSimulation();
-        if (!sim || sim.done) return renderSimulationLog();
-        runSimulationStep(sim);
-        renderSimulationLog();
-      }
-
-      function runSimulationStep(sim) {
-        const current = state.model.nodes.find(n => n.id === sim.currentNodeId);
-        if (!current) {
-          sim.done = true;
-          sim.log.push('停止：找不到当前节点。');
-          return;
-        }
-        sim.visited.push(current.id);
-        state.selected = { type: 'node', id: current.id };
-        sim.log.push(`进入 ${current.id} (${current.kind}) - ${current.name || ''}`);
-        applySimulatedNodeEffects(current, sim);
-        if (current.kind === 'endEvent') {
-          sim.done = true;
-          sim.log.push('流程结束。');
-          renderCanvas();
-          return;
-        }
-        const next = selectSimulatedNext(current, sim);
-        if (!next) {
-          sim.done = true;
-          sim.log.push('停止：没有可走的出边。');
-        } else {
-          sim.log.push(`选择出边 ${next.id} -> ${next.to}`);
-          sim.currentNodeId = next.to;
-        }
-        renderCanvas();
-      }
-
-      function applySimulatedNodeEffects(node, sim) {
-        if (node.kind === 'scriptTask' && node.config?.script) {
-          const match = String(node.config.script).match(/^(\w+)\s*:=\s*(\w+)\s*\+\s*(\d+)$/);
-          if (match) {
-            sim.vars[match[1]] = Number(resolveSimValue(match[2], sim)) + Number(match[3]);
-            sim.log.push(`脚本更新变量：${match[1]} = ${sim.vars[match[1]]}`);
-          }
-        } else if (node.kind === 'userTask') {
-          sim.log.push('模拟人工任务：自动视为 approved。');
-        } else if (node.kind === 'businessRuleTask') {
-          sim.vars.matched = true;
-          sim.log.push(`模拟 DMN：${node.decisionRef || 'decision'} -> matched=true`);
-        } else if (node.activityType) {
-          sim.log.push(`模拟 Activity：${node.activityType}`);
-        }
-      }
-
-      function selectSimulatedNext(node, sim) {
-        const outgoing = state.model.edges.filter(e => e.from === node.id);
-        if (outgoing.length === 0) return null;
-        const conditional = outgoing.filter(e => e.condition && e.condition !== 'default');
-        const matched = conditional.find(e => evaluateSimCondition(e.condition, sim));
-        if (matched) return matched;
-        return outgoing.find(e => e.condition === 'default') || outgoing[0];
-      }
-
-      function evaluateSimCondition(condition, sim) {
-        if (!condition || condition === 'default') return true;
-        if (typeof condition === 'object') {
-          sim.log.push(`模拟 DMN 条件：${condition.decisionRef || 'decision'} -> true`);
-          return true;
-        }
-        const expression = String(condition).replace(/^\$\{|\}$/g, '').trim();
-        if (expression.includes(' or ')) return expression.split(/\s+or\s+/).some(part => evaluateSimCondition('${' + part + '}', sim));
-        if (expression.includes(' and ')) return expression.split(/\s+and\s+/).every(part => evaluateSimCondition('${' + part + '}', sim));
-        const match = expression.match(/^([\w.]+)\s*(==|=|!=|>=|<=|>|<)\s*(.+)$/);
-        if (!match) return Boolean(resolveSimValue(expression, sim));
-        const left = resolveSimValue(match[1], sim);
-        const right = parseSimLiteral(match[3], sim);
-        switch (match[2]) {
-          case '=':
-          case '==': return left === right;
-          case '!=': return left !== right;
-          case '>': return Number(left) > Number(right);
-          case '<': return Number(left) < Number(right);
-          case '>=': return Number(left) >= Number(right);
-          case '<=': return Number(left) <= Number(right);
-          default: return false;
-        }
-      }
-
-      function resolveSimValue(path, sim) {
-        const key = String(path).replace(/^vars\.|^input\./, '');
-        if (Object.prototype.hasOwnProperty.call(sim.vars, key)) return sim.vars[key];
-        return sim.input[key];
-      }
-
-      function parseSimLiteral(value, sim) {
-        const text = String(value).trim().replace(/^['"]|['"]$/g, '');
-        if (text === 'true') return true;
-        if (text === 'false') return false;
-        if (!Number.isNaN(Number(text))) return Number(text);
-        return resolveSimValue(text, sim) ?? text;
-      }
-
-      function renderSimulationLog() {
-        const sim = state.simulation;
-        $('debugLog').textContent = sim
-          ? `${sim.log.join('\n')}\n\n变量快照：${pretty(sim.vars)}`
-          : '等待模拟运行';
+        message(t('message.humanTaskSignalSent', { nodeId }));
       }

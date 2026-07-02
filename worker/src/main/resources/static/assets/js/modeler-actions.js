@@ -16,7 +16,7 @@
         pushHistory();
         state.model.process[key] = value;
         if (key === 'name') $('flowName').value = value;
-        renderProperties();
+        if (key === 'edgeRouting') renderCanvas();
       }
 
       function updateNode(key, value) {
@@ -39,7 +39,8 @@
         } else {
           n[key] = value;
         }
-        renderAll();
+        refreshNodePreview(n);
+        updateButtons();
       }
 
       function updateNodeNumber(key, value) {
@@ -52,14 +53,29 @@
         pushHistory();
         n.activityType = value;
         n.config = { ...(n.config || {}), flowFoundryTaskDefinition: { ...(n.config?.flowFoundryTaskDefinition || {}), type: value, retries: String(n.maxAttempts || 3) } };
-        renderAll();
+        refreshNodePreview(n);
       }
 
       function updateConfig(key, value) {
         const n = selectedNode();
         pushHistory();
         n.config = { ...(n.config || {}), [key]: value };
-        renderAll();
+        refreshNodePreview(n);
+      }
+
+      function updateChildWorkflowRef(workflowId) {
+        const n = selectedNode();
+        if (!n || n.kind !== 'workflow') return;
+        pushHistory();
+        const workflow = state.workflows.find(w => w.id === workflowId);
+        n.config = {
+          ...(n.config || {}),
+          childWorkflowId: workflowId,
+          childWorkflowName: workflow?.name || '',
+          childWorkflowVersion: workflow?.version || workflow?.versions?.[0]?.version || '1.0.0'
+        };
+        refreshNodePreview(n);
+        renderProperties();
       }
 
       function updateParticipantOwner(value) {
@@ -68,7 +84,7 @@
         pushHistory();
         if (value) n.participantId = value;
         else delete n.participantId;
-        renderAll();
+        refreshNodePreview(n);
       }
 
       function updateConfigPath(path, value) {
@@ -81,14 +97,15 @@
           current = current[path[i]];
         }
         current[path[path.length - 1]] = value;
-        renderAll();
+        refreshNodePreview(n);
       }
 
       function updateTimer(key, value) {
         const n = selectedNode();
         pushHistory();
         n.config = { ...(n.config || {}), timerDefinition: { ...(n.config?.timerDefinition || {}), [key]: value } };
-        renderAll();
+        refreshNodePreview(n);
+        updateButtons();
       }
 
       function updateJsonNode(key, value) {
@@ -96,9 +113,9 @@
         try {
           pushHistory();
           n[key] = JSON.parse(value || '{}');
-          renderCanvas();
+          refreshNodePreview(n);
         } catch (err) {
-          message('JSON 格式错误：' + err.message);
+          message(t('message.jsonInvalid', { error: err.message }));
         }
       }
 
@@ -112,7 +129,7 @@
         } else {
           e[key] = value;
         }
-        renderAll();
+        refreshEdgePreview();
       }
 
       function edgeConditionMode(edge) {
@@ -130,6 +147,8 @@
       }
 
       function edgeConditionLabel(edge) {
+        if (String(edge.name || '').trim()) return edge.name.trim();
+        if (!edge.condition || edge.condition === 'default') return '';
         if (edgeConditionMode(edge) === 'dmn') {
           return `DMN: ${edge.condition.decisionRef || 'decision'}`;
         }
@@ -160,7 +179,7 @@
         if (!e) return;
         pushHistory();
         e.condition = value || 'default';
-        renderAll();
+        refreshEdgePreview();
       }
 
       function updateEdgeDmn(key, value) {
@@ -172,5 +191,5 @@
           ...dmnCondition(e),
           [key]: value
         };
-        renderAll();
+        refreshEdgePreview();
       }

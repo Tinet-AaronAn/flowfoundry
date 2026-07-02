@@ -57,6 +57,7 @@ build_worker() {
 start_worker() {
   if curl -sf "http://127.0.0.1:$WORKER_PORT/actuator/health" >/dev/null 2>&1; then
     echo "[worker] already running on :$WORKER_PORT"
+    echo "[worker] after code changes run: ./scripts/redeploy-worker.sh"
     return
   fi
   build_worker
@@ -100,11 +101,17 @@ case "${1:-up}" in
     start_worker
     echo ""
     echo "Local stack is up:"
+    echo "  Modeler     : http://127.0.0.1:$WORKER_PORT/"
     echo "  Temporal UI : http://127.0.0.1:$TEMPORAL_UI"
     echo "  Worker      : http://127.0.0.1:$WORKER_PORT/actuator/health"
     echo "  Redis       : 127.0.0.1:$REDIS_PORT"
+    echo ""
+    echo "After code changes, run: ./scripts/redeploy-worker.sh"
+    ;;
+  redeploy)
+    exec "$ROOT/scripts/redeploy-worker.sh"
     ;;
   down) stop_all ;;
   status) "$ROOT/scripts/check-progress.sh" ;;
-  *) echo "Usage: $0 {up|down|status}"; exit 1 ;;
+  *) echo "Usage: $0 {up|down|status|redeploy}"; exit 1 ;;
 esac

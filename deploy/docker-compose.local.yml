@@ -21,6 +21,8 @@ services:
       POSTGRES_PASSWORD: temporal
     ports:
       - "5432:5432"
+    volumes:
+      - ./postgres/init-flowfoundry-db.sql:/docker-entrypoint-initdb.d/02-flowfoundry.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U temporal"]
       interval: 5s
@@ -102,6 +104,9 @@ services:
       TEMPORAL_TASK_QUEUE: call-campaign
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      DATABASE_URL: jdbc:postgresql://postgres:5432/flowfoundry
+      DB_USER: flowfoundry
+      DB_PASSWORD: flowfoundry
       ACTIVITY_REGISTRY_PATH: /config/activities-registry.yaml
       DEV_MAX_ROUNDS: "1"
       DEV_ROUND_INTERVAL_MINUTES: "1"

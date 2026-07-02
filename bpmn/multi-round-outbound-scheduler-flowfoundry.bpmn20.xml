@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:flowfoundry="https://flowfoundry.com/schema/flowfoundry/bpmn/1.0"
+                  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                  id="Definitions_MultiRoundOutboundScheduler"
+                  name="多轮外呼任务调度"
+                  targetNamespace="https://example.com/bpmn/outbound-scheduler"
+                  exporter="FlowFoundry Modeler">
+  <bpmn:process id="MultiRoundOutboundScheduler" name="多轮外呼任务调度流程" isExecutable="true">
+    <bpmn:startEvent id="StartEvent" name="提交外呼任务">
+      <bpmn:outgoing>F_Start_Load</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <bpmn:serviceTask id="Task_LoadCampaign" name="加载任务配置">
+      <bpmn:extensionElements>
+        <flowfoundry:taskDefinition type="load-call-campaign" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>F_Start_Load</bpmn:incoming>
+      <bpmn:outgoing>F_Load_Prepare</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Task_PrepareRound" name="准备本轮名单">
+      <bpmn:extensionElements>
+        <flowfoundry:taskDefinition type="prepare-call-round" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>F_Load_Prepare</bpmn:incoming>
+      <bpmn:incoming>F_Inc_Prepare</bpmn:incoming>
+      <bpmn:outgoing>F_Prepare_ChannelGw</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:exclusiveGateway id="Gateway_ChannelStrategy" name="名单调度策略?" default="F_Channel_Normal">
+      <bpmn:incoming>F_Prepare_ChannelGw</bpmn:incoming>
+      <bpmn:outgoing>F_Channel_Normal</bpmn:outgoing>
+      <bpmn:outgoing>F_Channel_SplitBatch</bpmn:outgoing>
+      <bpmn:outgoing>F_Channel_Manual</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="F_Channel_Normal" name="正常外呼" sourceRef="Gateway_ChannelStrategy" targetRef="Task_ExecuteRound" />
+    <bpmn:sequenceFlow id="F_Channel_SplitBatch" name="大名单拆批" sourceRef="Gateway_ChannelStrategy" targetRef="Task_SplitBatch">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${remainingContacts &gt; 500}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="F_Channel_Manual" name="高价值客户人工确认" sourceRef="Gateway_ChannelStrategy" targetRef="Task_ManualConfirm">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${vipSegment == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+
+    <bpmn:serviceTask id="Task_SplitBatch" name="拆分外呼批次">
+      <bpmn:extensionElements>
+        <flowfoundry:taskDefinition type="split-call-batch" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>F_Channel_SplitBatch</bpmn:incoming>
+      <bpmn:outgoing>F_Split_Execute</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:userTask id="Task_ManualConfirm" name="人工确认名单">
+      <bpmn:extensionElements>
+        <flowfoundry:assignmentDefinition candidateGroups="call-supervisor" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>F_Channel_Manual</bpmn:incoming>
+      <bpmn:outgoing>F_Manual_Execute</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:serviceTask id="Task_ExecuteRound" name="执行本轮外呼">
+      <bpmn:extensionElements>
+        <flowfoundry:taskDefinition type="execute-call-round" retries="5" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>F_Channel_Normal</bpmn:incoming>
+      <bpmn:incoming>F_Split_Execute</bpmn:incoming>
+      <bpmn:incoming>F_Manual_Execute</bpmn:incoming>
+      <bpmn:outgoing>F_Execute_Wait</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Task_WaitCompletion" name="等待外呼结果">
+      <bpmn:extensionElements>
+        <flowfoundry:taskDefinition type="wait-round-completion" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>F_Execute_Wait</bpmn:incoming>
+      <bpmn:outgoing>F_Wait_Aggregate</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:serviceTask id="Task_AggregateResult" name="汇总本轮结果">
+      <bpmn:extensionElements>
+        <flowfoundry:taskDefinition type="aggregate-round-results" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>F_Wait_Aggregate</bpmn:incoming>
+      <bpmn:outgoing>F_Aggregate_RiskGw</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:exclusiveGateway id="Gateway_RiskCheck" name="触发风险复核?" default="F_Risk_No">
+      <bpmn:incoming>F_Aggregate_RiskGw</bpmn:incoming>
+      <bpmn:outgoing>F_Risk_Review</bpmn:outgoing>
+      <bpmn:outgoing>F_Risk_No</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="F_Risk_Review" name="投诉率或失败率过高" sourceRef="Gateway_RiskCheck" targetRef="Task_RiskReview">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${complaintRate &gt; 0.03 or failedRate &gt; 0.4}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="F_Risk_No" name="无需复核" sourceRef="Gateway_RiskCheck" targetRef="Task_EvaluateNextRound" />
+
+    <bpmn:userTask id="Task_RiskReview" name="运营复核策略">
+      <bpmn:extensionElements>
+        <flowfoundry:assignmentDefinition candidateGroups="operation-manager" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>F_Risk_Review</bpmn:incoming>
+      <bpmn:outgoing>F_Risk_Evaluate</bpmn:outgoing>
+    </bpmn:userTask>
+
+    <bpmn:serviceTask id="Task_EvaluateNextRound" name="评估是否进入下一轮">
+      <bpmn:extensionElements>
+        <flowfoundry:taskDefinition type="evaluate-next-round" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>F_Risk_No</bpmn:incoming>
+      <bpmn:incoming>F_Risk_Evaluate</bpmn:incoming>
+      <bpmn:outgoing>F_Evaluate_ContinueGw</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:exclusiveGateway id="Gateway_Continue" name="继续下一轮?" default="F_Stop_Finalize">
+      <bpmn:incoming>F_Evaluate_ContinueGw</bpmn:incoming>
+      <bpmn:outgoing>F_Continue_Timer</bpmn:outgoing>
+      <bpmn:outgoing>F_Stop_Finalize</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <bpmn:sequenceFlow id="F_Continue_Timer" name="继续下一轮" sourceRef="Gateway_Continue" targetRef="Timer_BetweenRounds">
+      <bpmn:conditionExpression xsi:type="bpmn:tFormalExpression">${continueNextRound == true}</bpmn:conditionExpression>
+    </bpmn:sequenceFlow>
+    <bpmn:sequenceFlow id="F_Stop_Finalize" name="结束活动" sourceRef="Gateway_Continue" targetRef="Task_Finalize" />
+
+    <bpmn:intermediateCatchEvent id="Timer_BetweenRounds" name="轮次间隔">
+      <bpmn:incoming>F_Continue_Timer</bpmn:incoming>
+      <bpmn:outgoing>F_Timer_IncRound</bpmn:outgoing>
+      <bpmn:timerEventDefinition>
+        <bpmn:timeDuration xsi:type="bpmn:tFormalExpression">${roundIntervalMinutes}M</bpmn:timeDuration>
+      </bpmn:timerEventDefinition>
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:scriptTask id="Task_IncRound" name="轮次加一">
+      <bpmn:incoming>F_Timer_IncRound</bpmn:incoming>
+      <bpmn:outgoing>F_Inc_Prepare</bpmn:outgoing>
+      <bpmn:script>roundNumber := roundNumber + 1</bpmn:script>
+    </bpmn:scriptTask>
+
+    <bpmn:serviceTask id="Task_Finalize" name="结束并生成报告">
+      <bpmn:extensionElements>
+        <flowfoundry:taskDefinition type="finalize-campaign" retries="3" />
+      </bpmn:extensionElements>
+      <bpmn:incoming>F_Stop_Finalize</bpmn:incoming>
+      <bpmn:outgoing>F_Finalize_End</bpmn:outgoing>
+    </bpmn:serviceTask>
+
+    <bpmn:endEvent id="EndEvent" name="任务完成">
+      <bpmn:incoming>F_Finalize_End</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:sequenceFlow id="F_Start_Load" sourceRef="StartEvent" targetRef="Task_LoadCampaign" />
+    <bpmn:sequenceFlow id="F_Load_Prepare" sourceRef="Task_LoadCampaign" targetRef="Task_PrepareRound" />
+    <bpmn:sequenceFlow id="F_Prepare_ChannelGw" sourceRef="Task_PrepareRound" targetRef="Gateway_ChannelStrategy" />
+    <bpmn:sequenceFlow id="F_Split_Execute" sourceRef="Task_SplitBatch" targetRef="Task_ExecuteRound" />
+    <bpmn:sequenceFlow id="F_Manual_Execute" sourceRef="Task_ManualConfirm" targetRef="Task_ExecuteRound" />
+    <bpmn:sequenceFlow id="F_Execute_Wait" sourceRef="Task_ExecuteRound" targetRef="Task_WaitCompletion" />
+    <bpmn:sequenceFlow id="F_Wait_Aggregate" sourceRef="Task_WaitCompletion" targetRef="Task_AggregateResult" />
+    <bpmn:sequenceFlow id="F_Aggregate_RiskGw" sourceRef="Task_AggregateResult" targetRef="Gateway_RiskCheck" />
+    <bpmn:sequenceFlow id="F_Risk_Evaluate" sourceRef="Task_RiskReview" targetRef="Task_EvaluateNextRound" />
+    <bpmn:sequenceFlow id="F_Evaluate_ContinueGw" sourceRef="Task_EvaluateNextRound" targetRef="Gateway_Continue" />
+    <bpmn:sequenceFlow id="F_Timer_IncRound" sourceRef="Timer_BetweenRounds" targetRef="Task_IncRound" />
+    <bpmn:sequenceFlow id="F_Inc_Prepare" sourceRef="Task_IncRound" targetRef="Task_PrepareRound" />
+    <bpmn:sequenceFlow id="F_Finalize_End" sourceRef="Task_Finalize" targetRef="EndEvent" />
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_1">
+    <bpmndi:BPMNPlane id="BPMNPlane_1" bpmnElement="MultiRoundOutboundScheduler">
+      <bpmndi:BPMNShape id="StartEvent_di" bpmnElement="StartEvent"><dc:Bounds x="80" y="220" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_LoadCampaign_di" bpmnElement="Task_LoadCampaign"><dc:Bounds x="160" y="198" width="120" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_PrepareRound_di" bpmnElement="Task_PrepareRound"><dc:Bounds x="330" y="198" width="120" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_ChannelStrategy_di" bpmnElement="Gateway_ChannelStrategy" isMarkerVisible="true"><dc:Bounds x="500" y="213" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_SplitBatch_di" bpmnElement="Task_SplitBatch"><dc:Bounds x="610" y="80" width="120" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ManualConfirm_di" bpmnElement="Task_ManualConfirm"><dc:Bounds x="610" y="340" width="120" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ExecuteRound_di" bpmnElement="Task_ExecuteRound"><dc:Bounds x="780" y="198" width="120" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_WaitCompletion_di" bpmnElement="Task_WaitCompletion"><dc:Bounds x="950" y="198" width="120" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_AggregateResult_di" bpmnElement="Task_AggregateResult"><dc:Bounds x="1120" y="198" width="120" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_RiskCheck_di" bpmnElement="Gateway_RiskCheck" isMarkerVisible="true"><dc:Bounds x="1290" y="213" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_RiskReview_di" bpmnElement="Task_RiskReview"><dc:Bounds x="1380" y="90" width="120" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_EvaluateNextRound_di" bpmnElement="Task_EvaluateNextRound"><dc:Bounds x="1540" y="198" width="140" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_Continue_di" bpmnElement="Gateway_Continue" isMarkerVisible="true"><dc:Bounds x="1730" y="213" width="50" height="50" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Timer_BetweenRounds_di" bpmnElement="Timer_BetweenRounds"><dc:Bounds x="1830" y="330" width="36" height="36" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_IncRound_di" bpmnElement="Task_IncRound"><dc:Bounds x="1020" y="360" width="120" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_Finalize_di" bpmnElement="Task_Finalize"><dc:Bounds x="1830" y="198" width="130" height="80" /></bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_di" bpmnElement="EndEvent"><dc:Bounds x="2010" y="220" width="36" height="36" /></bpmndi:BPMNShape>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

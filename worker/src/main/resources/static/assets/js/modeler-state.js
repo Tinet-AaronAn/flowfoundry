@@ -1,28 +1,26 @@
       const paletteGroups = [
         {
-          name: 'Events',
+          groupKey: 'palette.group.events',
           items: [
             { kind: 'startEvent', label: 'Start Event', basic: true },
             { kind: 'endEvent', label: 'End Event', basic: true },
-            { kind: 'intermediateCatchEvent', label: 'Intermediate / Boundary', basic: true, config: { timerDefinition: { type: 'duration', value: '1m' }, subtype: 'timer' } },
-            { kind: 'boundaryEvent', label: 'Boundary Event', basic: true, config: { timerDefinition: { type: 'duration', value: '1m' }, attachedToRef: '' } }
+            { kind: 'intermediateCatchEvent', label: 'Intermediate Timer', basic: true, config: { timerDefinition: { type: 'duration', value: '1m' }, subtype: 'timer' } }
           ]
         },
         {
-          name: 'Activities',
+          groupKey: 'palette.group.activities',
           items: [
             { kind: 'task', label: 'Generic Task', basic: true },
             { kind: 'serviceTask', label: 'Service Task', basic: true },
-            { kind: 'userTask', label: 'User Task', basic: true },
-            { kind: 'manualTask', label: 'Manual Task', basic: true, config: { flowFoundryAssignmentDefinition: { candidateGroups: 'manual-operator' } } },
+            { kind: 'userTask', label: 'Human Task', basic: true, config: { flowFoundryHumanTask: { mode: 'managed' }, flowFoundryAssignmentDefinition: { candidateGroups: 'operator' } } },
             { kind: 'sendTask', label: 'Send Task', basic: true, activityType: 'send-message' },
             { kind: 'receiveTask', label: 'Receive Task', basic: true, config: { signalName: 'external-message-received' } },
-            { kind: 'scriptTask', label: 'Script Task', basic: true, config: { scriptFormat: 'feel', script: 'roundNumber := roundNumber + 1' } },
-            { kind: 'businessRuleTask', label: 'Business Rule Task / DMN', basic: true, decisionRef: 'demo-decision', decisionVersion: '1.0.0' }
+            { kind: 'scriptTask', label: 'Script Task', basic: true, activityType: 'dmn-decision', decisionRef: 'demo-script', decisionVersion: '1.0.0' },
+            { kind: 'workflow', label: 'Workflow', basic: true, config: { childWorkflowId: '', childWorkflowVersion: '1.0.0' } }
           ]
         },
         {
-          name: 'Gateways',
+          groupKey: 'palette.group.gateways',
           items: [
             { kind: 'exclusiveGateway', label: 'Exclusive Gateway', basic: true },
             { kind: 'parallelGateway', label: 'Parallel Gateway', basic: true },
@@ -31,16 +29,16 @@
           ]
         },
         {
-          name: 'Structural',
+          groupKey: 'palette.group.structural',
           items: [
             { kind: 'subProcess', label: 'Sub-process', basic: true },
             { kind: 'participant', label: 'Participant', basic: true, config: { participantRef: 'business-team' } }
           ]
         },
         {
-          name: 'Annotations',
+          groupKey: 'palette.group.annotations',
           items: [
-            { kind: 'textAnnotation', label: 'Text Annotation', basic: true, documentation: '流程说明 / 业务备注' }
+            { kind: 'textAnnotation', label: 'Text Annotation', basic: true, documentation: 'Process notes / business remarks' }
           ]
         }
       ];
@@ -51,49 +49,67 @@
         workflows: [],
         activeWorkflowId: null,
         activeVersion: '1.0.0',
-        simulation: null,
         paletteDragItem: null,
+        paletteCollapsed: false,
+        navCollapsed: false,
+        propertiesCollapsed: true,
+        lastCompiledPlan: null,
+        simulation: null,
+        runtimeHighlightNodeId: null,
+        flowRuns: [],
+        activeRunId: null,
         taskMorphMenuNodeId: null,
         suppressCanvasClick: false,
+        isDragging: false,
         selected: { type: 'process', id: null },
         connectionSource: null,
         connectionSourceHandle: null,
         connectionDraftTarget: null,
+        edgeReconnect: null,
         connectBuffer: [],
         scale: 1,
+        minScale: 0.2,
+        maxScale: 1.5,
+        viewportLocked: false,
+        minimap: null,
+        panX: 0,
+        panY: 0,
         history: [],
         future: [],
         model: {
           id: 'Definitions_MultiRoundOutboundScheduler',
-          name: '多轮外呼任务调度流程',
+          name: 'Multi-round Outbound Scheduler',
           targetNamespace: 'https://example.com/bpmn/outbound-scheduler',
           process: {
             id: 'MultiRoundOutboundScheduler',
-            name: '多轮外呼任务调度流程',
-            isExecutable: true
+            name: 'Multi-round Outbound Scheduler',
+            isExecutable: true,
+            edgeRouting: 'orthogonal'
           },
           nodes: [
-            node('StartEvent', 'startEvent', '提交外呼任务', 80, 220),
-            task('Task_LoadCampaign', 'serviceTask', '加载任务配置', 'load-campaign', 160, 198, 3),
-            task('Task_PrepareRound', 'serviceTask', '准备本轮名单', 'prepare-call-round', 330, 198, 3),
-            node('Gateway_ChannelStrategy', 'exclusiveGateway', '名单调度策略?', 520, 210),
-            task('Task_SplitBatch', 'serviceTask', '拆分外呼批次', 'prepare-call-round', 610, 80, 3),
-            human('Task_ManualConfirm', 'userTask', '人工确认名单', 'call-supervisor', 610, 340),
-            task('Task_ExecuteRound', 'serviceTask', '执行本轮外呼', 'execute-call-round', 780, 198, 5),
-            task('Task_WaitCompletion', 'serviceTask', '等待外呼结果', 'wait-round-completion', 950, 198, 3),
-            task('Task_AggregateResult', 'serviceTask', '汇总本轮结果', 'aggregate-round-results', 1120, 198, 3),
-            node('Gateway_RiskCheck', 'exclusiveGateway', '触发风险复核?', 1290, 210),
-            human('Task_RiskReview', 'userTask', '运营复核策略', 'operation-manager', 1380, 90),
-            task('Task_EvaluateNextRound', 'serviceTask', '评估是否进入下一轮', 'evaluate-next-round', 1540, 198, 3),
-            node('Gateway_Continue', 'exclusiveGateway', '继续下一轮?', 1730, 210),
-            node('Timer_BetweenRounds', 'intermediateCatchEvent', '轮次间隔', 1850, 330, {
+            node('StartEvent', 'startEvent', 'Submit outbound task', 80, 220),
+            task('Task_LoadCampaign', 'serviceTask', 'Load campaign config', 'load-campaign', 160, 198, 3),
+            task('Task_PrepareRound', 'serviceTask', 'Prepare call list', 'prepare-call-round', 330, 198, 3),
+            node('Gateway_ChannelStrategy', 'exclusiveGateway', 'Channel strategy?', 520, 210),
+            task('Task_SplitBatch', 'serviceTask', 'Split outbound batches', 'prepare-call-round', 610, 80, 3),
+            human('Task_ManualConfirm', 'userTask', 'Manual list confirmation', 'call-supervisor', 610, 340),
+            task('Task_ExecuteRound', 'serviceTask', 'Execute outbound round', 'execute-call-round', 780, 198, 5),
+            task('Task_WaitCompletion', 'serviceTask', 'Wait for round result', 'wait-round-completion', 950, 198, 3),
+            task('Task_AggregateResult', 'serviceTask', 'Aggregate round result', 'aggregate-round-results', 1120, 198, 3),
+            node('Gateway_RiskCheck', 'exclusiveGateway', 'Trigger risk review?', 1290, 210),
+            human('Task_RiskReview', 'userTask', 'Operations strategy review', 'operation-manager', 1380, 90),
+            task('Task_EvaluateNextRound', 'serviceTask', 'Evaluate next round', 'evaluate-next-round', 1540, 198, 3),
+            node('Gateway_Continue', 'exclusiveGateway', 'Continue next round?', 1730, 210),
+            node('Timer_BetweenRounds', 'intermediateCatchEvent', 'Round interval', 1850, 330, {
               config: { subtype: 'timer', timerDefinition: { type: 'duration', value: '1m' } }
             }),
-            node('Task_IncRound', 'scriptTask', '轮次加一', 1020, 360, {
-              config: { scriptFormat: 'feel', script: 'roundNumber := roundNumber + 1' }
+            node('Task_IncRound', 'scriptTask', 'Increment round', 1020, 360, {
+              activityType: 'dmn-decision',
+              decisionRef: 'increment-round',
+              decisionVersion: '1.0.0'
             }),
-            task('Task_Finalize', 'serviceTask', '结束并生成报告', 'finalize-campaign', 1830, 198, 3),
-            node('EndEvent', 'endEvent', '任务完成', 2010, 220)
+            task('Task_Finalize', 'serviceTask', 'Finalize and generate report', 'finalize-campaign', 1830, 198, 3),
+            node('EndEvent', 'endEvent', 'Campaign complete', 2010, 220)
           ],
           edges: [
             edge('F_Start_Load', 'StartEvent', 'Task_LoadCampaign'),
@@ -148,7 +164,10 @@
 
       function human(id, kind, name, candidateGroups, x, y) {
         return node(id, kind, name, x, y, {
-          config: { flowFoundryAssignmentDefinition: { candidateGroups } }
+          config: {
+            flowFoundryHumanTask: { mode: 'managed' },
+            flowFoundryAssignmentDefinition: { candidateGroups },
+          },
         });
       }
 

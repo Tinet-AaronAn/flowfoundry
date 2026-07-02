@@ -1,6 +1,23 @@
 spring:
   application:
     name: call-campaign-worker
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/flowfoundry}
+    username: ${DB_USER:flowfoundry}
+    password: ${DB_PASSWORD:flowfoundry}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:10}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
   data:
     redis:
       host: ${REDIS_HOST:localhost}

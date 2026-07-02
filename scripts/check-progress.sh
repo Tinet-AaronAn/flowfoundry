@@ -65,6 +65,7 @@ echo "================================"
 
 if [[ $FAIL -eq 0 ]]; then
   echo "ALL_GREEN: compile + runtime stack ready"
+  echo "Modeler: http://127.0.0.1:${WORKER_PORT:-8081}/"
 else
   echo "PENDING: see FAIL items above"
 fi

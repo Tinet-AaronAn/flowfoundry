@@ -12,7 +12,9 @@ import com.example.platform.interpreter.runtime.VariableStore;
 import io.temporal.activity.ActivityOptions;
 import io.temporal.common.RetryOptions;
 import io.temporal.workflow.ActivityStub;
+import io.temporal.workflow.ChildWorkflowOptions;
 import io.temporal.workflow.Workflow;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -22,6 +24,7 @@ public class FlowInterpreterWorkflowImpl implements FlowInterpreterWorkflow {
 
   private static final Duration DEFAULT_ACTIVITY_TIMEOUT = Duration.ofMinutes(1);
   private static final String ROUTER_ACTIVITY_TYPE = "dynamic-activity-router";
+  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
   private final ConditionEvaluator conditions = new ConditionEvaluator();
   private final MappingEvaluator mappings = new MappingEvaluator();
@@ -92,6 +95,7 @@ public class FlowInterpreterWorkflowImpl implements FlowInterpreterWorkflow {
       case TIMER -> executeTimer(node);
       case HUMAN_TASK -> executeHumanTask(node);
       case SCRIPT_TASK -> executeScriptTask(node);
+      case CHILD_WORKFLOW -> executeChildWorkflow(node);
     }
   }
 
@@ -115,6 +119,41 @@ public class FlowInterpreterWorkflowImpl implements FlowInterpreterWorkflow {
         activity.execute(
             ROUTER_ACTIVITY_TYPE, Object.class, node.activityType(), routerInput(node));
     mappings.applyOutput(variables, result, node.outputMapping());
+  }
+
+  private void executeChildWorkflow(ExecutionNode node) {
+    ExecutionPlan childPlan = childExecutionPlan(node);
+    String childBusinessKey = businessKey + "/" + node.id();
+    Map<String, Object> childInput = mappings.buildInput(variables, node.inputMapping());
+    if (childInput.isEmpty()) {
+      childInput = variables.variables();
+    }
+    FlowInterpreterWorkflow child =
+        Workflow.newChildWorkflowStub(
+            FlowInterpreterWorkflow.class,
+            ChildWorkflowOptions.newBuilder()
+                .setWorkflowId("flow-child-" + childPlan.flowId() + "-" + childBusinessKey)
+                .setTaskQueue(childTaskQueue(node))
+                .build());
+    InterpreterState result = child.run(childPlan, childBusinessKey, childInput);
+    mappings.applyOutput(variables, result, node.outputMapping());
+  }
+
+  private ExecutionPlan childExecutionPlan(ExecutionNode node) {
+    Object raw = node.config() == null ? null : node.config().get("childExecutionPlan");
+    if (raw == null) {
+      throw new IllegalArgumentException(
+          "Workflow node requires compiled childExecutionPlan: " + node.id());
+    }
+    return OBJECT_MAPPER.convertValue(raw, ExecutionPlan.class);
+  }
+
+  private String childTaskQueue(ExecutionNode node) {
+    Object taskQueue = node.config() == null ? null : node.config().get("childTaskQueue");
+    if (taskQueue == null || String.valueOf(taskQueue).isBlank()) {
+      taskQueue = node.taskQueue();
+    }
+    return String.valueOf(taskQueue);
   }
 
   private Map<String, Object> routerInput(ExecutionNode node) {
@@ -150,6 +189,10 @@ public class FlowInterpreterWorkflowImpl implements FlowInterpreterWorkflow {
   }
 
   private void executeHumanTask(ExecutionNode node) {
+    if ("offline".equalsIgnoreCase(humanTaskMode(node))) {
+      variables.assign("humanTask." + node.id() + ".outcome", "offline");
+      return;
+    }
     waitingHumanTaskNodeId = node.id();
     status = InterpreterStatus.WAITING_HUMAN_TASK;
     Workflow.await(
@@ -161,6 +204,20 @@ public class FlowInterpreterWorkflowImpl implements FlowInterpreterWorkflow {
     mappings.applyOutput(variables, pendingHumanTaskCompletion.variables(), node.outputMapping());
     variables.assign("humanTask." + node.id() + ".outcome", pendingHumanTaskCompletion.outcome());
     pendingHumanTaskCompletion = null;
+  }
+
+  private String humanTaskMode(ExecutionNode node) {
+    if (node.config() == null) {
+      return "managed";
+    }
+    Object raw = node.config().get("flowFoundryHumanTask");
+    if (raw instanceof Map<?, ?> map) {
+      Object mode = map.get("mode");
+      if (mode != null && !String.valueOf(mode).isBlank()) {
+        return String.valueOf(mode);
+      }
+    }
+    return "managed";
   }
 
   private void executeScriptTask(ExecutionNode node) {

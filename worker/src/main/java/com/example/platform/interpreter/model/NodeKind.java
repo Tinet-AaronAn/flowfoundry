@@ -7,7 +7,8 @@ public enum NodeKind {
   DECISION,
   HUMAN_TASK,
   TIMER,
-  SCRIPT_TASK;
+  SCRIPT_TASK,
+  CHILD_WORKFLOW;
 
   public static NodeKind from(String raw) {
     if (raw == null || raw.isBlank()) {

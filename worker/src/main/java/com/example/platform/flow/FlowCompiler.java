@@ -5,6 +5,7 @@ import com.example.platform.interpreter.model.ExecutionNode;
 import com.example.platform.interpreter.model.ExecutionPlan;
 import com.example.platform.interpreter.model.NodeKind;
 import com.example.platform.registry.ActivityRegistry;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -17,6 +18,7 @@ public class FlowCompiler {
 
   private final ActivityRegistry activityRegistry;
   private final SafeFeelCompiler safeFeelCompiler = new SafeFeelCompiler();
+  private final ObjectMapper objectMapper = new ObjectMapper();
 
   public FlowCompiler(ActivityRegistry activityRegistry) {
     this.activityRegistry = activityRegistry;
@@ -78,7 +80,7 @@ public class FlowCompiler {
     String activityType = node.activityType();
     Map<String, Object> config = node.config() == null ? Map.of() : new LinkedHashMap<>(node.config());
     if (kind == NodeKind.ACTIVITY) {
-      if (blank(activityType) && "businessRuleTask".equals(node.kind())) {
+      if (blank(activityType) && ("businessRuleTask".equals(node.kind()) || "scriptTask".equals(node.kind()))) {
         activityType = "dmn-decision";
       }
       if (blank(activityType)) {
@@ -93,9 +95,11 @@ public class FlowCompiler {
         config.put("decisionVersion", node.decisionVersion());
       }
     }
-    if (kind == NodeKind.SCRIPT_TASK) {
-      config = new LinkedHashMap<>(config);
-      config.putIfAbsent("scriptFormat", config.getOrDefault("scriptFormat", "feel"));
+    if (kind == NodeKind.CHILD_WORKFLOW) {
+      config = compileChildWorkflowConfig(node, config);
+    }
+    if (kind == NodeKind.HUMAN_TASK) {
+      config = ensureHumanTaskConfig(node, config);
     }
     return new ExecutionNode(
         node.id(),
@@ -108,6 +112,24 @@ public class FlowCompiler {
         node.inputMapping(),
         node.outputMapping(),
         config);
+  }
+
+  private Map<String, Object> compileChildWorkflowConfig(
+      FlowNode node, Map<String, Object> config) {
+    Object childWorkflowId = config.get("childWorkflowId");
+    Object childWorkflowDefinition = config.get("childWorkflowDefinition");
+    if ((childWorkflowId == null || String.valueOf(childWorkflowId).isBlank())
+        && childWorkflowDefinition == null) {
+      throw new IllegalArgumentException(
+          "Workflow node requires childWorkflowId or childWorkflowDefinition: " + node.id());
+    }
+    Map<String, Object> compiled = new LinkedHashMap<>(config);
+    if (childWorkflowDefinition != null) {
+      FlowDefinition childDefinition =
+          objectMapper.convertValue(childWorkflowDefinition, FlowDefinition.class);
+      compiled.put("childExecutionPlan", compile(childDefinition));
+    }
+    return compiled;
   }
 
   private Map<String, List<ExecutionEdge>> compileEdges(
@@ -137,17 +159,28 @@ public class FlowCompiler {
     return switch (value) {
       case "startEvent", "start" -> NodeKind.START;
       case "endEvent", "end" -> NodeKind.END;
-      case "task", "genericTask", "serviceTask", "sendTask", "businessRuleTask", "callActivity",
-              "activity" ->
+      case "task", "genericTask", "serviceTask", "sendTask", "scriptTask", "businessRuleTask", "activity" ->
           NodeKind.ACTIVITY;
+      case "workflow", "childWorkflow", "callActivity" -> NodeKind.CHILD_WORKFLOW;
       case "userTask", "manualTask", "humanTask" -> NodeKind.HUMAN_TASK;
       case "receiveTask", "exclusiveGateway", "inclusiveGateway", "parallelGateway",
               "eventBasedGateway", "decision" ->
           NodeKind.DECISION;
       case "timerEvent", "intermediateCatchEvent", "boundaryEvent", "timer" -> NodeKind.TIMER;
-      case "scriptTask" -> NodeKind.SCRIPT_TASK;
       default -> NodeKind.from(value);
     };
+  }
+
+  private Map<String, Object> ensureHumanTaskConfig(FlowNode node, Map<String, Object> config) {
+    Map<String, Object> compiled = new LinkedHashMap<>(config);
+    Object raw = compiled.get("flowFoundryHumanTask");
+    Map<String, Object> humanTask =
+        raw instanceof Map<?, ?> map ? new LinkedHashMap<>((Map<String, Object>) map) : new LinkedHashMap<>();
+    if (!humanTask.containsKey("mode")) {
+      humanTask.put("mode", "manualTask".equals(node.kind()) ? "offline" : "managed");
+    }
+    compiled.put("flowFoundryHumanTask", humanTask);
+    return compiled;
   }
 
   private static boolean blank(String value) {

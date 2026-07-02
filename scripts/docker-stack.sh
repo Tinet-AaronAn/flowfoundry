@@ -56,6 +56,8 @@ case "${1:-up}" in
     ;;
   *)
     echo "Usage: $0 {up|down|logs|ps|rebuild}"
+    echo ""
+    echo "Daily UI work: use ./scripts/redeploy-worker.sh (Java on :8081), not docker rebuild."
     exit 1
     ;;
 esac

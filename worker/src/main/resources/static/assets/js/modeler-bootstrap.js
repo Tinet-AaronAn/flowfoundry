@@ -14,7 +14,7 @@
             showJsonValue('Flow DSL', buildDsl());
           }
         } catch (err) {
-          message('无法生成 JSON：' + err.message);
+          message(t('message.generateJsonFailed', { error: err.message }));
         }
       }
 
@@ -30,20 +30,22 @@
         try {
           showJsonValue('Export Model', { model: state.model, dsl: buildDsl(), bpmn: buildBpmnJson() });
         } catch (err) {
-          message('导出失败：' + err.message);
+          message(t('message.exportFailed', { error: err.message }));
         }
       }
       function importJson() {
-        const raw = prompt('粘贴导出的 model JSON');
+        const raw = prompt(t('message.importPrompt'));
         if (!raw) return;
         try {
           const parsed = JSON.parse(raw);
+          const nextModel = parsed.model || parsed;
+          validateStartEventUniqueness(nextModel);
           pushHistory();
-          state.model = parsed.model || parsed;
+          state.model = nextModel;
           syncParticipantAssignments();
           renderAll();
         } catch (err) {
-          message('导入失败：' + err.message);
+          message(t('message.importFailed', { error: err.message }));
         }
       }
 
@@ -62,4 +64,5 @@
       });
 
       configureDefaultMappings();
+      $('message').textContent = t('runtime.waiting');
       loadActivities();
