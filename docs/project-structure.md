@@ -9,7 +9,7 @@ flowfoundry/
 ├── flowfoundry-app/                           # ★ 业务场景聚合（packaging=pom，无 src）
 │   └── modules/
 │       └── ai-collection-strategy/            # ★ 可独立启动的业务场景
-├── docs/                                      # 架构与设计文档
+├── docs/                                      # 架构与设计文档（业务开发见 workflow-development-guide.md）
 ├── scripts/                                   # 本地开发 / redeploy
 ├── deploy/                                    # Docker / K8s / Helm
 └── e2e/                                       # Playwright 建模器测试
@@ -95,6 +95,7 @@ flowfoundry-app                               ← 仅聚合 modules，无代码
 |------|--------|
 | 解释器 / 编译器 / 画布 / 平台 API | `flowfoundry-core/` |
 | 实体命名与分层定义 | [docs/entity-naming.md](entity-naming.md) |
+| **业务场景 / 流程软件开发** | [docs/workflow-development-guide.md](workflow-development-guide.md) |
 | 新增 Activity 类型定义 | `flowfoundry-app/modules/<场景>/config/activities-registry.yaml` |
 | Activity 业务实现 | `flowfoundry-app/modules/<场景>/src/...` |
 | 新增一套业务 | 新建 `flowfoundry-app/modules/xxx/`（含 `main` + `pom.xml`），注册到 `flowfoundry-app/pom.xml` |
