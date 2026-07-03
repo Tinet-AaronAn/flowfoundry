@@ -469,8 +469,8 @@ node.activityType = execute-call-round
 
 - Core 提供 `DualModeActivityHandler` 与 `ActivityExecutionContext`；Workflow 启动时将 `runSource` 写入 Activity input 的 `_executionContext`。
 - 业务模块实现 `XxxActivitiesImpl`（真实）与 `XxxActivitiesStub`（桩）；Router 继承 `DualModeActivityHandler` 按 `runSource` 委托。
-- `web-modeler`：仅当请求体 `runSource=web-modeler` **且** 请求头 `X-FlowFoundry-Client: web-modeler` 同时成立时生效；Temporal 执行 Workflow ID 前缀统一为 `workflow_`；Timer 跳过 `Workflow.sleep`；长等待 Activity stub 立即返回完成态。
-- `production`：对外 API 强制使用，忽略客户端 stub 标记；Temporal 执行 Workflow ID 前缀同样为 `workflow_`；Activity 走真实实现。
+- `web-modeler`：仅当请求体 `runSource=web-modeler` **且** 请求头 `X-FlowFoundry-Client: web-modeler` 同时成立时生效；Temporal 执行 Workflow ID 为 `workflow_test_{flowId}_{uuid}`（子流程为 `workflow_test_child_...`）；Timer 跳过 `Workflow.sleep`；长等待 Activity stub 立即返回完成态。
+- `production`：对外 API 强制使用，忽略客户端 stub 标记；Temporal 执行 Workflow ID 为 `workflow_{flowId}_{uuid}`（子流程为 `workflow_child_...`）；Activity 走真实实现。
 
 
 

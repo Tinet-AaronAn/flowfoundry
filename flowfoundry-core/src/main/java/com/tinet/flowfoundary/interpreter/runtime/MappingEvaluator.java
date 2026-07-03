@@ -8,11 +8,21 @@ public class MappingEvaluator {
 
   public Map<String, Object> buildInput(
       VariableStore variables, Map<String, String> inputMapping) {
-    Map<String, Object> input = new LinkedHashMap<>();
-    if (inputMapping == null) {
-      return input;
+    return buildInput(variables, inputMapping, InputMappingMode.PASSTHROUGH_UNMAPPED);
+  }
+
+  public Map<String, Object> buildInput(
+      VariableStore variables, Map<String, String> inputMapping, InputMappingMode mode) {
+    if (inputMapping == null || inputMapping.isEmpty()) {
+      return new LinkedHashMap<>(variables.input());
     }
+    InputMappingMode effectiveMode =
+        mode == null ? InputMappingMode.PASSTHROUGH_UNMAPPED : mode;
+    Map<String, Object> input = new LinkedHashMap<>();
     inputMapping.forEach((target, source) -> input.put(target, variables.resolve(source)));
+    if (effectiveMode == InputMappingMode.PASSTHROUGH_UNMAPPED) {
+      variables.input().forEach(input::putIfAbsent);
+    }
     return input;
   }
 

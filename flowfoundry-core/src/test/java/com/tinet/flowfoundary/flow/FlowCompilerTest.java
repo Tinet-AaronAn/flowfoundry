@@ -146,6 +146,7 @@ class FlowCompilerTest {
                     null,
                     null,
                     null,
+                    null,
                     Map.of()),
                 node("End", "END", Map.of())),
             List.of(
@@ -180,6 +181,7 @@ class FlowCompilerTest {
                     "Owner Review",
                     "humanTask",
                     ActivityTypes.HUMAN_TASK,
+                    null,
                     null,
                     null,
                     null,
@@ -250,6 +252,7 @@ class FlowCompilerTest {
                     null,
                     null,
                     null,
+                    null,
                     Map.of()),
                 node("End", "END", Map.of())),
             List.of(
@@ -285,6 +288,6 @@ class FlowCompilerTest {
 
   private FlowNode node(String id, String kind, Map<String, Object> config) {
     return new FlowNode(
-        id, kind, null, null, null, null, null, null, null, null, null, null, null, config);
+        id, kind, null, null, null, null, null, null, null, null, null, null, null, null, config);
   }
 }

@@ -10,6 +10,7 @@ import com.tinet.flowfoundary.interpreter.model.InterpreterState;
 import com.tinet.flowfoundary.interpreter.model.InterpreterStatus;
 import com.tinet.flowfoundary.interpreter.model.NodeKind;
 import com.tinet.flowfoundary.interpreter.runtime.ConditionEvaluator;
+import com.tinet.flowfoundary.interpreter.runtime.InputMappingMode;
 import com.tinet.flowfoundary.interpreter.runtime.MappingEvaluator;
 import com.tinet.flowfoundary.interpreter.runtime.ActivityExecutionContext;
 import com.tinet.flowfoundary.interpreter.runtime.RunSource;
@@ -209,7 +210,8 @@ public class FlowInterpreterWorkflowImpl implements FlowInterpreterWorkflow {
   private void executeChildWorkflow(ExecutionNode node) {
     ExecutionPlan childPlan = childExecutionPlan(node);
     String childBusinessKey = businessKey + "/" + node.id();
-    Map<String, Object> childInput = mappings.buildInput(variables, node.inputMapping());
+    Map<String, Object> childInput =
+        mappings.buildInput(variables, node.inputMapping(), inputMappingMode(node));
     if (childInput.isEmpty()) {
       childInput = variables.variables();
     }
@@ -217,7 +219,9 @@ public class FlowInterpreterWorkflowImpl implements FlowInterpreterWorkflow {
         Workflow.newChildWorkflowStub(
             FlowInterpreterWorkflow.class,
             ChildWorkflowOptions.newBuilder()
-                .setWorkflowId(WorkflowRunId.forChildWorkflow(childPlan.flowId(), childBusinessKey))
+                .setWorkflowId(
+                    WorkflowRunId.forChildWorkflow(
+                        runSource, childPlan.flowId(), childBusinessKey))
                 .setTaskQueue(childTaskQueue(node))
                 .build());
     InterpreterState result = child.run(childPlan, childBusinessKey, childInput, runSource.wireValue());
@@ -244,7 +248,7 @@ public class FlowInterpreterWorkflowImpl implements FlowInterpreterWorkflow {
   private Map<String, Object> routerInput(ExecutionNode node) {
     ensureWorkflowId();
     Map<String, Object> input = new LinkedHashMap<>();
-    input.putAll(mappings.buildInput(variables, node.inputMapping()));
+    input.putAll(mappings.buildInput(variables, node.inputMapping(), inputMappingMode(node)));
     input.put(
         ActivityExecutionContext.CONTEXT_KEY,
         new ActivityExecutionContext(runSource, businessKey, workflowId).toMap());
@@ -256,6 +260,17 @@ public class FlowInterpreterWorkflowImpl implements FlowInterpreterWorkflow {
     }
     input.put(FlowFoundryTrace.INPUT_KEY, FlowFoundryTrace.fromNode(node).toMap());
     return input;
+  }
+
+  private InputMappingMode inputMappingMode(ExecutionNode node) {
+    if (node.config() == null) {
+      return InputMappingMode.PASSTHROUGH_UNMAPPED;
+    }
+    Object raw = node.config().get("inputMappingMode");
+    if (raw == null) {
+      return InputMappingMode.PASSTHROUGH_UNMAPPED;
+    }
+    return InputMappingMode.fromWire(String.valueOf(raw));
   }
 
   private void markCurrentNode(ExecutionNode node) {

@@ -43,6 +43,7 @@
               decisionVersion: n.decisionVersion,
               inputArgs: n.inputArgs,
               inputMapping: n.inputMapping,
+              inputMappingMode: n.inputMappingMode,
               outputMapping: n.outputMapping,
               config: runtimeConfig(n, model, seenWorkflowIds)
             })),
@@ -249,23 +250,25 @@
           const res = await post('/api/flows/compile', buildDsl());
           state.lastCompiledPlan = res;
           updateCompiledPlanButton();
-          showJsonValue(t('json.compiledPlanTitle'), res);
+          if (isRunStatusDialogOpen()) updateRunStatusCompiledPlan();
           message(t('message.compileSuccess'));
         } catch (err) {
           message(t('message.compileFailed', { error: err.message }), 'error');
         }
       }
 
-      async function runFlow() {
+      async function runFlow(input) {
         try {
-          const input = JSON.parse($('runInput').value || '{}');
-          const res = await postFlowRun({ flow: buildDsl(), input });
-          $('workflowId').value = res.workflowId;
-          recordFlowRun({ workflowId: res.workflowId, input, runSource: res.runSource || 'web-modeler' });
+          const parsed = input ?? JSON.parse($('runInput').value || '{}');
+          const res = await postFlowRun({ flow: buildDsl(), input: parsed });
+          setActiveWorkflowRunId(res.workflowId);
+          if ($('runInput')) $('runInput').value = pretty(parsed);
+          if (res.executionPlan) state.lastCompiledPlan = res.executionPlan;
+          state.lastRunResult = res;
+          recordFlowRun({ workflowId: res.workflowId, input: parsed, runSource: res.runSource || 'web-modeler' });
           highlightRuntimeNode(null);
-          switchView('simulation');
           startRuntimePolling();
-          showJsonValue('Run Result', res);
+          await queryRunState(res.workflowId, { silent: true, skipJsonPanel: true });
           message(t('message.runSuccess', { workflowId: res.workflowId }));
         } catch (err) {
           message(t('message.runFailed', { error: err.message }), 'error');
@@ -273,11 +276,11 @@
       }
 
       async function queryState() {
-        return queryRunState($('workflowId').value);
+        return queryRunState(activeWorkflowRunId());
       }
 
       async function completeHumanTask() {
-        const id = $('workflowId').value?.trim();
+        const id = activeWorkflowRunId();
         if (!id) return message(t('message.queryWorkflowRequired'));
         let snapshot = state.runtimeSnapshot;
         if (!snapshot || snapshot.workflowId !== id) {

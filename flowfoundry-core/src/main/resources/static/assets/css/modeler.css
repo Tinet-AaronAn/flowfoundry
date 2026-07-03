@@ -1772,6 +1772,13 @@
       .app-dialog-field.textarea {
         min-height: 160px;
         font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 12px;
+        line-height: 1.5;
+        resize: vertical;
+      }
+      .app-dialog-field.textarea.json-editor {
+        min-height: 240px;
+        tab-size: 2;
       }
       .app-dialog-actions {
         display: flex;
@@ -1790,4 +1797,143 @@
         color: #cbd5e1;
         font-size: 12px;
         line-height: 1.5;
+      }
+      .visually-hidden {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+      .app-dialog.app-dialog-run-status {
+        width: min(720px, 100%);
+        max-height: min(88vh, 900px);
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .run-status-sections {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        flex: 1;
+        min-height: 0;
+        overflow: auto;
+        padding-right: 2px;
+      }
+      .run-status-section {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .run-status-section-grow {
+        flex: 1;
+        min-height: 0;
+      }
+      .run-status-section-title {
+        margin: 0;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text);
+      }
+      .run-status-collapsible {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(15, 23, 42, .25);
+        overflow: hidden;
+      }
+      .run-status-section-summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 10px 12px;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text);
+        cursor: pointer;
+        list-style: none;
+        user-select: none;
+      }
+      .run-status-section-summary::-webkit-details-marker {
+        display: none;
+      }
+      .run-status-section-summary::after {
+        content: '▾';
+        color: var(--muted);
+        font-size: 12px;
+        transition: transform .15s ease;
+      }
+      .run-status-collapsible:not([open]) .run-status-section-summary::after {
+        transform: rotate(-90deg);
+      }
+      .run-status-section-body {
+        padding: 0 12px 12px;
+      }
+      .run-status-empty {
+        margin: 0;
+      }
+      .run-status-json-block {
+        margin: 0;
+        max-height: 220px;
+        overflow: auto;
+        padding: 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #0b1020;
+        color: #d1e7ff;
+        font-size: 11px;
+        line-height: 1.45;
+      }
+      .run-status-field-label {
+        display: block;
+        font-size: 12px;
+        color: var(--muted);
+        margin-bottom: 4px;
+      }
+      .run-status-workflow-id {
+        width: 100%;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 12px;
+      }
+      .run-status-modal-panel {
+        max-height: 220px;
+        overflow: auto;
+      }
+      .run-status-section .runtime-status {
+        margin-top: 0;
+      }
+      .run-status-section-heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .run-status-section-heading .run-status-section-title {
+        flex: 1;
+        min-width: 0;
+      }
+      .run-status-copy-btn {
+        flex: 0 0 auto;
+        min-width: auto;
+        padding: 4px 10px;
+        font-size: 12px;
+      }
+      .run-status-log {
+        margin: 0;
+        flex: 1;
+        min-height: 160px;
+        max-height: 320px;
+        overflow: auto;
+        padding: 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #0b1020;
+        color: #d1e7ff;
+        font-size: 11px;
+        line-height: 1.45;
       }

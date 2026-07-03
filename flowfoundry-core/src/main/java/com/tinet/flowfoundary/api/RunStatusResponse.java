@@ -21,4 +21,5 @@ public record RunStatusResponse(
     String failureType,
     Map<String, Object> variables,
     Object lastResult,
-    List<HumanTaskNodeState> humanTasks) {}
+    List<HumanTaskNodeState> humanTasks,
+    List<Map<String, Object>> temporalHistory) {}

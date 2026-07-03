@@ -18,6 +18,10 @@ test.describe('FlowFoundry compile, run, and debug flows', () => {
     await importModel(page, participantWorkflow());
 
     await clickRightToolbarButton(page, 'Compile');
+    await expect(page.locator('#jsonPanel')).not.toHaveClass(/open/);
+    await expect(page.locator('#appNotice')).toContainText(/Compilation succeeded/i);
+    await expect(page.locator('#viewCompiledPlanBtn')).toBeEnabled();
+    await clickRightToolbarButton(page, 'View Compiled Plan');
     const plan = await jsonPanelValue(page);
 
     expect(plan.nodeCount).toBeGreaterThan(0);
@@ -25,28 +29,32 @@ test.describe('FlowFoundry compile, run, and debug flows', () => {
     expect(backend.compileRequests[0].nodes.every(n => n.config.flowFoundryParticipant?.participantRef === 'ops-team')).toBe(true);
 
     await page.locator('#jsonPanel').getByRole('button', { name: 'Close' }).click();
-    await page.locator('#navSimulation').click();
-    await page.locator('#simulationView .simulation-header').getByRole('button', { name: 'Run', exact: true }).click();
-    const run = await jsonPanelValue(page);
+    await page.locator('#modelerView').getByRole('button', { name: 'Run', exact: true }).click();
+    await page.locator('#appDialogConfirm').click();
+    await expect(page.locator('#jsonPanel')).not.toHaveClass(/open/);
+    await expect(page.locator('#workflowId')).toHaveValue('workflow_e2e_mock_001');
 
-    expect(run.workflowId).toBe('workflow_e2e_mock_001');
-    expect(await page.locator('#workflowId').inputValue()).toBe('workflow_e2e_mock_001');
+    await page.locator('#modelerView').getByRole('button', { name: 'Run Status', exact: true }).click();
+    await expect(page.locator('#runStatusModalPanel')).toContainText('RUNNING');
+    await expect(page.locator('#runStatusCompiledJson')).toContainText('"nodes"');
+    await expect(page.locator('#runStatusLogJson')).toContainText('workflowExecutionStartedEventAttributes');
     expect(backend.runRequests).toHaveLength(1);
     expect(backend.runRequests[0].runSource).toBe('web-modeler');
   });
 
 
-  test('queries workflow state and completes human task through mocked APIs', async ({ page }) => {
+  test('queries workflow state from the run status dialog', async ({ page }) => {
     await mockBackend(page);
     await openFreshModeler(page);
-    await page.locator('#navSimulation').click();
+    await page.evaluate(() => {
+      setActiveWorkflowRunId('workflow_e2e_mock_001');
+    });
 
-    await page.locator('#workflowId').fill('workflow_e2e_mock_001');
-    await page.getByRole('button', { name: 'Query State' }).click();
-    const state = await jsonPanelValue(page);
-
-    expect(state.workflowId).toBe('workflow_e2e_mock_001');
-    expect(state.status).toBe('RUNNING');
+    await page.locator('#modelerView').getByRole('button', { name: 'Run Status', exact: true }).click();
+    await expect(page.locator('#runStatusBackdrop')).toHaveClass(/open/);
+    await page.locator('#runStatusRefreshBtn').click();
+    await expect(page.locator('#runStatusModalPanel')).toContainText('RUNNING');
+    await expect(page.locator('#runStatusLogJson')).toContainText('workflowExecutionStartedEventAttributes');
   });
 
   test('exports workflow nodes as child workflow definitions', async ({ page }) => {

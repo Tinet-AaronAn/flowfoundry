@@ -3,20 +3,35 @@ package com.tinet.flowfoundary.workflow;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.tinet.flowfoundary.interpreter.runtime.RunSource;
 import org.junit.jupiter.api.Test;
 
 class WorkflowRunIdTest {
 
   @Test
-  void forFlowUsesWorkflowPrefix() {
-    String id = WorkflowRunId.forFlow("RuntimeSmoke");
+  void forProductionRunUsesWorkflowPrefix() {
+    String id = WorkflowRunId.forProductionRun("RuntimeSmoke");
     assertThat(id).startsWith("workflow_RuntimeSmoke_");
+    assertThat(id).doesNotStartWith("workflow_test_");
+  }
+
+  @Test
+  void forWebModelerRunUsesWorkflowTestPrefix() {
+    String id = WorkflowRunId.forWebModelerRun("RuntimeSmoke");
+    assertThat(id).startsWith("workflow_test_RuntimeSmoke_");
   }
 
   @Test
   void forChildWorkflowUsesWorkflowChildPrefix() {
     String id = WorkflowRunId.forChildWorkflow("child-flow", "bk-1");
     assertThat(id).isEqualTo("workflow_child_child-flow_bk-1");
+  }
+
+  @Test
+  void forChildWorkflowUsesTestPrefixInWebModeler() {
+    String id =
+        WorkflowRunId.forChildWorkflow(RunSource.WEB_MODELER, "child-flow", "bk-1");
+    assertThat(id).isEqualTo("workflow_test_child_child-flow_bk-1");
   }
 
   @Test

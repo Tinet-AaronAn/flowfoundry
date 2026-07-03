@@ -7,7 +7,6 @@ import com.tinet.flowfoundary.interpreter.model.InterpreterState;
 import com.tinet.flowfoundary.interpreter.model.InterpreterStatus;
 import io.grpc.StatusRuntimeException;
 import io.temporal.api.common.v1.WorkflowExecution;
-import io.temporal.api.enums.v1.EventType;
 import io.temporal.api.enums.v1.WorkflowExecutionStatus;
 import io.temporal.api.history.v1.HistoryEvent;
 import io.temporal.api.workflowservice.v1.DescribeWorkflowExecutionRequest;
@@ -18,6 +17,7 @@ import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowNotFoundException;
 import io.temporal.serviceclient.WorkflowServiceStubs;
 import java.util.List;
+import java.util.Map;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -50,8 +50,12 @@ public class FlowRunStatusService {
 
     String failureMessage = null;
     String failureType = null;
+    List<Map<String, Object>> temporalHistory = List.of();
+    List<HistoryEvent> historyEvents = fetchHistoryEvents(execution);
+    temporalHistory = TemporalHistoryFormatter.format(historyEvents);
     if (isTerminalFailure(temporalStatus)) {
-      FailureDetails failure = extractFailure(execution);
+      TemporalHistoryFormatter.FailureDetails failure =
+          TemporalHistoryFormatter.extractFailure(historyEvents);
       failureMessage = failure.message();
       failureType = failure.type();
     }
@@ -74,7 +78,21 @@ public class FlowRunStatusService {
         failureType,
         interpreter == null ? null : interpreter.variables(),
         interpreter == null ? null : interpreter.lastResult(),
-        humanTasks);
+        humanTasks,
+        temporalHistory);
+  }
+
+  private List<HistoryEvent> fetchHistoryEvents(WorkflowExecution execution) {
+    WorkflowServiceStubs stubs = workflowClient.getWorkflowServiceStubs();
+    GetWorkflowExecutionHistoryResponse history =
+        stubs
+            .blockingStub()
+            .getWorkflowExecutionHistory(
+                GetWorkflowExecutionHistoryRequest.newBuilder()
+                    .setNamespace(temporalProperties.namespace())
+                    .setExecution(execution)
+                    .build());
+    return history.getHistory().getEventsList();
   }
 
   private DescribeWorkflowExecutionResponse describeExecution(String workflowId) {
@@ -102,33 +120,6 @@ public class FlowRunStatusService {
     return humanTasks == null ? List.of() : humanTasks;
   }
 
-  private FailureDetails extractFailure(WorkflowExecution execution) {
-    WorkflowServiceStubs stubs = workflowClient.getWorkflowServiceStubs();
-    GetWorkflowExecutionHistoryResponse history =
-        stubs
-            .blockingStub()
-            .getWorkflowExecutionHistory(
-                GetWorkflowExecutionHistoryRequest.newBuilder()
-                    .setNamespace(temporalProperties.namespace())
-                    .setExecution(execution)
-                    .build());
-    List<HistoryEvent> events = history.getHistory().getEventsList();
-    for (int i = events.size() - 1; i >= 0; i--) {
-      HistoryEvent event = events.get(i);
-      if (event.getEventType() == EventType.EVENT_TYPE_WORKFLOW_EXECUTION_FAILED) {
-        return new FailureDetails(
-            "WORKFLOW_FAILED",
-            event.getWorkflowExecutionFailedEventAttributes().getFailure().getMessage());
-      }
-      if (event.getEventType() == EventType.EVENT_TYPE_ACTIVITY_TASK_FAILED) {
-        return new FailureDetails(
-            "ACTIVITY_FAILED",
-            event.getActivityTaskFailedEventAttributes().getFailure().getMessage());
-      }
-    }
-    return new FailureDetails("WORKFLOW_FAILED", null);
-  }
-
   private static String resolveStatus(
       InterpreterState interpreter, WorkflowExecutionStatus temporalStatus) {
     if (interpreter != null && interpreter.status() != null) {
@@ -149,6 +140,4 @@ public class FlowRunStatusService {
         || status == WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_TIMED_OUT
         || status == WorkflowExecutionStatus.WORKFLOW_EXECUTION_STATUS_TERMINATED;
   }
-
-  private record FailureDetails(String type, String message) {}
 }

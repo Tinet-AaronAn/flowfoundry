@@ -31,7 +31,6 @@
           <div class="nav-body">
             <button class="nav-link active" id="navWorkflows" onclick="switchView('workflows')" data-i18n="nav.workflows">Workflows</button>
             <button class="nav-link" id="navModeler" onclick="switchView('modeler')" data-i18n="nav.modeler">Modeler</button>
-            <button class="nav-link" id="navSimulation" onclick="switchView('simulation')" data-i18n="nav.simulation">Simulation</button>
             <button class="nav-link" id="navRuns" onclick="switchView('runs')" data-i18n="nav.runs">Run Logs</button>
           </div>
         </aside>
@@ -93,7 +92,22 @@
               <div id="flowVersionId" class="model-meta-value" aria-live="polite">1.0.0</div>
             </div>
             <div class="spacer"></div>
+            <button onclick="openRunDialog()" data-i18n="modeler.run">Run</button>
+            <button class="secondary" onclick="completeHumanTask()" data-i18n="modeler.completeHumanTask">Complete Human Task</button>
+            <button class="secondary" onclick="openRunStatusDialog()" data-i18n="modeler.runStatus">Run Status</button>
             <button onclick="saveToMemory()" data-i18n="modeler.save">Save</button>
+          </div>
+          <div class="visually-hidden" aria-hidden="true">
+            <textarea id="runInput">{
+  "campaignId": "demo-campaign",
+  "remainingContacts": 0,
+  "vipSegment": false,
+  "roundNumber": 1,
+  "maxRounds": 1,
+  "roundIntervalMinutes": 1
+}</textarea>
+            <input id="workflowId" type="text" tabindex="-1" />
+            <div id="runtimeStatusPanel"></div>
           </div>
           <div class="modeler-main" id="modelerMain">
           <div class="workbench" id="workbench">
@@ -157,41 +171,6 @@
           </div>
           </div>
           </section>
-          <section class="simulation view" id="simulationView">
-            <div class="page-header simulation-header">
-              <h1 data-i18n="debug.title">Runtime</h1>
-              <span class="badge" id="simulationWorkflowBadge"></span>
-              <div class="spacer"></div>
-              <button onclick="runFlow()" data-i18n="toolbar.run">Run</button>
-            </div>
-            <div class="simulation-layout">
-              <div class="simulation-diagram">
-                <div class="canvas simulation-canvas" id="simulationCanvas">
-                  <div class="canvas-content" id="simulationCanvasContent">
-                    <svg class="edges" id="simulationEdges"></svg>
-                  </div>
-                </div>
-              </div>
-              <aside class="simulation-panel" id="simulationPanel">
-                <div class="prop-section">
-                  <h3 data-i18n="runtime.title">Runtime</h3>
-                  <label data-i18n="runtime.inputJson">Business Input JSON</label>
-                  <textarea id="runInput">{"campaignId":"demo-campaign","remainingContacts":0,"vipSegment":false,"roundNumber":1,"maxRounds":1,"roundIntervalMinutes":1}</textarea>
-                  <label data-i18n="runtime.workflowId">Workflow ID</label>
-                  <input id="workflowId" data-i18n-placeholder="runtime.workflowIdPlaceholder" placeholder="Filled after run" />
-                  <div class="help" data-i18n="runtime.runHelp">Web runs use Temporal with Activity stubs. Production API callers always execute real Activities.</div>
-                  <div class="row" style="margin-top:10px;">
-                    <button onclick="queryRunState()" data-i18n="runtime.queryState">Query State</button>
-                    <button class="secondary" onclick="completeHumanTask()" data-i18n="runtime.completeHumanTask">Complete Human Task</button>
-                    <button class="secondary" onclick="switchView('runs')" data-i18n="execution.viewAllRuns">All Runs</button>
-                  </div>
-                  <div class="runtime-status" id="runtimeStatusPanel">
-                    <div class="help" data-i18n="runtime.statusEmpty">Run a workflow or enter a Workflow ID to sync execution status from Temporal.</div>
-                  </div>
-                </div>
-              </aside>
-            </div>
-          </section>
         </main>
         <aside class="properties" id="propertiesPanel">
           <div class="properties-header">
@@ -221,6 +200,45 @@
       <pre id="jsonContent"></pre>
     </div>
 
+    <div class="app-dialog-backdrop" id="runStatusBackdrop" aria-hidden="true">
+      <div class="app-dialog app-dialog-run-status" role="dialog" aria-modal="true" aria-labelledby="runStatusTitle">
+        <h3 id="runStatusTitle" data-i18n="modeler.runStatusTitle">Run Status</h3>
+        <div class="run-status-sections">
+          <section class="run-status-section">
+            <label class="run-status-field-label" data-i18n="runtime.workflowId">Workflow ID</label>
+            <input id="runStatusWorkflowId" class="run-status-workflow-id" type="text" readonly />
+          </section>
+
+          <details class="run-status-section run-status-collapsible" id="runStatusCompiledSection" open>
+            <summary class="run-status-section-summary" data-i18n="modeler.runStatusCompiledPlan">Compiled Execution Plan</summary>
+            <div class="run-status-section-body">
+              <p class="help run-status-empty" id="runStatusCompiledEmpty" data-i18n="modeler.runStatusCompiledEmpty">Compile the flow or run it to see the execution plan.</p>
+              <pre class="run-status-json-block" id="runStatusCompiledJson" hidden></pre>
+            </div>
+          </details>
+
+          <section class="run-status-section">
+            <h4 class="run-status-section-title" data-i18n="modeler.runStatusInterpreter">Interpreter Status</h4>
+            <div class="runtime-status run-status-modal-panel" id="runStatusModalPanel">
+              <div class="help" data-i18n="runtime.statusEmpty">Run a workflow or enter a Workflow ID to sync execution status from Temporal.</div>
+            </div>
+          </section>
+
+          <section class="run-status-section run-status-section-grow">
+            <div class="run-status-section-heading">
+              <h4 class="run-status-section-title" data-i18n="modeler.runStatusTemporalLogs">Temporal Run Logs</h4>
+              <button type="button" class="secondary run-status-copy-btn" id="runStatusLogCopyBtn" data-i18n="json.copy">Copy</button>
+            </div>
+            <pre class="run-status-log" id="runStatusLogJson"></pre>
+          </section>
+        </div>
+        <div class="app-dialog-actions">
+          <button type="button" class="secondary" id="runStatusRefreshBtn" data-i18n="modeler.runStatusRefresh">Refresh</button>
+          <button type="button" id="runStatusCloseBtn" data-i18n="modeler.runStatusClose">Close</button>
+        </div>
+      </div>
+    </div>
+
     <div class="app-dialog-backdrop" id="appDialogBackdrop" aria-hidden="true">
       <div class="app-dialog" role="dialog" aria-modal="true" aria-labelledby="appDialogTitle">
         <h3 id="appDialogTitle"></h3>
@@ -240,6 +258,7 @@
     <script src="assets/js/locales/zh.js"></script>
     <script src="assets/js/modeler-state.js"></script>
     <script src="assets/js/modeler-dialog.js"></script>
+    <script src="assets/js/modeler-run-ui.js"></script>
     <script src="assets/js/modeler-simulation.js"></script>
     <script src="assets/js/modeler-runtime-sync.js"></script>
     <script src="assets/js/modeler-render.js"></script>

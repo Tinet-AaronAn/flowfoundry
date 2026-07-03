@@ -17,7 +17,6 @@
         applyNavCollapsed();
         applyPropertiesCollapsed();
         updateCompiledPlanButton();
-        updateSimulationHeader();
         applyI18n();
         renderCanvas();
         renderMinimap();
@@ -32,15 +31,12 @@
       function renderNavigation() {
         $('navWorkflows').classList.toggle('active', state.currentView === 'workflows');
         $('navModeler').classList.toggle('active', state.currentView === 'modeler');
-        $('navSimulation').classList.toggle('active', state.currentView === 'simulation');
         $('navRuns').classList.toggle('active', state.currentView === 'runs');
       }
 
       function applyViewLayout() {
         const inModeler = state.currentView === 'modeler';
-        const inSimulation = state.currentView === 'simulation';
         $('app')?.classList.toggle('modeler-view', inModeler);
-        $('app')?.classList.toggle('simulation-view', inSimulation);
       }
 
       function switchView(view) {
@@ -48,10 +44,8 @@
         applyViewLayout();
         $('workflowListView').classList.toggle('active', view === 'workflows');
         $('modelerView').classList.toggle('active', view === 'modeler');
-        $('simulationView').classList.toggle('active', view === 'simulation');
         $('runsView').classList.toggle('active', view === 'runs');
         renderNavigation();
-        updateSimulationHeader();
         if (view === 'workflows') renderWorkflowList();
         if (view === 'runs') renderRunsList();
         if (view === 'modeler') {
@@ -64,13 +58,9 @@
           renderProperties();
           updateButtons();
           scheduleFitView();
-        }
-        if (view === 'simulation') {
-          renderCanvas();
-          requestAnimationFrame(() => fitSimulationView());
-          startRuntimePolling();
+          if (shouldPollRuntime()) startRuntimePolling();
         } else {
-          stopRuntimePolling();
+          if (!isRunStatusDialogOpen()) stopRuntimePolling();
         }
       }
 
@@ -1085,6 +1075,22 @@
         </div>`;
       }
 
+      function inputMappingSection(n) {
+        const mapping = n.inputMapping || {};
+        const hasMapping = Object.keys(mapping).length > 0;
+        const mode = n.inputMappingMode || 'passthrough-unmapped';
+        return `<div class="prop-section"><h3>${t('prop.inputMappingTitle')}</h3>
+          <textarea oninput="updateJsonNode('inputMapping', this.value)">${pretty(mapping)}</textarea>
+          ${hasMapping
+            ? `<label>${t('prop.inputMappingMode')}</label>
+               <select onchange="updateNode('inputMappingMode', this.value)">
+                 <option value="passthrough-unmapped" ${mode === 'passthrough-unmapped' ? 'selected' : ''}>${t('prop.inputMappingModePassthrough')}</option>
+                 <option value="mapped-only" ${mode === 'mapped-only' ? 'selected' : ''}>${t('prop.inputMappingModeMappedOnly')}</option>
+               </select>`
+            : `<div class="help">${t('prop.inputMappingModeEmptyHelp')}</div>`}
+        </div>`;
+      }
+
       function mappingSection(n, key, title) {
         return `<div class="prop-section"><h3>${title}</h3>
           <textarea oninput="updateJsonNode('${key}', this.value)">${pretty(n[key] || {})}</textarea>
@@ -1110,7 +1116,7 @@
       function runtimeSections(n) {
         if (['participant','textAnnotation','subProcess'].includes(n.kind)) return '';
         return `
-          ${mappingSection(n, 'inputMapping', 'Input Mappings')}
+          ${inputMappingSection(n)}
           ${mappingSection(n, 'outputMapping', 'Output Mappings')}
           ${headersSection(n)}
           ${loopSection(n)}

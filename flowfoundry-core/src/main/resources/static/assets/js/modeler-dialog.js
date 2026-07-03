@@ -32,7 +32,8 @@
         value = '',
         confirmLabel,
         cancelLabel,
-        danger = false
+        danger = false,
+        textareaClass = ''
       } = {}) {
         const backdrop = $('appDialogBackdrop');
         const titleEl = $('appDialogTitle');
@@ -58,6 +59,7 @@
         let field = null;
         if (input === 'textarea' && textareaEl) {
           textareaEl.value = value ?? '';
+          textareaEl.className = `app-dialog-field textarea${textareaClass ? ` ${textareaClass}` : ''}`;
           textareaEl.classList.remove('hidden');
           field = textareaEl;
         } else if (input !== 'none' && inputEl) {

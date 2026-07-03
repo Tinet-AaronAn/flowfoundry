@@ -106,6 +106,21 @@ async function mockBackend(page, state = {}) {
         { nodeId: 'Task_User', mode: 'managed', waiting: true },
         { nodeId: 'Task_OwnerApprove', mode: 'managed', waiting: false },
       ],
+      temporalHistory: [
+        {
+          eventId: 1,
+          eventType: 'EVENT_TYPE_WORKFLOW_EXECUTION_STARTED',
+          type: 'workflowExecutionStartedEventAttributes',
+          workflowType: 'FlowInterpreterWorkflow',
+        },
+        {
+          eventId: 2,
+          eventType: 'EVENT_TYPE_ACTIVITY_TASK_SCHEDULED',
+          type: 'activityTaskScheduledEventAttributes',
+          activityType: 'dynamic-activity-router',
+          taskQueue: 'call-campaign',
+        },
+      ],
     }),
   }));
 }

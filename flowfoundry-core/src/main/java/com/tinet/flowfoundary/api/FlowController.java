@@ -71,7 +71,7 @@ public class FlowController {
             : request.businessKey();
     String workflowId =
         request.workflowId() == null || request.workflowId().isBlank()
-            ? WorkflowRunId.forFlow(plan.flowId())
+            ? WorkflowRunId.forRun(runSource, plan.flowId())
             : requireRunWorkflowId(request.workflowId());
 
     FlowInterpreterWorkflow workflow =

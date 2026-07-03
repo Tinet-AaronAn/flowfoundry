@@ -113,6 +113,7 @@ public class FlowCompiler {
     if (kind == NodeKind.INTERMEDIATE_EVENT) {
       config = ensureIntermediateEventConfig(node, config);
     }
+    config = ensureInputMappingMode(node, config);
     config = ensureTrace(node, kind, activityType, config);
     return new ExecutionNode(
         node.id(),
@@ -125,6 +126,15 @@ public class FlowCompiler {
         node.inputMapping(),
         node.outputMapping(),
         config);
+  }
+
+  private Map<String, Object> ensureInputMappingMode(FlowNode node, Map<String, Object> config) {
+    if (blank(node.inputMappingMode())) {
+      return config;
+    }
+    Map<String, Object> compiled = new LinkedHashMap<>(config);
+    compiled.put("inputMappingMode", node.inputMappingMode().trim());
+    return compiled;
   }
 
   private Map<String, Object> compileChildWorkflowConfig(

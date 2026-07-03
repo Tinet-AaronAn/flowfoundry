@@ -9,12 +9,17 @@
       function startRuntimePolling() {
         stopRuntimePolling();
         const tick = async () => {
-          const id = $('workflowId')?.value?.trim();
-          if (!id || state.currentView !== 'simulation') {
+          if (!shouldPollRuntime()) {
+            stopRuntimePolling();
+            return;
+          }
+          const id = activeWorkflowRunId();
+          if (!id) {
             stopRuntimePolling();
             return;
           }
           await queryRunState(id, { silent: true, skipJsonPanel: true });
+          if (isRunStatusDialogOpen()) refreshRunStatusSections();
           if (isTerminalRunStatus(state.runtimeSnapshot?.status)) {
             stopRuntimePolling();
           }
@@ -31,11 +36,16 @@
       }
 
       function renderRuntimeStatus(data) {
-        const panel = $('runtimeStatusPanel');
-        if (!panel) return;
+        const html = buildRuntimeStatusHtml(data);
+        ['runtimeStatusPanel', 'runStatusModalPanel'].forEach(id => {
+          const panel = $(id);
+          if (panel) panel.innerHTML = html;
+        });
+      }
+
+      function buildRuntimeStatusHtml(data) {
         if (!data) {
-          panel.innerHTML = `<div class="help">${escapeHtml(t('runtime.statusEmpty'))}</div>`;
-          return;
+          return `<div class="help">${escapeHtml(t('runtime.statusEmpty'))}</div>`;
         }
         const status = data.status || 'RUNNING';
         const currentNodeId = data.currentNodeId || '-';
@@ -48,7 +58,7 @@
         const failureHtml = data.failureMessage
           ? `<div class="runtime-status-failure">${escapeHtml(data.failureType || 'FAILED')}: ${escapeHtml(data.failureMessage)}</div>`
           : '';
-        panel.innerHTML = `
+        return `
           <div class="runtime-status-row">
             <span class="label">${escapeHtml(t('runtime.statusLabel'))}</span>
             <span class="value"><span class="pill ${escapeAttr(status.toLowerCase())}">${escapeHtml(status)}</span></span>

@@ -17,4 +17,5 @@ public record FlowNode(
     List<String> inputArgs,
     Map<String, String> inputMapping,
     Map<String, String> outputMapping,
+    String inputMappingMode,
     Map<String, Object> config) {}

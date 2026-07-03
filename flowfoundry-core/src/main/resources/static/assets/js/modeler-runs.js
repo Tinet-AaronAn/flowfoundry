@@ -43,10 +43,10 @@
         const run = state.flowRuns.find(r => r.id === runId);
         if (!run) return;
         state.activeRunId = runId;
-        $('workflowId').value = run.id;
-        if (run.input) $('runInput').value = pretty(run.input);
+        setActiveWorkflowRunId(runId);
+        if (run.input && $('runInput')) $('runInput').value = pretty(run.input);
         renderRunsList();
-        switchView('simulation');
+        switchView('modeler');
         await queryRunState(runId, { silent: true, skipJsonPanel: true });
         startRuntimePolling();
       }
@@ -100,7 +100,7 @@
 
       async function queryRunState(runId, options = {}) {
         const { silent = false, skipJsonPanel = false } = options;
-        const id = runId || $('workflowId').value;
+        const id = runId || activeWorkflowRunId();
         if (!id) return silent ? null : message(t('message.queryWorkflowRequired'));
         try {
           const res = await fetch(`/api/flows/runs/${encodeURIComponent(id)}`);
@@ -114,7 +114,6 @@
           }
           applyRunStatusSnapshot(id, { ...data, polledAt: new Date().toISOString() });
           if (!skipJsonPanel) showJsonValue('Workflow State', data);
-          if (!silent && state.currentView !== 'simulation') switchView('simulation');
           return data;
         } catch (err) {
           if (!silent) message(t('message.queryFailed', { error: err.message }), 'error');
@@ -124,8 +123,7 @@
 
       function applyRunStatusSnapshot(runId, data) {
         updateFlowRunStatus(runId, data.status || 'RUNNING', data);
-        $('workflowId').value = runId;
-        state.activeRunId = runId;
+        setActiveWorkflowRunId(runId);
         state.runtimeSnapshot = data;
         if (data.runSource) {
           const run = state.flowRuns.find(r => r.id === runId);
@@ -136,5 +134,9 @@
         }
         renderRuntimeStatus(data);
         highlightRuntimeNode(data.currentNodeId || data.waitingHumanTaskNodeId || null);
-        if (isSimulationCanvas()) renderCanvas();
+        if (state.currentView === 'modeler') renderCanvas();
+        if (isRunStatusDialogOpen()) {
+          $('runStatusWorkflowId').value = runId;
+          refreshRunStatusSections();
+        }
       }

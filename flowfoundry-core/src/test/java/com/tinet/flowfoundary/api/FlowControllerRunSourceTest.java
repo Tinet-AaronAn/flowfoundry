@@ -10,11 +10,12 @@ import org.junit.jupiter.api.Test;
 class FlowControllerRunSourceTest {
 
   @Test
-  void runIdsAlwaysUseWorkflowPrefixRegardlessOfRunSource() {
-    String webId = WorkflowRunId.forFlow("demo");
-    String prodId = WorkflowRunId.forFlow("demo");
-    assertThat(webId).startsWith("workflow_");
-    assertThat(prodId).startsWith("workflow_");
+  void runIdsDifferByRunSource() {
+    String webId = WorkflowRunId.forRun(RunSource.WEB_MODELER, "demo");
+    String prodId = WorkflowRunId.forRun(RunSource.PRODUCTION, "demo");
+    assertThat(webId).startsWith("workflow_test_demo_");
+    assertThat(prodId).startsWith("workflow_demo_");
+    assertThat(webId).doesNotStartWith("workflow_test_test_");
     assertThat(RunSource.WEB_MODELER.usesStubActivities()).isTrue();
     assertThat(RunSource.PRODUCTION.usesStubActivities()).isFalse();
   }

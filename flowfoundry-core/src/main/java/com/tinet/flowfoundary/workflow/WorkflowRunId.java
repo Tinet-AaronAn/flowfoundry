@@ -1,5 +1,6 @@
 package com.tinet.flowfoundary.workflow;
 
+import com.tinet.flowfoundary.interpreter.runtime.RunSource;
 import java.util.UUID;
 import java.util.regex.Pattern;
 
@@ -9,8 +10,36 @@ public final class WorkflowRunId {
 
   private WorkflowRunId() {}
 
-  public static String forFlow(String flowId) {
+  public static String forRun(RunSource runSource, String flowId) {
+    if (runSource != null && runSource.usesStubActivities()) {
+      return forWebModelerRun(flowId);
+    }
+    return forProductionRun(flowId);
+  }
+
+  public static String forWebModelerRun(String flowId) {
+    return "workflow_test_" + sanitize(flowId) + "_" + UUID.randomUUID();
+  }
+
+  public static String forProductionRun(String flowId) {
     return "workflow_" + sanitize(flowId) + "_" + UUID.randomUUID();
+  }
+
+  /** @deprecated use {@link #forProductionRun} or {@link #forRun} */
+  @Deprecated
+  public static String forFlow(String flowId) {
+    return forProductionRun(flowId);
+  }
+
+  public static String forChildWorkflow(
+      RunSource runSource, String childFlowId, String businessKey) {
+    if (runSource != null && runSource.usesStubActivities()) {
+      return "workflow_test_child_"
+          + sanitize(childFlowId)
+          + "_"
+          + sanitize(businessKey);
+    }
+    return forChildWorkflow(childFlowId, businessKey);
   }
 
   public static String forChildWorkflow(String childFlowId, String businessKey) {
