@@ -3,6 +3,7 @@ package com.tinet.flowfoundary.flow;
 import com.tinet.flowfoundary.interpreter.model.ExecutionEdge;
 import com.tinet.flowfoundary.interpreter.model.ExecutionNode;
 import com.tinet.flowfoundary.interpreter.model.ExecutionPlan;
+import com.tinet.flowfoundary.interpreter.model.FlowFoundryTrace;
 import com.tinet.flowfoundary.interpreter.model.NodeKind;
 import com.tinet.flowfoundary.activity.ActivityTypes;
 import com.tinet.flowfoundary.registry.ActivityRegistry;
@@ -112,6 +113,7 @@ public class FlowCompiler {
     if (kind == NodeKind.INTERMEDIATE_EVENT) {
       config = ensureIntermediateEventConfig(node, config);
     }
+    config = ensureTrace(node, kind, activityType, config);
     return new ExecutionNode(
         node.id(),
         kind,
@@ -184,6 +186,30 @@ public class FlowCompiler {
     if (gatewayKind == null || String.valueOf(gatewayKind).isBlank()) {
       compiled.put("gatewayKind", "exclusive");
     }
+    return compiled;
+  }
+
+  private Map<String, Object> ensureTrace(
+      FlowNode node, NodeKind kind, String activityType, Map<String, Object> config) {
+    if (kind == NodeKind.START || kind == NodeKind.END || kind == NodeKind.GATEWAY) {
+      return config;
+    }
+    Map<String, Object> compiled = new LinkedHashMap<>(config);
+    Map<String, Object> trace = new LinkedHashMap<>();
+    trace.put("nodeId", node.id());
+    trace.put("nodeName", blank(node.name()) ? node.id() : node.name().trim());
+    if (!blank(node.canvasKind())) {
+      trace.put("canvasKind", node.canvasKind().trim());
+    }
+    if (!blank(activityType)) {
+      trace.put("activityType", activityType);
+    } else if (kind == NodeKind.INTERMEDIATE_EVENT) {
+      Object subtype = compiled.get("eventSubtype");
+      trace.put("activityType", subtype == null ? "timer" : String.valueOf(subtype));
+    } else if (kind == NodeKind.CHILD_WORKFLOW) {
+      trace.put("activityType", "child-workflow");
+    }
+    compiled.put(FlowFoundryTrace.CONFIG_KEY, trace);
     return compiled;
   }
 

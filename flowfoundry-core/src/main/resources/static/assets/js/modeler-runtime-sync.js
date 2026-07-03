@@ -39,7 +39,8 @@
         }
         const status = data.status || 'RUNNING';
         const currentNodeId = data.currentNodeId || '-';
-        const currentNodeName = nodeLabel(data.currentNodeId) || currentNodeId;
+        const currentNodeName = data.currentNodeName || nodeLabel(data.currentNodeId) || currentNodeId;
+        const currentActivityType = data.currentActivityType || '';
         const waitingId = data.waitingHumanTaskNodeId;
         const waitingLabel = waitingId ? (nodeLabel(waitingId) || waitingId) : t('runtime.notWaiting');
         const temporalStatus = data.temporalStatus || '-';
@@ -58,7 +59,7 @@
           </div>
           <div class="runtime-status-row">
             <span class="label">${escapeHtml(t('runtime.currentNodeLabel'))}</span>
-            <span class="value">${escapeHtml(currentNodeName)}<div class="help">${escapeHtml(currentNodeId)}</div></span>
+            <span class="value">${escapeHtml(currentNodeName)}<div class="help">${escapeHtml(currentNodeId)}${currentActivityType ? ` · ${escapeHtml(currentActivityType)}` : ''}</div></span>
           </div>
           <div class="runtime-status-row">
             <span class="label">${escapeHtml(t('runtime.waitingHumanTaskLabel'))}</span>

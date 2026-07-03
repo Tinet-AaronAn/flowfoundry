@@ -68,7 +68,10 @@
         if (state.workflows.length === 0) {
           const saved = localStorage.getItem('temporal-flowfoundry-modeler');
           if (saved) {
-            try { state.model = JSON.parse(saved); } catch (ignored) {}
+            try {
+              state.model = JSON.parse(saved);
+              normalizeLoadedModel(state.model);
+            } catch (ignored) {}
           }
           if (await detectWorkflowApi()) {
             try {
@@ -95,6 +98,13 @@
         const active = state.workflows.find(w => w.status === 'active') || state.workflows[0];
         if (active) await openWorkflow(active.id, active.version, false);
         syncModelHeader();
+      }
+
+      function normalizeLoadedModel(model) {
+        if (!model?.nodes) return;
+        model.nodes.forEach(n => {
+          if (n.kind === 'userTask') n.kind = 'humanTask';
+        });
       }
 
       async function loadWorkflowStore() {
@@ -285,6 +295,7 @@
         state.activeVersion = selectedVersion.version;
         workflow.version = selectedVersion.version;
         state.model = structuredClone(selectedVersion.model);
+        normalizeLoadedModel(state.model);
         syncParticipantAssignments();
         state.history = [];
         state.future = [];

@@ -123,6 +123,48 @@ class FlowCompilerTest {
   }
 
   @Test
+  void compilesActivityTraceMetadata() {
+    FlowDefinition definition =
+        new FlowDefinition(
+            "1.0",
+            new FlowMetadata("TraceFlow", "Trace Flow", "1.0.0"),
+            Map.of(),
+            Map.of(),
+            List.of(
+                node("Start", "START", Map.of()),
+                new FlowNode(
+                    "Task_ImportNumbers",
+                    "ACTIVITY",
+                    "Import number batch",
+                    "serviceTask",
+                    "script-runtime",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    Map.of()),
+                node("End", "END", Map.of())),
+            List.of(
+                new FlowEdge("Start", "Task_ImportNumbers", "default"),
+                new FlowEdge("Task_ImportNumbers", "End", "default")));
+
+    var plan = compiler.compile(definition);
+    @SuppressWarnings("unchecked")
+    Map<String, Object> trace =
+        (Map<String, Object>) plan.requireNode("Task_ImportNumbers").config().get("flowFoundryTrace");
+
+    assertThat(trace)
+        .containsEntry("nodeId", "Task_ImportNumbers")
+        .containsEntry("nodeName", "Import number batch")
+        .containsEntry("canvasKind", "serviceTask")
+        .containsEntry("activityType", "script-runtime");
+  }
+
+  @Test
   void compilesHumanTaskAsCoreActivity() {
     FlowDefinition definition =
         new FlowDefinition(
@@ -135,6 +177,8 @@ class FlowCompilerTest {
                 new FlowNode(
                     "Review",
                     "ACTIVITY",
+                    "Owner Review",
+                    "humanTask",
                     ActivityTypes.HUMAN_TASK,
                     null,
                     null,
@@ -195,6 +239,8 @@ class FlowCompilerTest {
                 new FlowNode(
                     "Script",
                     "ACTIVITY",
+                    "Decide next action",
+                    "scriptTask",
                     "script-runtime",
                     null,
                     null,
@@ -238,6 +284,7 @@ class FlowCompilerTest {
   }
 
   private FlowNode node(String id, String kind, Map<String, Object> config) {
-    return new FlowNode(id, kind, null, null, null, null, null, null, null, null, null, config);
+    return new FlowNode(
+        id, kind, null, null, null, null, null, null, null, null, null, null, null, config);
   }
 }

@@ -6,6 +6,8 @@ import java.util.Map;
 public record FlowNode(
     String id,
     String kind,
+    String name,
+    String canvasKind,
     String activityType,
     String taskQueue,
     String timeout,

@@ -1,8 +1,11 @@
 package com.tinet.flowfoundary.activity;
 
 import com.tinet.flowfoundary.interpreter.DynamicActivityRouter;
+import com.tinet.flowfoundary.interpreter.model.FlowFoundryTrace;
 import java.util.List;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
@@ -10,6 +13,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class CompositeDynamicActivityRouter implements DynamicActivityRouter {
+
+  private static final Logger log = LoggerFactory.getLogger(CompositeDynamicActivityRouter.class);
 
   private final CoreActivityRouter coreActivityRouter;
   private final List<BusinessActivityRouter> businessRouters;
@@ -22,6 +27,7 @@ public class CompositeDynamicActivityRouter implements DynamicActivityRouter {
 
   @Override
   public Object execute(String activityType, Map<String, Object> input) {
+    logActivityStart(activityType, input);
     if (coreActivityRouter.supports(activityType)) {
       return coreActivityRouter.execute(activityType, input);
     }
@@ -31,5 +37,19 @@ public class CompositeDynamicActivityRouter implements DynamicActivityRouter {
       }
     }
     throw new IllegalArgumentException("Unknown dynamic activity type: " + activityType);
+  }
+
+  private static void logActivityStart(String activityType, Map<String, Object> input) {
+    FlowFoundryTrace trace = FlowFoundryTrace.fromInput(input);
+    if (trace.nodeId() == null) {
+      log.info("Executing activity type={}", activityType);
+      return;
+    }
+    log.info(
+        "Executing activity type={} nodeId={} nodeName={} canvasKind={}",
+        activityType,
+        trace.nodeId(),
+        trace.nodeName(),
+        trace.canvasKind());
   }
 }

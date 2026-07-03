@@ -14,6 +14,8 @@ public record RunStatusResponse(
     String businessKey,
     String runSource,
     String currentNodeId,
+    String currentNodeName,
+    String currentActivityType,
     String waitingHumanTaskNodeId,
     String failureMessage,
     String failureType,

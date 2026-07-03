@@ -3,6 +3,7 @@ package com.tinet.flowfoundary.interpreter;
 import com.tinet.flowfoundary.interpreter.model.ExecutionEdge;
 import com.tinet.flowfoundary.interpreter.model.ExecutionNode;
 import com.tinet.flowfoundary.interpreter.model.ExecutionPlan;
+import com.tinet.flowfoundary.interpreter.model.FlowFoundryTrace;
 import com.tinet.flowfoundary.interpreter.model.HumanTaskCompletion;
 import com.tinet.flowfoundary.interpreter.model.HumanTaskNodeState;
 import com.tinet.flowfoundary.interpreter.model.InterpreterState;
@@ -20,6 +21,7 @@ import io.temporal.workflow.ChildWorkflowOptions;
 import com.tinet.flowfoundary.activity.HumanTaskActivity;
 import com.tinet.flowfoundary.activity.ActivityTypes;
 import com.tinet.flowfoundary.workflow.WorkflowRunId;
+import io.temporal.workflow.TimerOptions;
 import io.temporal.workflow.Workflow;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
@@ -44,6 +46,8 @@ public class FlowInterpreterWorkflowImpl implements FlowInterpreterWorkflow {
   private VariableStore variables = new VariableStore(Map.of());
   private InterpreterStatus status = InterpreterStatus.RUNNING;
   private String currentNodeId;
+  private String currentNodeName;
+  private String currentActivityType;
   private String waitingHumanTaskNodeId;
   private HumanTaskCompletion pendingHumanTaskCompletion;
 
@@ -85,6 +89,8 @@ public class FlowInterpreterWorkflowImpl implements FlowInterpreterWorkflow {
         runSource == null ? RunSource.PRODUCTION.wireValue() : runSource.wireValue(),
         status,
         currentNodeId,
+        currentNodeName,
+        currentActivityType,
         waitingHumanTaskNodeId,
         variables.variables(),
         variables.lastResult());
@@ -115,6 +121,7 @@ public class FlowInterpreterWorkflowImpl implements FlowInterpreterWorkflow {
   }
 
   private void executeNode(ExecutionNode node) {
+    markCurrentNode(node);
     switch (node.requiredKind()) {
       case START, END, GATEWAY -> {
         // Routing is handled by outgoing edge conditions.
@@ -140,6 +147,7 @@ public class FlowInterpreterWorkflowImpl implements FlowInterpreterWorkflow {
                     RetryOptions.newBuilder()
                         .setMaximumAttempts(node.maxAttempts() == null ? 3 : node.maxAttempts())
                         .build())
+                .setSummary(FlowFoundryTrace.fromNode(node).activitySummary())
                 .build());
 
     Object result =
@@ -246,7 +254,18 @@ public class FlowInterpreterWorkflowImpl implements FlowInterpreterWorkflow {
     if (node.inputArgs() != null && !node.inputArgs().isEmpty()) {
       input.put("_args", List.of(mappings.buildArguments(variables, node.inputArgs())));
     }
+    input.put(FlowFoundryTrace.INPUT_KEY, FlowFoundryTrace.fromNode(node).toMap());
     return input;
+  }
+
+  private void markCurrentNode(ExecutionNode node) {
+    FlowFoundryTrace trace = FlowFoundryTrace.fromNode(node);
+    currentNodeName = trace.nodeName();
+    currentActivityType = trace.activityType();
+    if (currentActivityType == null && node.activityType() != null) {
+      currentActivityType = node.activityType();
+    }
+    Workflow.setCurrentDetails(trace.workflowDetailsLine());
   }
 
   private void executeIntermediateEvent(ExecutionNode node) {
@@ -289,7 +308,13 @@ public class FlowInterpreterWorkflowImpl implements FlowInterpreterWorkflow {
       throw new IllegalArgumentException("Timer duration cannot be negative: " + node.id());
     }
     if (!parsed.isZero() && !runSource.usesStubActivities()) {
-      Workflow.sleep(parsed);
+      String durationLabel = duration == null ? null : String.valueOf(duration);
+      Workflow.newTimer(
+              parsed,
+              TimerOptions.newBuilder()
+                  .setSummary(FlowFoundryTrace.fromNode(node).timerSummary(durationLabel))
+                  .build())
+          .get();
     }
   }
 
@@ -363,6 +388,8 @@ public class FlowInterpreterWorkflowImpl implements FlowInterpreterWorkflow {
                 .setTaskQueue(node.taskQueue())
                 .setStartToCloseTimeout(DEFAULT_ACTIVITY_TIMEOUT)
                 .setRetryOptions(RetryOptions.newBuilder().setMaximumAttempts(3).build())
+                .setSummary(
+                    FlowFoundryTrace.fromNode(node).activitySummary() + " [dmn-edge]")
                 .build());
     ensureWorkflowId();
     Map<String, Object> input = new LinkedHashMap<>();
@@ -371,6 +398,7 @@ public class FlowInterpreterWorkflowImpl implements FlowInterpreterWorkflow {
         ActivityExecutionContext.CONTEXT_KEY,
         new ActivityExecutionContext(runSource, businessKey, workflowId).toMap());
     input.put("_config", config);
+    input.put(FlowFoundryTrace.INPUT_KEY, FlowFoundryTrace.fromNode(node).toMap());
     Object result = activity.execute(ROUTER_ACTIVITY_TYPE, Object.class, ActivityTypes.SCRIPT_RUNTIME, input);
     if (result instanceof Boolean bool) {
       return bool;

@@ -25,6 +25,6 @@
 
   <properties>
     <java.version>17</java.version>
-    <temporal.version>1.25.2</temporal.version>
+    <temporal.version>1.32.0</temporal.version>
   </properties>
 </project>

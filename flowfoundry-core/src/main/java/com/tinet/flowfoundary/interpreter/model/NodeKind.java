@@ -17,6 +17,9 @@ public enum NodeKind {
     if ("TIMER".equals(normalized)) {
       return INTERMEDIATE_EVENT;
     }
+    if ("USERTASK".equals(normalized) || "USER_TASK".equals(normalized)) {
+      return HUMAN_TASK;
+    }
     return NodeKind.valueOf(normalized);
   }
 }

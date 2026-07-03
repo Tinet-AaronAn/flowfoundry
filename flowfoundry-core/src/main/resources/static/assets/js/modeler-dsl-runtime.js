@@ -32,6 +32,8 @@
           variables: {},
           nodes: runtimeNodes.map(n => ({
               id: n.id,
+              name: n.name || n.id,
+              canvasKind: n.kind,
               kind: executionNodeKind(n.kind),
               activityType: resolveActivityType(n),
               taskQueue: n.taskQueue,
@@ -71,6 +73,7 @@
           case 'callActivity': // legacy
             return 'CHILD_WORKFLOW';
           case 'humanTask':
+          case 'userTask':
             return 'ACTIVITY';
           case 'exclusiveGateway':
           case 'inclusiveGateway':
@@ -117,7 +120,7 @@
       function resolveActivityType(node) {
         if (node.activityType) return node.activityType;
         if (node.kind === 'scriptTask') return 'script-runtime';
-        if (node.kind === 'humanTask') return 'human-task';
+        if (node.kind === 'humanTask' || node.kind === 'userTask') return 'human-task';
         return node.activityType;
       }
 
@@ -150,7 +153,7 @@
           const childDefinition = childWorkflowDefinition(n, seenWorkflowIds);
           if (childDefinition) config.childWorkflowDefinition = childDefinition;
         }
-        if (n.kind === 'humanTask') {
+        if (n.kind === 'humanTask' || n.kind === 'userTask') {
           config.flowFoundryHumanTask = {
             mode: n.config?.flowFoundryHumanTask?.mode || 'managed',
           };

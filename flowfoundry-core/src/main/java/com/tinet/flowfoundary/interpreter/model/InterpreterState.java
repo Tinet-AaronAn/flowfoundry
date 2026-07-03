@@ -9,6 +9,8 @@ public record InterpreterState(
     String runSource,
     InterpreterStatus status,
     String currentNodeId,
+    String currentNodeName,
+    String currentActivityType,
     String waitingHumanTaskNodeId,
     Map<String, Object> variables,
     Object lastResult) {}

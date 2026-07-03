@@ -67,6 +67,8 @@ public class FlowRunStatusService {
         interpreter == null ? null : interpreter.businessKey(),
         interpreter == null ? null : interpreter.runSource(),
         interpreter == null ? null : interpreter.currentNodeId(),
+        interpreter == null ? null : interpreter.currentNodeName(),
+        interpreter == null ? null : interpreter.currentActivityType(),
         interpreter == null ? null : interpreter.waitingHumanTaskNodeId(),
         failureMessage,
         failureType,

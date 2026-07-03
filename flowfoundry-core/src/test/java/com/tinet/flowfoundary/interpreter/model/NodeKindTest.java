@@ -20,6 +20,13 @@ class NodeKindTest {
   }
 
   @Test
+  void fromParsesBpmnUserTaskAlias() {
+    assertThat(NodeKind.from("userTask")).isEqualTo(NodeKind.HUMAN_TASK);
+    assertThat(NodeKind.from("USERTASK")).isEqualTo(NodeKind.HUMAN_TASK);
+    assertThat(NodeKind.from("USER_TASK")).isEqualTo(NodeKind.HUMAN_TASK);
+  }
+
+  @Test
   void fromRejectsRemovedKinds() {
     assertThatThrownBy(() -> NodeKind.from("DECISION"))
         .isInstanceOf(IllegalArgumentException.class);
