@@ -1,4 +1,4 @@
-package com.example.platform.interpreter.runtime;
+package com.tinet.flowfoundary.interpreter.runtime;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

@@ -1,18 +1,21 @@
-package com.example.platform.idempotency;
+package com.tinet.flowfoundary.idempotency;
 
-import com.example.platform.registry.ActivityRegistry;
-import com.example.platform.registry.ActivityRegistry.ActivityDefinition;
+import com.tinet.flowfoundary.registry.ActivityRegistry;
+import com.tinet.flowfoundary.registry.ActivityRegistry.ActivityDefinition;
 import java.time.Duration;
 import java.util.Map;
 import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 /**
  * 基于注册表 idempotency 配置，为 Activity 提供统一幂等执行模板。
  */
 @Component
+@ConditionalOnBean(StringRedisTemplate.class)
 public class IdempotentActivityExecutor {
 
   private static final Logger log = LoggerFactory.getLogger(IdempotentActivityExecutor.class);

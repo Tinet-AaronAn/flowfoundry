@@ -1,4 +1,4 @@
-package com.example.platform.interpreter;
+package com.tinet.flowfoundary.interpreter;
 
 import io.temporal.activity.ActivityInterface;
 import io.temporal.activity.ActivityMethod;

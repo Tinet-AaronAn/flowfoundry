@@ -24,6 +24,7 @@ start_redis() {
 start_temporal() {
   if temporal operator cluster health --address "127.0.0.1:7233" >/dev/null 2>&1; then
     echo "[temporal] already running on :7233"
+    echo "[temporal] UI: http://127.0.0.1:8080 (Docker) or http://127.0.0.1:$TEMPORAL_UI (start-dev)"
     return
   fi
   echo "[temporal] starting dev server..."
@@ -35,7 +36,8 @@ start_temporal() {
   echo $! > "$ROOT/.local/run/temporal.pid"
   for i in $(seq 1 30); do
     if temporal operator cluster health --address "127.0.0.1:7233" >/dev/null 2>&1; then
-      echo "[temporal] ready (UI http://127.0.0.1:$TEMPORAL_UI)"
+      echo "[temporal] ready gRPC 127.0.0.1:7233"
+      echo "[temporal] UI: http://127.0.0.1:8080 (Docker) or http://127.0.0.1:$TEMPORAL_UI (start-dev)"
       return
     fi
     sleep 1
@@ -50,22 +52,24 @@ ensure_namespace() {
 }
 
 build_worker() {
-  echo "[worker] building..."
-  (cd "$ROOT/worker" && mvn -q -DskipTests package)
+  echo "[flowfoundry] building scenario ai-collection-strategy..."
+  (cd "$ROOT" && mvn -q -pl flowfoundry-app/modules/ai-collection-strategy -am -DskipTests package)
 }
 
 start_worker() {
   if curl -sf "http://127.0.0.1:$WORKER_PORT/actuator/health" >/dev/null 2>&1; then
-    echo "[worker] already running on :$WORKER_PORT"
-    echo "[worker] after code changes run: ./scripts/redeploy-worker.sh"
+    echo "[flowfoundry] already running on :$WORKER_PORT"
+    echo "[flowfoundry] after code changes run: ./scripts/redeploy-worker.sh"
     return
   fi
   build_worker
-  echo "[worker] starting on :$WORKER_PORT..."
-  nohup java -jar "$ROOT/worker/target/call-campaign-worker-"*.jar \
+  echo "[flowfoundry] starting on :$WORKER_PORT..."
+  nohup java -jar "$ROOT/flowfoundry-app/modules/ai-collection-strategy/target/ai-collection-strategy-demo-"*.jar \
     --server.port="$WORKER_PORT" \
+    --platform.activity-registry.path="file:$ROOT/flowfoundry-app/modules/ai-collection-strategy/config/activities-registry.yaml" \
     --temporal.host=127.0.0.1:7233 \
     --temporal.namespace=call-campaign \
+    --temporal.task-queue=ai-collection-strategy \
     --spring.data.redis.host=127.0.0.1 \
     --spring.data.redis.port="$REDIS_PORT" \
     > "$ROOT/.local/run/worker.log" 2>&1 &

@@ -9,3 +9,5 @@ dump.rdb
 node_modules/
 playwright-report/
 test-results/
+getstarted/
+graphify-out/

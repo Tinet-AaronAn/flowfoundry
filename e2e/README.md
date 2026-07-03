@@ -3,7 +3,7 @@
 ## 测试框架
 
 - 使用 `@playwright/test` 驱动真实 Chromium。
-- 使用 `http-server` 托管 `worker/src/main/resources/static`，保持和 Spring Boot 静态资源路径一致。
+- 使用 `http-server` 托管 `flowfoundry-core/src/main/resources/static`，与 Spring Boot 静态资源路径一致。
 - E2E 测试 mock `/api/activities`、`/api/flows/*`；Workflow 持久化类用例额外 mock `/api/workflows/**`（见 `mockWorkflowBackend`）。
 - 测试固定使用英文 locale（`flowfoundry-locale=en`），通过 `#navModeler` 等稳定选择器避免 i18n 耦合。
 
@@ -42,7 +42,7 @@
 ### 运行链路 (`modeler-runtime.spec.js`)
 
 - Compile / Run（mock API）
-- Debug 完整模拟、状态查询
+- Runtime 联调 Run（Temporal + Activity stub）、状态查询
 - Child Workflow 定义导出
 
 ### Workflow API (`modeler-workflow.spec.js`)

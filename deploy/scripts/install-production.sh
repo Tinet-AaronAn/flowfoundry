@@ -25,13 +25,13 @@ kubectl exec -n temporal deploy/temporal-admintools -- \
   tctl --namespace call-campaign namespace register || true
 
 echo "==> Building Activity Worker image (local)"
-cd "$ROOT/worker"
-mvn -q -DskipTests package
-docker build -t call-campaign-worker:1.0.0 .
+cd "$ROOT"
+mvn -q -pl flowfoundry-app/modules/ai-collection-strategy -am -DskipTests package
+docker build -t flowfoundry-app:1.0.0 flowfoundry-app/modules/ai-collection-strategy
 
 echo "==> Deploy Activity Worker"
 kubectl create configmap activities-registry \
-  --from-file=activities-registry.yaml="$ROOT/registry/activities-registry.yaml" \
+  --from-file=activities-registry.yaml="$ROOT/flowfoundry-app/modules/ai-collection-strategy/config/activities-registry.yaml" \
   -n bpm --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f "$ROOT/deploy/k8s/call-campaign-worker.yaml"
 
@@ -39,4 +39,4 @@ echo "==> FlowFoundry Enterprise"
 echo "    Configure license + OIDC in deploy/helm/flowfoundry/values-production.yaml"
 echo "    helm upgrade --install flowfoundry <enterprise-chart> -n bpm -f deploy/helm/flowfoundry/values-production.yaml"
 
-echo "Done. Import BPMN: bpmn/multi-round-call-campaign.bpmn20.xml into FlowFoundry Modeler"
+echo "Done. Open FlowFoundry modeler and load the AI collection strategy demo flow."

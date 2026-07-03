@@ -4,6 +4,12 @@ const {
   mockBackendWithWorkflow,
   openFreshApp,
   switchToModeler,
+  fillAppDialog,
+  confirmAppDialog,
+  DEFAULT_WORKFLOW_NAME,
+  outboundSchedulerWorkflow,
+  importModel,
+  sampleMainFlowWorkflow,
   clickNode,
   modelState,
   dragPaletteItemToCanvas,
@@ -16,20 +22,36 @@ test.describe('FlowFoundry workflow API integration', () => {
     store = {};
     await mockBackendWithWorkflow(page, store);
     await openFreshApp(page);
+    const model = outboundSchedulerWorkflow();
+    const workflowId = await page.evaluate(() => state.workflows[0]?.id);
+    if (workflowId && store.workflows.has(workflowId)) {
+      const wf = store.workflows.get(workflowId);
+      wf.name = model.name;
+      wf.versions[0].model = JSON.parse(JSON.stringify(model));
+    }
+    await page.evaluate(m => {
+      const workflow = state.workflows[0];
+      if (!workflow) return;
+      workflow.name = m.name;
+      workflow.versions[0].model = JSON.parse(JSON.stringify(m));
+      state.model = JSON.parse(JSON.stringify(m));
+      syncParticipantAssignments();
+      renderAll();
+    }, model);
   });
 
   test('WF-01 detects workflow API and lists workflows from backend', async ({ page }) => {
     await expect(page.locator('#workflowTable .table-row')).not.toHaveCount(0);
     await expect(page.locator('#workflowTable')).toContainText('Multi-round Outbound Scheduler');
     expect(store.workflowApiLog.some(entry => entry.method === 'GET' && entry.path === '')).toBe(true);
-    await expect(page.locator('#message')).not.toContainText('Workflow API unavailable');
+    await expect(page.locator('#appNotice')).not.toContainText('Workflow API unavailable');
   });
 
   test('WF-02 creates workflow via API with workflow_ prefixed id and version 1.0.0', async ({ page }) => {
     const beforeRows = await page.locator('#workflowTable .table-row:not(.header)').count();
 
-    page.once('dialog', dialog => dialog.accept('Campaign Alpha'));
     await page.getByRole('button', { name: 'New Workflow' }).click();
+    await fillAppDialog(page, 'Campaign Alpha');
 
     await expect(page.locator('#workflowTable .table-row:not(.header)')).toHaveCount(beforeRows + 1);
     await expect(page.locator('#workflowTable')).toContainText('Campaign Alpha');
@@ -44,18 +66,20 @@ test.describe('FlowFoundry workflow API integration', () => {
 
   test('WF-03 saves current version model through PUT API', async ({ page }) => {
     await switchToModeler(page);
-    await clickNode(page, 'Load campaign config');
+    await importModel(page, sampleMainFlowWorkflow());
+    await clickNode(page, 'Import number batch');
 
     const nameInput = page.locator('#properties .prop-section').first().locator('input').nth(1);
     await nameInput.fill('Persisted Task Name');
+    await page.waitForFunction(() => state.model.nodes.some(node => node.name === 'Persisted Task Name'));
     await page.locator('#navWorkflows').click();
     await page.getByRole('button', { name: 'Save Current Version' }).click();
 
-    await expect(page.locator('#message')).toContainText('Workflow saved');
+    await expect(page.locator('#appNotice')).toContainText('Workflow saved');
     const putEntry = store.workflowApiLog.find(entry => entry.method === 'PUT' && entry.path.includes('/versions/'));
     expect(putEntry).toBeTruthy();
 
-    const workflowId = await page.evaluate(() => state.workflows[0].id);
+    const workflowId = await page.evaluate(() => state.activeWorkflowId);
     const version = await page.evaluate(() => state.activeVersion);
     const stored = store.workflows.get(workflowId);
     const savedNode = stored.versions.find(v => v.version === version).model.nodes
@@ -67,39 +91,45 @@ test.describe('FlowFoundry workflow API integration', () => {
     const workflowId = await page.evaluate(() => state.workflows[0].id);
     const row = page.locator('#workflowTable .table-row', { hasText: workflowId }).first();
 
-    page.once('dialog', dialog => dialog.accept('1.0.1'));
     await row.getByRole('button', { name: 'New Version' }).click();
+    await fillAppDialog(page, '1.0.1');
 
-    await expect(page.locator('#message')).toContainText('Workflow opened');
+    await expect(page.locator('#appNotice')).toContainText('Workflow opened');
     const wf = store.workflows.get(workflowId);
     expect(wf.versions.map(v => v.version)).toContain('1.0.1');
     expect(wf.currentVersion).toBe('1.0.1');
     expect(store.workflowApiLog.some(entry => entry.method === 'POST' && entry.path.endsWith('/versions'))).toBe(true);
   });
 
-  test('WF-05 renames workflow through PATCH API', async ({ page }) => {
+  test('WF-05 renames workflow from modeler header and saves through PUT API', async ({ page }) => {
     const workflowId = await page.evaluate(() => state.workflows[0].id);
     const row = page.locator('#workflowTable .table-row', { hasText: workflowId }).first();
 
-    page.once('dialog', dialog => dialog.accept('Renamed Scheduler'));
-    await row.getByRole('button', { name: 'Rename' }).click();
+    await row.locator('.workflow-name-cell').click();
+    await expect(page.locator('#modelerView')).toHaveClass(/active/);
+    await page.locator('#flowName').fill('Renamed Scheduler');
+    await page.waitForFunction(() => state.model.name === 'Renamed Scheduler');
+    await page.locator('#navWorkflows').click();
+    await page.getByRole('button', { name: 'Save Current Version' }).click();
 
     await expect(page.locator('#workflowTable')).toContainText('Renamed Scheduler');
-    expect(store.workflows.get(workflowId).name).toBe('Renamed Scheduler');
-    expect(store.workflowApiLog.some(entry => entry.method === 'PATCH' && entry.path === workflowId)).toBe(true);
+    await expect(page.locator('#appNotice')).toContainText('Workflow saved');
+    const activeWorkflowId = await page.evaluate(() => state.activeWorkflowId);
+    expect(store.workflows.get(activeWorkflowId).name).toBe('Renamed Scheduler');
+    expect(store.workflowApiLog.some(entry => entry.method === 'PUT' && entry.path.includes('/versions/'))).toBe(true);
   });
 
   test('WF-06 deletes workflow through DELETE API', async ({ page }) => {
-    page.once('dialog', dialog => dialog.accept('Second Flow'));
     await page.getByRole('button', { name: 'New Workflow' }).click();
+    await fillAppDialog(page, 'Second Flow');
     await page.locator('#navWorkflows').click();
     await expect(page.locator('#workflowListView')).toHaveClass(/active/);
     const second = [...store.workflows.values()].find(wf => wf.name === 'Second Flow');
     expect(second).toBeTruthy();
 
     const before = await page.locator('#workflowTable .table-row:not(.header)').count();
-    page.once('dialog', dialog => dialog.accept());
     await page.locator('#workflowTable .table-row', { hasText: second.id }).getByRole('button', { name: 'Delete' }).click();
+    await confirmAppDialog(page);
 
     await expect(page.locator('#workflowTable .table-row:not(.header)')).toHaveCount(before - 1);
     expect(store.workflows.has(second.id)).toBe(false);
@@ -132,8 +162,8 @@ test.describe('FlowFoundry workflow API integration', () => {
       await setWorkflowStatus(id, 'active');
     }, workflowId);
 
-    page.once('dialog', dialog => dialog.accept('Draft Only Flow'));
     await page.getByRole('button', { name: 'New Workflow' }).click();
+    await fillAppDialog(page, 'Draft Only Flow');
     await page.locator('#navWorkflows').click();
     await expect(page.locator('#workflowListView')).toHaveClass(/active/);
 

@@ -1,8 +1,9 @@
-package com.example.platform.idempotency;
+package com.tinet.flowfoundary.idempotency;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Service;
  * <p>状态：PROCESSING -> COMPLETED；失败时 delete 释放。
  */
 @Service
+@ConditionalOnBean(StringRedisTemplate.class)
 public class RedisIdempotencyService {
 
   private static final String PREFIX = "idempotency:";

@@ -1,4 +1,4 @@
-package com.example.platform.registry;
+package com.tinet.flowfoundary.registry;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.time.Duration;

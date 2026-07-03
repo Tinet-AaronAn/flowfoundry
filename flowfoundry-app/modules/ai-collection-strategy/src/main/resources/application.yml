@@ -1,0 +1,13 @@
+spring:
+  config:
+    import: classpath:application-flowfoundry-platform.yml
+  application:
+    name: ai-collection-strategy
+
+temporal:
+  namespace: ${TEMPORAL_NAMESPACE:call-campaign}
+  task-queue: ${TEMPORAL_TASK_QUEUE:ai-collection-strategy}
+
+platform:
+  activity-registry:
+    path: ${ACTIVITY_REGISTRY_PATH:classpath:activities-registry.yaml}

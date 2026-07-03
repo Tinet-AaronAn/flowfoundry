@@ -50,7 +50,7 @@
 | MF-07 | appends a task from the floating toolbar, then supports undo and redo | 从浮动工具栏向后追加 Task，并验证 Undo / Redo | 节点数 +1；Undo 恢复；Redo 再次追加 |
 | MF-08 | can view DSL and export model JSON from the toolbar | 工具栏 View DSL 与 Export 可正常打开 JSON 面板 | DSL 含 `nodes`/`edges`；Export 含 `model`/`dsl`/`bpmn` |
 
-**前置**：`mockBackend` + `openFreshModeler`（默认演示流程）。MF-05 额外 `importModel` 自定义边标签模型。
+**前置**：`mockBackend` + `openFreshModelerWithOutboundDemo`（E2E 夹具流程）。MF-05 额外 `importModel` 自定义边标签模型。
 
 ---
 
@@ -86,7 +86,7 @@
 | CV-10 | drags a node and persists the new coordinates in DSL | 拖拽节点后模型坐标更新 | `state.model` 中 `Task_A.x/y` 增大 |
 | CV-11 | deletes a selected node from the toolbar | 工具栏 Delete 删除选中节点 | 节点 DOM 消失；`#message` 含 deleted |
 | CV-12 | deletes the selected node with the keyboard | 按 Delete 键删除选中节点 | 节点 DOM 消失 |
-| CV-13 | morphs a service task into a human task from the floating toolbar | Service Task 变形为 Human Task | `#propType` 为 `userTask`；节点名变为 Human Task |
+| CV-13 | morphs a service task into a human task from the floating toolbar | Service Task 变形为 Human Task | `#propType` 为 `humanTask`；节点名变为 Human Task |
 | CV-14 | drops a palette service task onto the canvas | 从 Palette 拖放 Service Task 到画布 | 节点数 +1；`#propType` 为 `serviceTask` |
 | CV-15 | creates and edits a text annotation on the canvas | 拖放 Text Annotation 并编辑文本 | `annotation-editor` 有值；`documentation` 写入模型 |
 
@@ -101,7 +101,7 @@
 | CV-24 | starts with properties collapsed when entering modeler | 首次及再次进入 Modeler 时属性面板默认隐藏 | `#app` 含 `properties-collapsed`；从 Workflows 切回仍收起 |
 | CV-25 | auto-expands properties when selecting a node or edge | 选中节点或连线时自动展开属性面板 | 收起后点击节点/边，`#app` 不再含 `properties-collapsed` |
 
-**前置**：视口/连线/节点类用例多数 `importModel(simpleConnectionWorkflow)` 或 `connectedWorkflow()`；面板类用例使用默认演示流程。
+**前置**：视口/连线/节点类用例多数 `importModel(simpleConnectionWorkflow)` 或 `connectedWorkflow()`；面板类用例使用 E2E 夹具或 `importModel` 注入模型。
 
 ---
 
@@ -133,10 +133,8 @@
 | NT-01 | `startEvent` | Start | 开始事件可渲染并选中 |
 | NT-02 | `task` | Generic Task | 通用任务 |
 | NT-03 | `serviceTask` | Service Task | 服务任务 |
-| NT-04 | `userTask` | Human Task | 人工任务（managed / offline） |
-| NT-05 | `userTask` | Human Task Offline | 线下人工步骤（offline 模式） |
-| NT-06 | `sendTask` | Send Task | 发送任务 |
-| NT-07 | `receiveTask` | Receive Task | 接收任务 |
+| NT-04 | `humanTask` | Human Task | 人工任务（managed / offline） |
+| NT-05 | `humanTask` | Human Task Offline | 线下人工步骤（offline 模式） |
 | NT-08 | `scriptTask` | Script Task | 脚本任务 |
 | NT-09 | `scriptTask` | Script Task | Node.js 脚本 / DMN |
 | NT-10 | `workflow` | Workflow Task | 子工作流调用 |
@@ -163,11 +161,11 @@
 
 | ID | 用例名称 | 描述 | 关键断言 |
 |----|----------|------|----------|
-| RT-01 | compiles and runs a participant-owned workflow through mocked APIs | Modeler Compile；Simulation Run 走 mock API | `compileRequests`/`runRequests` 有记录；`workflowId` 回填 |
+| RT-01 | compiles and runs a participant-owned workflow through mocked APIs | Modeler Compile；Runtime Run 走 mock API，带 `runSource=web-modeler` | `compileRequests`/`runRequests` 有记录；`runSource` 为 `web-modeler` |
 | RT-03 | queries workflow state and completes human task through mocked APIs | 填写 Workflow ID 查询运行状态 | 返回 JSON 中 `status` 为 `RUNNING` |
 | RT-04 | exports workflow nodes as child workflow definitions | Workflow 节点导出子流程定义到 DSL | `flowFoundryChildWorkflow` 与 `childWorkflowDefinition` 一致 |
 
-**前置**：RT-01/04 使用 `participantWorkflow()` 或自定义父子流程模型；RT-03 使用默认演示流程 + mock API。
+**前置**：RT-01/04 使用 `participantWorkflow()` 或自定义父子流程模型；RT-03 使用 `openFreshModeler` + mock API。
 
 ---
 
@@ -175,8 +173,8 @@
 
 | ID | 用例名称 | 描述 | 关键断言 |
 |----|----------|------|----------|
-| RN-01 | keeps runtime controls out of the properties panel | Runtime 控件不在 Properties，而在 Simulation 视图 | `#simulationView` 中 `#runInput` 可见；`#propertiesPanel` 无输入 JSON |
-| RN-02 | records a run and lists it on the Runs page | 在 Simulation 中 Run 后记录实例并在 Runs 页展示 | `#runsTable` 含 `workflowId`；Runs 视图无 Properties |
+| RN-01 | keeps runtime controls out of the properties panel | Runtime 控件不在 Properties，而在 Runtime 视图 | `#simulationView` 中 `#runInput` 可见；`#propertiesPanel` 无输入 JSON |
+| RN-02 | records a run and lists it on the Runs page | 在 Runtime 中 Run 后记录实例并在 Runs 页展示 | `#runsTable` 含 `workflowId`；Runs 视图无 Properties |
 
 **前置**：`openFreshModeler` + mock API。
 

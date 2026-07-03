@@ -89,7 +89,7 @@ services:
 
   worker:
     build:
-      context: ../worker
+      context: ../flowfoundry-app/modules/ai-collection-strategy
       dockerfile: Dockerfile
     depends_on:
       redis:
@@ -101,7 +101,7 @@ services:
     environment:
       TEMPORAL_HOST: temporal:7233
       TEMPORAL_NAMESPACE: call-campaign
-      TEMPORAL_TASK_QUEUE: call-campaign
+      TEMPORAL_TASK_QUEUE: ai-collection-strategy
       REDIS_HOST: redis
       REDIS_PORT: 6379
       DATABASE_URL: jdbc:postgresql://postgres:5432/flowfoundry
@@ -113,7 +113,7 @@ services:
     ports:
       - "8081:8080"
     volumes:
-      - ../registry/activities-registry.yaml:/config/activities-registry.yaml:ro
+      - ../flowfoundry-app/modules/ai-collection-strategy/config/activities-registry.yaml:/config/activities-registry.yaml:ro
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://127.0.0.1:8080/actuator/health"]
       interval: 10s

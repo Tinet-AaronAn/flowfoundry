@@ -1,7 +1,7 @@
 const { test, expect } = require('@playwright/test');
 const {
   mockBackend,
-  openFreshModeler,
+  openFreshModelerWithOutboundDemo,
   importModel,
   clickNode,
   clickNodeById,
@@ -18,7 +18,7 @@ const {
 test.describe('FlowFoundry participant and sub-process containers', () => {
   test.beforeEach(async ({ page }) => {
     await mockBackend(page);
-    await openFreshModeler(page);
+    await openFreshModelerWithOutboundDemo(page);
   });
 
   test('renders participant with a left label lane and right content area', async ({ page }) => {
@@ -52,23 +52,35 @@ test.describe('FlowFoundry participant and sub-process containers', () => {
 
   test('resizes participant and keeps contained node ownership valid', async ({ page }) => {
     await importModel(page, participantWorkflow());
-    await page.locator('#fitViewBtn').click();
     await clickNodeById(page, 'Participant_Ops');
 
     const participant = nodeLocator(page, 'Ops Team');
+    await expect(participant).toBeVisible();
     const beforeWidth = await page.evaluate(() => state.model.nodes.find(n => n.id === 'Participant_Ops').width);
     const handle = page.locator('.node.selected .container-resize-handle.se');
     await expect(handle).toBeVisible();
     const handleBox = await handle.boundingBox();
     if (!handleBox) throw new Error('Participant resize handle not visible');
 
-    await page.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(handleBox.x + handleBox.width / 2 + 420, handleBox.y + handleBox.height / 2 + 220, { steps: 24 });
-    await page.mouse.up();
+    const startX = handleBox.x + handleBox.width / 2;
+    const startY = handleBox.y + handleBox.height / 2;
+    const endX = startX + 420;
+    const endY = startY + 220;
+    await page.evaluate(({ startX, startY, endX, endY }) => {
+      const fakeDown = {
+        clientX: startX,
+        clientY: startY,
+        preventDefault() {},
+        stopPropagation() {},
+      };
+      startContainerResize(fakeDown, 'Participant_Ops', 'se');
+      window.dispatchEvent(new MouseEvent('mousemove', { clientX: endX, clientY: endY, bubbles: true }));
+      window.dispatchEvent(new MouseEvent('mouseup', { clientX: endX, clientY: endY, bubbles: true }));
+    }, { startX, startY, endX, endY });
 
-    const afterWidth = await page.evaluate(() => state.model.nodes.find(n => n.id === 'Participant_Ops').width);
-    expect(afterWidth).toBeGreaterThan(beforeWidth + 40);
+    await expect.poll(async () =>
+      page.evaluate(() => state.model.nodes.find(n => n.id === 'Participant_Ops').width)
+    ).toBeGreaterThan(beforeWidth + 40);
 
     await clickCanvasToolbarButton(page, 'View DSL');
     const dsl = await jsonPanelValue(page);
@@ -107,7 +119,7 @@ test.describe('FlowFoundry participant and sub-process containers', () => {
     await importModel(page, invalidParticipantWorkflow());
 
     await clickCanvasToolbarButton(page, 'View DSL');
-    await expect(page.locator('#message')).toContainText('Violations');
+    await expect(page.locator('#appNotice')).toContainText('Violations');
 
     const contentArea = nodeLocator(page, 'Participant A').locator('.participant-content-area');
     const contentBox = await contentArea.boundingBox();

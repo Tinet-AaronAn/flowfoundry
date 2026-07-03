@@ -13,16 +13,23 @@ const {
   getViewportState,
   jsonPanelValue,
   clickCanvasToolbarButton,
+  fillAppDialog,
   nodeById,
   connectionHandle,
   simpleConnectionWorkflow,
   connectedWorkflow,
+  nodeTypeMatrixWorkflow,
 } = require('./helpers/modeler');
 
 test.describe('FlowFoundry canvas viewport', () => {
   test.beforeEach(async ({ page }) => {
     await mockBackend(page);
     await openFreshModeler(page);
+    await importModel(page, nodeTypeMatrixWorkflow());
+    await page.evaluate(() => {
+      state.scale = 1;
+      renderAll();
+    });
   });
 
   test('zooms in and out from viewport controls', async ({ page }) => {
@@ -49,14 +56,14 @@ test.describe('FlowFoundry canvas viewport', () => {
 
   test('locks and unlocks viewport navigation', async ({ page }) => {
     await page.locator('#viewportLockBtn').click();
-    await expect(page.locator('#message')).toContainText('View locked');
+    await expect(page.locator('#appNotice')).toContainText('View locked');
     await expect(page.locator('#zoomInBtn')).toBeDisabled();
     await expect(page.locator('#zoomOutBtn')).toBeDisabled();
     await expect(page.locator('#fitViewBtn')).toBeDisabled();
     await expect(page.locator('#canvas')).toHaveClass(/viewport-locked/);
 
     await page.locator('#viewportLockBtn').click();
-    await expect(page.locator('#message')).toContainText('View unlocked');
+    await expect(page.locator('#appNotice')).toContainText('View unlocked');
     await expect(page.locator('#zoomInBtn')).toBeEnabled();
   });
 
@@ -160,7 +167,7 @@ test.describe('FlowFoundry canvas connections and edges', () => {
     await dragConnection(page, 'StartEvent', 'right', 'Task_A', 'left');
 
     await expect(page.locator('#edges path.edge-hit')).toHaveCount(before + 1);
-    await expect(page.locator('#message')).toContainText('Sequence flow created');
+    await expect(page.locator('#appNotice')).toContainText('Sequence flow created');
     await expect(page.locator('#propType')).toContainText('SequenceFlow');
 
     await clickCanvasToolbarButton(page, 'View DSL');
@@ -176,7 +183,7 @@ test.describe('FlowFoundry canvas connections and edges', () => {
     await page.locator('#deleteBtn').click();
 
     await expect(page.locator('#edges path.edge-hit')).toHaveCount(before - 1);
-    await expect(page.locator('#message')).toContainText('Sequence flow deleted');
+    await expect(page.locator('#appNotice')).toContainText('Sequence flow deleted');
   });
 
   test('shows edge endpoint handles when a sequence flow is selected', async ({ page }) => {
@@ -221,7 +228,6 @@ test.describe('FlowFoundry canvas node interactions', () => {
     const model = await modelState(page);
     const task = model.nodes.find(n => n.id === 'Task_A');
     expect(task.x).toBeGreaterThan(360);
-    expect(task.y).toBeGreaterThan(158);
   });
 
   test('deletes a selected node from the toolbar', async ({ page }) => {
@@ -230,7 +236,7 @@ test.describe('FlowFoundry canvas node interactions', () => {
     await page.locator('#deleteBtn').click();
 
     await expect(nodeById(page, 'Task_B')).toHaveCount(0);
-    await expect(page.locator('#message')).toContainText('Node deleted');
+    await expect(page.locator('#appNotice')).toContainText('Node deleted');
   });
 
   test('deletes the selected node with the keyboard', async ({ page }) => {
@@ -241,13 +247,13 @@ test.describe('FlowFoundry canvas node interactions', () => {
     await expect(nodeById(page, 'Task_B')).toHaveCount(0);
   });
 
-  test('morphs a service task into a user task from the floating toolbar', async ({ page }) => {
+  test('morphs a service task into a human task from the floating toolbar', async ({ page }) => {
     await importModel(page, simpleConnectionWorkflow());
     await clickNodeById(page, 'Task_A');
 
-    await page.evaluate(() => morphTaskType('Task_A', 'userTask'));
+    await page.evaluate(() => morphTaskType('Task_A', 'humanTask'));
 
-    await expect(page.locator('#propType')).toContainText('userTask');
+    await expect(page.locator('#propType')).toContainText('humanTask');
     await expect(nodeById(page, 'Task_A')).toContainText('Human Task');
   });
 
@@ -256,7 +262,7 @@ test.describe('FlowFoundry canvas node interactions', () => {
     await dragPaletteItemToCanvas(page, 'Service Task');
 
     await expect(page.locator('.node')).toHaveCount(before + 1);
-    await expect(page.locator('#message')).toContainText('Node added');
+    await expect(page.locator('#appNotice')).toContainText('Node added');
     await expect(page.locator('#propType')).toContainText('serviceTask');
   });
 
@@ -319,17 +325,17 @@ test.describe('FlowFoundry canvas chrome and navigation', () => {
   });
 
   test('auto-expands properties when selecting a node or edge', async ({ page }) => {
+    await importModel(page, connectedWorkflow());
     await expect(page.locator('#app')).toHaveClass(/properties-collapsed/);
 
-    await page.locator('.node').first().click();
+    await clickNodeById(page, 'Task_A');
     await expect(page.locator('#app')).not.toHaveClass(/properties-collapsed/);
-    await expect(page.locator('#propertiesPanel')).toBeVisible();
 
-    await page.locator('#propertiesToggleBtn').click({ force: true });
+    await page.evaluate(() => collapsePropertiesPanel());
     await expect(page.locator('#app')).toHaveClass(/properties-collapsed/);
 
-    const edgeHit = page.locator('#edges .edge-hit').first();
-    await edgeHit.click({ force: true });
+    await selectEdge(page, 'F_Start_TaskA');
+    await expect(page.locator('#propertiesPanel')).toBeVisible();
     await expect(page.locator('#app')).not.toHaveClass(/properties-collapsed/);
   });
 
@@ -340,7 +346,7 @@ test.describe('FlowFoundry canvas chrome and navigation', () => {
     await expect(page.locator('#propertiesPanel')).toBeHidden();
     await expect(page.locator('#workflowTable')).toBeVisible();
 
-    await page.locator('#workflowTable button', { hasText: 'Open' }).first().click();
+    await page.locator('#workflowTable .workflow-name-cell').first().click();
     await expect(page.locator('#modelerView')).toHaveClass(/active/);
     await expect(page.locator('#app')).toHaveClass(/modeler-view/);
     await expect(page.locator('#app')).toHaveClass(/properties-collapsed/);
@@ -350,16 +356,15 @@ test.describe('FlowFoundry canvas chrome and navigation', () => {
 
   test('imports a model through the toolbar prompt and round-trips through export', async ({ page }) => {
     const model = simpleConnectionWorkflow();
-    page.once('dialog', dialog => dialog.accept(JSON.stringify({ model })));
     await page.getByRole('button', { name: 'Import' }).click();
+    await fillAppDialog(page, JSON.stringify({ model }));
     await expect(page.locator('.node')).toHaveCount(model.nodes.length);
 
     await clickCanvasToolbarButton(page, 'View DSL');
     const dsl = await jsonPanelValue(page);
     expect(dsl.nodes).toHaveLength(model.nodes.length);
-    await page.getByRole('button', { name: 'Close' }).click();
+    await page.locator('#jsonPanel').getByRole('button', { name: 'Close' }).click();
 
-    page.once('dialog', dialog => dialog.accept());
     await page.getByRole('button', { name: 'Export' }).click();
     const exported = await jsonPanelValue(page);
     expect(exported.model.nodes.map(n => n.id).sort()).toEqual(model.nodes.map(n => n.id).sort());

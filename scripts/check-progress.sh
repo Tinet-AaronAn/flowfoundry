@@ -26,16 +26,24 @@ check() {
   fi
 }
 
+check_temporal_ui() {
+  curl -sf -o /dev/null http://127.0.0.1:8080/ || curl -sf -o /dev/null http://127.0.0.1:8233/
+}
+
+check_app_health() {
+  curl -sf --noproxy '*' "http://127.0.0.1:${WORKER_PORT:-8081}/actuator/health" | grep -q UP
+}
+
 check "java" command -v java >/dev/null
 check "maven" command -v mvn >/dev/null
 check "temporal-cli" command -v temporal >/dev/null
 check "docker" docker info >/dev/null
 check "orbstack" test -d /Applications/OrbStack.app
 
-check "worker-compile" bash -c "cd '$ROOT/worker' && mvn -q -DskipTests package"
-check "worker-jar" test -f "$ROOT/worker/target/call-campaign-worker-1.0.0-SNAPSHOT.jar"
-check "bpmn-file" test -f "$ROOT/bpmn/multi-round-call-campaign.bpmn20.xml"
-check "registry-file" test -f "$ROOT/registry/activities-registry.yaml"
+check "app-compile" bash -c "cd '$ROOT' && mvn -q -pl flowfoundry-app/modules/ai-collection-strategy -am -DskipTests package"
+check "app-jar" test -f "$ROOT/flowfoundry-app/modules/ai-collection-strategy/target/ai-collection-strategy-demo-1.0.0-SNAPSHOT.jar"
+check "demo-registry" test -f "$ROOT/flowfoundry-app/modules/ai-collection-strategy/config/activities-registry.yaml"
+bash "$ROOT/scripts/verify-docs.sh" >/dev/null && REPORT+=("OK   doc-paths") || { REPORT+=("FAIL doc-paths"); FAIL=1; }
 check "helm-temporal" test -f "$ROOT/deploy/helm/temporal/values-production.yaml"
 check "helm-flowfoundry" test -f "$ROOT/deploy/helm/flowfoundry/values-production.yaml"
 
@@ -43,8 +51,8 @@ if [[ "$MODE" == "docker" ]]; then
   check "compose-redis" docker compose -f "$ROOT/deploy/docker-compose.local.yml" ps redis | grep -q Up
   check "compose-temporal" docker compose -f "$ROOT/deploy/docker-compose.local.yml" ps temporal | grep -q Up
   check "compose-worker" docker compose -f "$ROOT/deploy/docker-compose.local.yml" ps worker | grep -q Up
-  check "worker-health" curl -sf http://127.0.0.1:8081/actuator/health
-  check "temporal-ui" curl -sf -o /dev/null http://127.0.0.1:8080
+  check "app-health" check_app_health
+  check "temporal-ui" check_temporal_ui
   if docker compose -f "$ROOT/deploy/docker-compose.local.yml" --profile full ps flowfoundry-devserver 2>/dev/null | grep -q Up; then
     check "flowfoundry-ui" curl -sf -o /dev/null http://127.0.0.1:9060
   else
@@ -56,7 +64,8 @@ else
   check "redis-up" redis-cli -p "${REDIS_PORT:-6379}" ping
   check "temporal-up" temporal operator cluster health --address 127.0.0.1:7233
   check "namespace-call-campaign" temporal operator namespace describe call-campaign --address 127.0.0.1:7233
-  check "worker-health" curl -sf "http://127.0.0.1:${WORKER_PORT:-8081}/actuator/health"
+  check "app-health" check_app_health
+  check "temporal-ui" check_temporal_ui
 fi
 
 echo "=== Progress Check [mode=$MODE] $(date '+%Y-%m-%d %H:%M:%S') ==="
@@ -65,8 +74,11 @@ echo "================================"
 
 if [[ $FAIL -eq 0 ]]; then
   echo "ALL_GREEN: compile + runtime stack ready"
-  echo "Modeler: http://127.0.0.1:${WORKER_PORT:-8081}/"
+  echo "Modeler:       http://127.0.0.1:${WORKER_PORT:-8081}/"
+  echo "Temporal UI:   http://127.0.0.1:8080/ (Docker) or http://127.0.0.1:8233/ (start-dev)"
+  echo "See docs/service-urls.md for details"
 else
   echo "PENDING: see FAIL items above"
+  echo "Tip: app down -> ./scripts/redeploy-worker.sh"
 fi
 exit $FAIL

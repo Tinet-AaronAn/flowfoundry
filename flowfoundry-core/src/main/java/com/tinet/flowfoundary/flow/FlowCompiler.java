@@ -1,16 +1,16 @@
-package com.example.platform.flow;
+package com.tinet.flowfoundary.flow;
 
-import com.example.platform.interpreter.model.ExecutionEdge;
-import com.example.platform.interpreter.model.ExecutionNode;
-import com.example.platform.interpreter.model.ExecutionPlan;
-import com.example.platform.interpreter.model.NodeKind;
-import com.example.platform.registry.ActivityRegistry;
+import com.tinet.flowfoundary.interpreter.model.ExecutionEdge;
+import com.tinet.flowfoundary.interpreter.model.ExecutionNode;
+import com.tinet.flowfoundary.interpreter.model.ExecutionPlan;
+import com.tinet.flowfoundary.interpreter.model.NodeKind;
+import com.tinet.flowfoundary.activity.ActivityTypes;
+import com.tinet.flowfoundary.registry.ActivityRegistry;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -46,7 +46,8 @@ public class FlowCompiler {
       if (nodes.containsKey(node.id())) {
         throw new IllegalArgumentException("Duplicate node id: " + node.id());
       }
-      NodeKind kind = normalizeKind(node.kind());
+      rejectGenericTask(node);
+      NodeKind kind = NodeKind.from(node.kind());
       if (kind == NodeKind.START) {
         if (startNodeId != null) {
           throw new IllegalArgumentException("Only one start node is allowed");
@@ -79,14 +80,18 @@ public class FlowCompiler {
   private ExecutionNode compileNode(FlowNode node, NodeKind kind) {
     String activityType = node.activityType();
     Map<String, Object> config = node.config() == null ? Map.of() : new LinkedHashMap<>(node.config());
-    if (kind == NodeKind.ACTIVITY) {
-      if (blank(activityType) && ("businessRuleTask".equals(node.kind()) || "scriptTask".equals(node.kind()))) {
-        activityType = "dmn-decision";
+    if (kind == NodeKind.HUMAN_TASK) {
+      kind = NodeKind.ACTIVITY;
+      if (blank(activityType)) {
+        activityType = ActivityTypes.HUMAN_TASK;
       }
+      config = ensureHumanTaskConfig(node, config);
+    }
+    if (kind == NodeKind.ACTIVITY) {
       if (blank(activityType)) {
         throw new IllegalArgumentException("Activity node requires activityType: " + node.id());
       }
-      if (!"dmn-decision".equals(activityType)) {
+      if (!ActivityTypes.isCore(activityType)) {
         activityRegistry.require(activityType);
       }
       if (!blank(node.decisionRef())) {
@@ -94,12 +99,18 @@ public class FlowCompiler {
         config.put("decisionRef", node.decisionRef());
         config.put("decisionVersion", node.decisionVersion());
       }
+      if (ActivityTypes.isHumanTaskActivity(activityType)) {
+        config = ensureHumanTaskConfig(node, config);
+      }
     }
     if (kind == NodeKind.CHILD_WORKFLOW) {
       config = compileChildWorkflowConfig(node, config);
     }
-    if (kind == NodeKind.HUMAN_TASK) {
-      config = ensureHumanTaskConfig(node, config);
+    if (kind == NodeKind.GATEWAY) {
+      config = ensureGatewayConfig(node, config);
+    }
+    if (kind == NodeKind.INTERMEDIATE_EVENT) {
+      config = ensureIntermediateEventConfig(node, config);
     }
     return new ExecutionNode(
         node.id(),
@@ -154,33 +165,48 @@ public class FlowCompiler {
     return edges;
   }
 
-  private static NodeKind normalizeKind(String raw) {
-    String value = Objects.requireNonNullElse(raw, "").trim();
-    return switch (value) {
-      case "startEvent", "start" -> NodeKind.START;
-      case "endEvent", "end" -> NodeKind.END;
-      case "task", "genericTask", "serviceTask", "sendTask", "scriptTask", "businessRuleTask", "activity" ->
-          NodeKind.ACTIVITY;
-      case "workflow", "childWorkflow", "callActivity" -> NodeKind.CHILD_WORKFLOW;
-      case "userTask", "manualTask", "humanTask" -> NodeKind.HUMAN_TASK;
-      case "receiveTask", "exclusiveGateway", "inclusiveGateway", "parallelGateway",
-              "eventBasedGateway", "decision" ->
-          NodeKind.DECISION;
-      case "timerEvent", "intermediateCatchEvent", "boundaryEvent", "timer" -> NodeKind.TIMER;
-      default -> NodeKind.from(value);
-    };
-  }
-
   private Map<String, Object> ensureHumanTaskConfig(FlowNode node, Map<String, Object> config) {
     Map<String, Object> compiled = new LinkedHashMap<>(config);
     Object raw = compiled.get("flowFoundryHumanTask");
     Map<String, Object> humanTask =
         raw instanceof Map<?, ?> map ? new LinkedHashMap<>((Map<String, Object>) map) : new LinkedHashMap<>();
     if (!humanTask.containsKey("mode")) {
-      humanTask.put("mode", "manualTask".equals(node.kind()) ? "offline" : "managed");
+      humanTask.put("mode", "managed");
     }
     compiled.put("flowFoundryHumanTask", humanTask);
+    compiled.put("nodeId", node.id());
     return compiled;
+  }
+
+  private Map<String, Object> ensureGatewayConfig(FlowNode node, Map<String, Object> config) {
+    Map<String, Object> compiled = new LinkedHashMap<>(config);
+    Object gatewayKind = compiled.get("gatewayKind");
+    if (gatewayKind == null || String.valueOf(gatewayKind).isBlank()) {
+      compiled.put("gatewayKind", "exclusive");
+    }
+    return compiled;
+  }
+
+  private Map<String, Object> ensureIntermediateEventConfig(
+      FlowNode node, Map<String, Object> config) {
+    Map<String, Object> compiled = new LinkedHashMap<>(config);
+    Object subtype = compiled.get("eventSubtype");
+    if (subtype == null || String.valueOf(subtype).isBlank()) {
+      compiled.put("eventSubtype", "timer");
+    }
+    return compiled;
+  }
+
+  private static void rejectGenericTask(FlowNode node) {
+    if (node.kind() == null) {
+      return;
+    }
+    String raw = node.kind().trim();
+    if ("task".equalsIgnoreCase(raw) || "genericTask".equalsIgnoreCase(raw)) {
+      throw new IllegalArgumentException(
+          "Generic Task is for diagram sketching only; change it to Service Task, Human Task, Script Task, or another concrete type: "
+              + node.id());
+    }
   }
 
   private static boolean blank(String value) {

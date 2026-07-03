@@ -1,19 +1,22 @@
-package com.example.platform.interpreter.model;
+package com.tinet.flowfoundary.interpreter.model;
 
 public enum NodeKind {
   START,
   END,
   ACTIVITY,
-  DECISION,
+  GATEWAY,
   HUMAN_TASK,
-  TIMER,
-  SCRIPT_TASK,
+  INTERMEDIATE_EVENT,
   CHILD_WORKFLOW;
 
   public static NodeKind from(String raw) {
     if (raw == null || raw.isBlank()) {
       throw new IllegalArgumentException("Node kind is required");
     }
-    return NodeKind.valueOf(raw.trim().replace('-', '_').toUpperCase());
+    String normalized = raw.trim().replace('-', '_').toUpperCase();
+    if ("TIMER".equals(normalized)) {
+      return INTERMEDIATE_EVENT;
+    }
+    return NodeKind.valueOf(normalized);
   }
 }

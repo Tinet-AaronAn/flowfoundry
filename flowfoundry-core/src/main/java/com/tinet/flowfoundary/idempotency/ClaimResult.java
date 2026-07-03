@@ -1,4 +1,4 @@
-package com.example.platform.idempotency;
+package com.tinet.flowfoundary.idempotency;
 
 public enum ClaimResult {
   /** 首次占位成功，可以执行业务 */

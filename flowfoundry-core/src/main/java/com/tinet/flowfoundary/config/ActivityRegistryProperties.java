@@ -1,4 +1,4 @@
-package com.example.platform.config;
+package com.tinet.flowfoundary.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 

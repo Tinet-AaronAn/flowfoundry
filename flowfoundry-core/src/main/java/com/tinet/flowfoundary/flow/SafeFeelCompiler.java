@@ -1,4 +1,4 @@
-package com.example.platform.flow;
+package com.tinet.flowfoundary.flow;
 
 import java.math.BigDecimal;
 import java.util.LinkedHashMap;

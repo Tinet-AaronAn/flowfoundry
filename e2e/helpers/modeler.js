@@ -1,21 +1,51 @@
 const { expect } = require('@playwright/test');
 
 const activityRegistry = [
+  { id: 'import-numbers', name: 'Import number batch' },
+  { id: 'filter-and-split-batches', name: 'Filter and split batches' },
+  { id: 'notify-owner-report', name: 'Report batches to owner' },
   { id: 'load-campaign', name: 'Load campaign config' },
   { id: 'prepare-call-round', name: 'Prepare call list' },
   { id: 'execute-call-round', name: 'Execute outbound round' },
-  { id: 'wait-round-completion', name: 'Wait for round result' },
+  { id: 'wait-round-completion', name: 'Wait for dialer completion' },
+  { id: 'start-ai-tagging', name: 'Start AI tagging' },
+  { id: 'wait-tagging-completion', name: 'Wait for tagging completion' },
+  { id: 'filter-next-round', name: 'Filter next round list' },
   { id: 'aggregate-round-results', name: 'Aggregate round result' },
   { id: 'evaluate-next-round', name: 'Evaluate next round' },
   { id: 'finalize-campaign', name: 'Finalize and generate report' },
-  { id: 'send-message', name: 'Send message' },
-  { id: 'dmn-decision', name: 'DMN decision' },
+  { id: 'script-runtime', name: 'Script Runtime' },
 ];
 
 const DEMO_NODE = {
-  loadCampaign: 'Load campaign config',
+  importNumbers: 'Import number batch',
   prepareRound: 'Prepare call list',
 };
+
+const DEFAULT_WORKFLOW_NAME = 'Untitled Workflow';
+
+function sampleMainFlowWorkflow() {
+  return {
+    id: 'Definitions_Sample_Main_Flow',
+    name: 'Sample Main Flow',
+    targetNamespace: 'https://example.com/e2e',
+    process: {
+      id: 'Process_Sample_Main_Flow',
+      name: 'Sample Main Flow',
+      isExecutable: true,
+      edgeRouting: 'orthogonal',
+    },
+    nodes: [
+      { id: 'StartEvent', kind: 'startEvent', name: 'Start', x: 100, y: 220, documentation: '', emphasis: 'none', inputMapping: {}, outputMapping: {}, headers: {}, loop: 'none', config: {} },
+      { id: 'Task_ImportNumbers', kind: 'serviceTask', name: 'Import number batch', x: 280, y: 198, documentation: '', emphasis: 'none', inputMapping: {}, outputMapping: {}, headers: {}, loop: 'none', config: { flowFoundryTaskDefinition: { type: 'import-numbers', retries: '3' } }, activityType: 'import-numbers', maxAttempts: 3 },
+      { id: 'EndEvent', kind: 'endEvent', name: 'End', x: 460, y: 220, documentation: '', emphasis: 'none', inputMapping: {}, outputMapping: {}, headers: {}, loop: 'none', config: {} },
+    ],
+    edges: [
+      { id: 'F_Start_Import', from: 'StartEvent', to: 'Task_ImportNumbers', condition: 'default', name: '', documentation: '' },
+      { id: 'F_Import_End', from: 'Task_ImportNumbers', to: 'EndEvent', condition: 'default', name: '', documentation: '' },
+    ],
+  };
+}
 
 async function mockBackend(page, state = {}) {
   state.compileRequests = [];
@@ -46,12 +76,14 @@ async function mockBackend(page, state = {}) {
   await page.route('**/api/flows/run', async route => {
     const body = route.request().postDataJSON();
     state.runRequests.push(body);
+    const clientHeader = route.request().headers()['x-flowfoundry-client'];
     await route.fulfill({
       contentType: 'application/json',
       body: JSON.stringify({
-        workflowId: 'test-workflow-001',
+        workflowId: 'workflow_e2e_mock_001',
         runId: 'test-run-001',
         businessKey: body.businessKey || body.input?.campaignId || 'demo-campaign',
+        runSource: clientHeader === 'web-modeler' ? 'web-modeler' : 'production',
         executionPlan: {
           flowId: body.flow?.flow?.id || body.flow?.id || 'test-flow',
           nodes: body.flow?.nodes || [],
@@ -63,7 +95,18 @@ async function mockBackend(page, state = {}) {
 
   await page.route('**/api/flows/runs/**', route => route.fulfill({
     contentType: 'application/json',
-    body: JSON.stringify({ workflowId: 'test-workflow-001', status: 'RUNNING', currentNodeId: 'Task_User' }),
+    body: JSON.stringify({
+      workflowId: 'workflow_e2e_mock_001',
+      runId: 'test-run-001',
+      temporalStatus: 'WORKFLOW_EXECUTION_STATUS_RUNNING',
+      status: 'RUNNING',
+      currentNodeId: 'Task_User',
+      waitingHumanTaskNodeId: 'Task_User',
+      humanTasks: [
+        { nodeId: 'Task_User', mode: 'managed', waiting: true },
+        { nodeId: 'Task_OwnerApprove', mode: 'managed', waiting: false },
+      ],
+    }),
   }));
 }
 
@@ -80,6 +123,70 @@ async function openFreshModeler(page) {
     localStorage.setItem('flowfoundry-locale', 'en');
   });
   await openModeler(page);
+}
+
+function outboundSchedulerWorkflow() {
+  const task = (id, name, activityType, x, y, retries = 3) =>
+    node(id, 'serviceTask', name, x, y, {
+      activityType,
+      maxAttempts: retries,
+      config: { flowFoundryTaskDefinition: { type: activityType, retries: String(retries) } },
+    });
+
+  const nodes = [
+    node('StartEvent', 'startEvent', 'Submit outbound campaign', 60, 220),
+    task('Task_ImportNumbers', 'Import number batch', 'import-numbers', 180, 198),
+    task('Task_FilterSplit', 'Filter and split batches', 'filter-and-split-batches', 300, 198),
+    task('Task_NotifyOwner', 'Report batches to owner', 'notify-owner-report', 420, 198),
+    node('Task_OwnerApprove', 'humanTask', 'Owner approval', 540, 198, {
+      config: {
+        flowFoundryHumanTask: { mode: 'managed' },
+        flowFoundryAssignmentDefinition: { candidateGroups: 'business-owner' },
+      },
+    }),
+    node('Gateway_Approved', 'exclusiveGateway', 'Approved?', 660, 210),
+    task('Task_PrepareRound', 'Prepare call list', 'prepare-call-round', 900, 198),
+    task('Task_ExecuteRound', 'Execute outbound round', 'execute-call-round', 1020, 198, 5),
+    node('Gateway_Continue', 'exclusiveGateway', 'Continue next round?', 1620, 210),
+    task('Task_Finalize', 'Finalize and generate report', 'finalize-campaign', 900, 340),
+    node('EndEvent', 'endEvent', 'Campaign complete', 1020, 358),
+  ];
+  const edges = [
+    edge('F_Start_Import', 'StartEvent', 'Task_ImportNumbers'),
+    edge('F_Import_Filter', 'Task_ImportNumbers', 'Task_FilterSplit'),
+    edge('F_Filter_Notify', 'Task_FilterSplit', 'Task_NotifyOwner'),
+    edge('F_Notify_Approve', 'Task_NotifyOwner', 'Task_OwnerApprove'),
+    edge('F_Approve_Gw', 'Task_OwnerApprove', 'Gateway_Approved'),
+    edge('F_Approved_Prepare', 'Gateway_Approved', 'Task_PrepareRound', '${approved == true}'),
+    edge('F_Rejected_Finalize', 'Gateway_Approved', 'Task_Finalize', 'default'),
+    edge('F_Prepare_Execute', 'Task_PrepareRound', 'Task_ExecuteRound'),
+    edge('F_Execute_Continue', 'Task_ExecuteRound', 'Gateway_Continue'),
+    edge('F_Stop_Finalize', 'Gateway_Continue', 'Task_Finalize', 'default'),
+    edge('F_Finalize_End', 'Task_Finalize', 'EndEvent'),
+  ];
+  return {
+    id: 'Definitions_MultiRoundOutboundScheduler',
+    name: 'Multi-round Outbound Scheduler',
+    targetNamespace: 'https://example.com/e2e/outbound-scheduler',
+    process: {
+      id: 'MultiRoundOutboundScheduler',
+      name: 'Multi-round Outbound Scheduler',
+      isExecutable: true,
+      edgeRouting: 'orthogonal',
+    },
+    nodes,
+    edges,
+  };
+}
+
+async function openFreshModelerWithSampleFlow(page) {
+  await openFreshModeler(page);
+  await importModel(page, sampleMainFlowWorkflow());
+}
+
+async function openFreshModelerWithOutboundDemo(page) {
+  await openFreshModeler(page);
+  await importModel(page, outboundSchedulerWorkflow());
 }
 
 
@@ -263,10 +370,10 @@ function participantWorkflow() {
     node('StartEvent', 'startEvent', 'Start', 150, 260, ops),
     node('Task_Service', 'serviceTask', 'Service Task', 230, 238, { activityType: 'load-campaign', maxAttempts: 3, ...ops }),
     node('Gateway_Main', 'exclusiveGateway', 'Continue?', 360, 252, ops),
-    node('Task_User', 'userTask', 'Manual Review', 300, 360, { config: { flowFoundryAssignmentDefinition: { candidateGroups: 'ops' } }, ...ops }),
+    node('Task_User', 'humanTask', 'Manual Review', 300, 360, { config: { flowFoundryAssignmentDefinition: { candidateGroups: 'ops' } }, ...ops }),
     node('Sub_Process', 'subProcess', 'Sub-process', 520, 200, { width: 240, height: 220, ...ops }),
     node('Sub_Start', 'startEvent', 'Sub Start', 560, 300, { parentSubProcessId: 'Sub_Process', subProcessBoundary: 'start', ...ops }),
-    node('Sub_Task', 'sendTask', 'Sub Send', 590, 260, { activityType: 'send-message', parentSubProcessId: 'Sub_Process', ...ops }),
+    node('Sub_Task', 'serviceTask', 'Sub Notify', 590, 260, { activityType: 'notify-owner-report', parentSubProcessId: 'Sub_Process', ...ops }),
     node('Sub_End', 'endEvent', 'Sub End', 680, 300, { parentSubProcessId: 'Sub_Process', subProcessBoundary: 'end', ...ops }),
     node('EndEvent', 'endEvent', 'End', 760, 360, ops),
   ], [
@@ -282,19 +389,18 @@ function nodeTypeMatrixWorkflow() {
   const p = participant('Participant_All', 'All Node Participant', 40, 80, 1680, 760, 'all-nodes');
   const specs = [
     ['Start', 'startEvent', 'Start'],
-    ['Task_Generic', 'task', 'Generic Task'],
     ['Task_Service', 'serviceTask', 'Service Task', { activityType: 'load-campaign', maxAttempts: 3 }],
-    ['Task_User', 'userTask', 'Human Task', { config: { flowFoundryHumanTask: { mode: 'managed' }, flowFoundryAssignmentDefinition: { candidateGroups: 'ops' } } }],
-    ['Task_Human_Offline', 'userTask', 'Human Task Offline', { config: { flowFoundryHumanTask: { mode: 'offline' } } }],
-    ['Task_Send', 'sendTask', 'Send Task', { activityType: 'send-message', maxAttempts: 3 }],
-    ['Task_Receive', 'receiveTask', 'Receive Task', { config: { signalName: 'callback', waitMode: 'signal' } }],
-    ['Task_Script', 'scriptTask', 'Script Task', { activityType: 'dmn-decision', decisionRef: 'risk-check', decisionVersion: '1.0.0' }],
+    ['Task_User', 'humanTask', 'Human Task', { config: { flowFoundryHumanTask: { mode: 'managed' }, flowFoundryAssignmentDefinition: { candidateGroups: 'ops' } } }],
+    ['Task_Human_Offline', 'humanTask', 'Human Task Offline', { config: { flowFoundryHumanTask: { mode: 'offline' } } }],
+    ['Task_Send', 'serviceTask', 'Notify Task', { activityType: 'notify-owner-report', maxAttempts: 3 }],
+    ['Task_Receive', 'serviceTask', 'Wait Task', { activityType: 'wait-tagging-completion', maxAttempts: 3 }],
+    ['Task_Script', 'scriptTask', 'Script Task', { activityType: 'script-runtime', decisionRef: 'risk-check', decisionVersion: '1.0.0' }],
     ['Task_Workflow', 'workflow', 'Workflow Task', { config: { childWorkflowId: 'Definitions_Child', childWorkflowVersion: '1.0.0', childWorkflowName: 'Child Workflow' } }],
     ['Gateway_Exclusive', 'exclusiveGateway', 'Exclusive Gateway'],
     ['Gateway_Parallel', 'parallelGateway', 'Parallel Gateway'],
     ['Gateway_Inclusive', 'inclusiveGateway', 'Inclusive Gateway'],
     ['Gateway_Event', 'eventBasedGateway', 'Event Gateway'],
-    ['Timer', 'intermediateCatchEvent', 'Timer Event', { config: { timerDefinition: { type: 'duration', value: '1m' }, subtype: 'timer' } }],
+    ['Timer', 'intermediateEvent', 'Intermediate Event', { config: { timerDefinition: { type: 'duration', value: '1m' }, subtype: 'timer' } }],
     ['End', 'endEvent', 'End'],
   ];
   const nodes = [p, ...specs.map(([id, kind, name, extra], index) => {
@@ -304,6 +410,17 @@ function nodeTypeMatrixWorkflow() {
   })];
   const edges = specs.slice(0, -1).map(([id], index) => edge(`F_${id}_${specs[index + 1][0]}`, id, specs[index + 1][0]));
   return modelBase(nodes, edges);
+}
+
+function genericTaskSketchWorkflow() {
+  return modelBase([
+    node('StartEvent', 'startEvent', 'Start', 120, 180),
+    node('Task_Sketch', 'task', 'Generic Task', 360, 158),
+    node('EndEvent', 'endEvent', 'End', 620, 180),
+  ], [
+    edge('F_Start_Sketch', 'StartEvent', 'Task_Sketch'),
+    edge('F_Sketch_End', 'Task_Sketch', 'EndEvent'),
+  ]);
 }
 
 function invalidParticipantWorkflow() {
@@ -322,7 +439,7 @@ function simpleConnectionWorkflow() {
   return modelBase([
     node('StartEvent', 'startEvent', 'Start', 120, 180),
     node('Task_A', 'serviceTask', 'Task A', 360, 158, { activityType: 'load-campaign', maxAttempts: 3 }),
-    node('Task_B', 'serviceTask', 'Task B', 620, 158, { activityType: 'send-message', maxAttempts: 3 }),
+    node('Task_B', 'serviceTask', 'Task B', 620, 158, { activityType: 'notify-owner-report', maxAttempts: 3 }),
   ], []);
 }
 
@@ -330,7 +447,7 @@ function connectedWorkflow() {
   return modelBase([
     node('StartEvent', 'startEvent', 'Start', 120, 180),
     node('Task_A', 'serviceTask', 'Task A', 360, 158, { activityType: 'load-campaign', maxAttempts: 3 }),
-    node('Task_B', 'serviceTask', 'Task B', 620, 158, { activityType: 'send-message', maxAttempts: 3 }),
+    node('Task_B', 'serviceTask', 'Task B', 620, 158, { activityType: 'notify-owner-report', maxAttempts: 3 }),
   ], [
     edge('F_Start_TaskA', 'StartEvent', 'Task_A'),
   ]);
@@ -639,15 +756,44 @@ async function switchToModeler(page) {
   await expect(page.locator('#paletteItems')).toContainText('Service Task');
 }
 
+async function fillAppDialog(page, value, { confirm = true } = {}) {
+  const dialog = page.locator('#appDialogBackdrop.open');
+  await expect(dialog).toBeVisible();
+  const field = dialog.locator('#appDialogInput:not(.hidden), #appDialogTextarea:not(.hidden)');
+  if (await field.count()) {
+    await field.fill(value);
+  }
+  if (confirm) {
+    await dialog.locator('#appDialogConfirm').click();
+  } else {
+    await dialog.locator('#appDialogCancel').click();
+  }
+  await expect(dialog).not.toBeVisible();
+}
+
+async function confirmAppDialog(page) {
+  const dialog = page.locator('#appDialogBackdrop.open');
+  await expect(dialog).toBeVisible();
+  await dialog.locator('#appDialogConfirm').click();
+  await expect(dialog).not.toBeVisible();
+}
+
 module.exports = {
   DEMO_NODE,
+  DEFAULT_WORKFLOW_NAME,
+  sampleMainFlowWorkflow,
+  outboundSchedulerWorkflow,
   PLATFORM_ID_PATTERN,
   mockBackend,
   mockWorkflowBackend,
   mockBackendWithWorkflow,
   openFreshModeler,
+  openFreshModelerWithSampleFlow,
+  openFreshModelerWithOutboundDemo,
   openFreshApp,
   switchToModeler,
+  fillAppDialog,
+  confirmAppDialog,
   importModel,
   clickNode,
   clickNodeById,
@@ -665,6 +811,7 @@ module.exports = {
   connectionHandle,
   participantWorkflow,
   nodeTypeMatrixWorkflow,
+  genericTaskSketchWorkflow,
   invalidParticipantWorkflow,
   simpleConnectionWorkflow,
   connectedWorkflow,

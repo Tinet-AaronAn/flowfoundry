@@ -1,4 +1,4 @@
-package com.example.platform.interpreter.model;
+package com.tinet.flowfoundary.interpreter.model;
 
 import java.util.List;
 import java.util.Map;

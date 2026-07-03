@@ -1,21 +1,28 @@
 #!/usr/bin/env bash
-# 端到端冒烟：启动 CallCampaignWorkflow
+# 端到端冒烟：启动 Demo 内置 CallCampaignWorkflow（直连 Temporal CLI）
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 export PATH="/Applications/OrbStack.app/Contents/MacOS:/opt/homebrew/bin:$PATH"
 
 CAMPAIGN_ID="${1:-campaign-smoke-$(date +%s)}"
-WORKFLOW_ID="call-campaign-${CAMPAIGN_ID}"
+WORKFLOW_ID="ai-collection-${CAMPAIGN_ID}"
 TEMPORAL_ADDRESS="${TEMPORAL_ADDRESS:-127.0.0.1:7233}"
 NAMESPACE="${TEMPORAL_NAMESPACE:-call-campaign}"
+TASK_QUEUE="${TEMPORAL_TASK_QUEUE:-ai-collection-strategy}"
 
-echo "Starting workflow id=$WORKFLOW_ID namespace=$NAMESPACE"
+echo "==> Ensure FlowFoundry app is up (worker polls $TASK_QUEUE)"
+curl -sf --noproxy '*' http://127.0.0.1:8081/actuator/health >/dev/null || {
+  echo "Start app first: ./scripts/redeploy-worker.sh"
+  exit 1
+}
+
+echo "Starting CallCampaignWorkflow id=$WORKFLOW_ID namespace=$NAMESPACE queue=$TASK_QUEUE"
 
 temporal workflow start \
   --address "$TEMPORAL_ADDRESS" \
   --namespace "$NAMESPACE" \
-  --task-queue call-campaign \
+  --task-queue "$TASK_QUEUE" \
   --type CallCampaignWorkflow \
   --workflow-id "$WORKFLOW_ID" \
   --input "\"$CAMPAIGN_ID\""

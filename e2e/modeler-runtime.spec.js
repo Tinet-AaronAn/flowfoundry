@@ -24,14 +24,15 @@ test.describe('FlowFoundry compile, run, and debug flows', () => {
     expect(backend.compileRequests).toHaveLength(1);
     expect(backend.compileRequests[0].nodes.every(n => n.config.flowFoundryParticipant?.participantRef === 'ops-team')).toBe(true);
 
-    await page.getByRole('button', { name: 'Close' }).click();
+    await page.locator('#jsonPanel').getByRole('button', { name: 'Close' }).click();
     await page.locator('#navSimulation').click();
     await page.locator('#simulationView .simulation-header').getByRole('button', { name: 'Run', exact: true }).click();
     const run = await jsonPanelValue(page);
 
-    expect(run.workflowId).toBe('test-workflow-001');
-    expect(await page.locator('#workflowId').inputValue()).toBe('test-workflow-001');
+    expect(run.workflowId).toBe('workflow_e2e_mock_001');
+    expect(await page.locator('#workflowId').inputValue()).toBe('workflow_e2e_mock_001');
     expect(backend.runRequests).toHaveLength(1);
+    expect(backend.runRequests[0].runSource).toBe('web-modeler');
   });
 
 
@@ -40,11 +41,11 @@ test.describe('FlowFoundry compile, run, and debug flows', () => {
     await openFreshModeler(page);
     await page.locator('#navSimulation').click();
 
-    await page.locator('#workflowId').fill('test-workflow-001');
+    await page.locator('#workflowId').fill('workflow_e2e_mock_001');
     await page.getByRole('button', { name: 'Query State' }).click();
     const state = await jsonPanelValue(page);
 
-    expect(state.workflowId).toBe('test-workflow-001');
+    expect(state.workflowId).toBe('workflow_e2e_mock_001');
     expect(state.status).toBe('RUNNING');
   });
 
@@ -100,7 +101,7 @@ test.describe('FlowFoundry compile, run, and debug flows', () => {
     const dsl = await jsonPanelValue(page);
     const workflowNode = dsl.nodes.find(node => node.id === 'Call_Child');
 
-    expect(workflowNode.kind).toBe('workflow');
+    expect(workflowNode.kind).toBe('CHILD_WORKFLOW');
     expect(workflowNode.config.flowFoundryChildWorkflow.childWorkflowId).toBe('Definitions_Child_Workflow');
     expect(workflowNode.config.childWorkflowDefinition.flow.id).toBe('Definitions_Child_Workflow');
   });

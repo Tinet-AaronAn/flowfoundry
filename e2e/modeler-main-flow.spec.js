@@ -1,7 +1,7 @@
 const { test, expect } = require('@playwright/test');
 const {
   mockBackend,
-  openFreshModeler,
+  openFreshModelerWithOutboundDemo,
   importModel,
   clickNode,
   jsonPanelValue,
@@ -13,11 +13,11 @@ const {
 test.describe('FlowFoundry modeler main flow', () => {
   test.beforeEach(async ({ page }) => {
     await mockBackend(page);
-    await openFreshModeler(page);
+    await openFreshModelerWithOutboundDemo(page);
   });
 
   test('loads modeler, selects a node from its body, and shows the floating toolbar', async ({ page }) => {
-    await clickNode(page, DEMO_NODE.loadCampaign);
+    await clickNode(page, DEMO_NODE.importNumbers);
 
     await expect(page.locator('.node.selected .node-toolbar')).toBeVisible();
     await expect(page.locator('#propType')).toContainText('serviceTask');
@@ -25,13 +25,13 @@ test.describe('FlowFoundry modeler main flow', () => {
   });
 
   test('selects a node when clicking the node body, not only connection handles', async ({ page }) => {
-    const nodeName = page.locator('.node', { hasText: DEMO_NODE.loadCampaign }).locator('.node-name');
+    const nodeName = page.locator('.node', { hasText: DEMO_NODE.importNumbers }).locator('.node-name');
     const box = await nodeName.boundingBox();
     if (!box) throw new Error('Node text is not visible');
 
     await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
 
-    await expect(page.locator('.node.selected')).toContainText(DEMO_NODE.loadCampaign);
+    await expect(page.locator('.node.selected')).toContainText(DEMO_NODE.importNumbers);
     await expect(page.locator('.node.selected .node-toolbar')).toBeVisible();
     await expect(page.locator('#propType')).toContainText('serviceTask');
 
@@ -42,7 +42,7 @@ test.describe('FlowFoundry modeler main flow', () => {
   });
 
   test('keeps node property inputs focused while typing', async ({ page }) => {
-    await clickNode(page, DEMO_NODE.loadCampaign);
+    await clickNode(page, DEMO_NODE.importNumbers);
     const nameInput = page.locator('#properties .prop-section').first().locator('input').nth(1);
 
     await nameInput.fill('');
@@ -55,12 +55,29 @@ test.describe('FlowFoundry modeler main flow', () => {
   });
 
   test('switches process edge routing between rounded orthogonal and curved', async ({ page }) => {
+    await importModel(page, {
+      id: 'Definitions_Edge_Routing',
+      name: 'Edge Routing Test',
+      targetNamespace: 'https://example.com/e2e',
+      process: {
+        id: 'Process_Edge_Routing',
+        name: 'Edge Routing Test',
+        isExecutable: true,
+        edgeRouting: 'orthogonal',
+      },
+      nodes: [
+        { id: 'StartEvent', kind: 'startEvent', name: 'Start', x: 100, y: 220, documentation: '', emphasis: 'none', inputMapping: {}, outputMapping: {}, headers: {}, loop: 'none', config: {} },
+        { id: 'Task_Service', kind: 'serviceTask', name: 'Service Task', x: 320, y: 120, documentation: '', emphasis: 'none', inputMapping: {}, outputMapping: {}, headers: {}, loop: 'none', config: {}, activityType: 'import-numbers', maxAttempts: 3 },
+      ],
+      edges: [
+        { id: 'F_Start_Service', from: 'StartEvent', to: 'Task_Service', name: '', condition: 'default', documentation: '' },
+      ],
+    });
+
     const firstEdgePath = page.locator('#edges > path:not(.edge-hit)').first();
     await expect(page.locator('#edgeRouting')).toHaveValue('orthogonal');
-    await expect(page.locator('#edges > path:not(.edge-hit)').first()).toHaveAttribute('d', /Q/);
-    await expect(page.locator('#edges > path:not(.edge-hit)').first()).not.toHaveAttribute('d', / C /);
-    const orthogonalPath = await page.locator('#edges > path:not(.edge-hit)').first().getAttribute('d');
-    expect(orthogonalPath).toMatch(/Q/);
+    await expect(firstEdgePath).toHaveAttribute('d', /Q/);
+    await expect(firstEdgePath).not.toHaveAttribute('d', / C /);
 
     await page.locator('#edgeRouting').selectOption('curved');
     await expect(firstEdgePath).toHaveAttribute('d', / C /);
@@ -111,12 +128,12 @@ test.describe('FlowFoundry modeler main flow', () => {
   });
 
   test('appends a task from the floating toolbar, then supports undo and redo', async ({ page }) => {
-    await clickNode(page, DEMO_NODE.loadCampaign);
+    await clickNode(page, DEMO_NODE.importNumbers);
     const before = await page.locator('.node').count();
 
     await page.locator('.node.selected .node-toolbar button[title="Append task"]').click();
     await expect(page.locator('.node')).toHaveCount(before + 1);
-    await expect(page.locator('#message')).toContainText('Node appended');
+    await expect(page.locator('#appNotice')).toContainText('Node appended');
 
     await page.getByRole('button', { name: 'Undo' }).click();
     await expect(page.locator('.node')).toHaveCount(before);
@@ -133,7 +150,7 @@ test.describe('FlowFoundry modeler main flow', () => {
     expect(dsl.nodes.length).toBeGreaterThan(0);
     expect(dsl.edges.length).toBeGreaterThan(0);
 
-    await page.getByRole('button', { name: 'Close' }).click();
+    await page.locator('#jsonPanel').getByRole('button', { name: 'Close' }).click();
     await clickRightToolbarButton(page, 'Export');
     const exported = await jsonPanelValue(page);
 

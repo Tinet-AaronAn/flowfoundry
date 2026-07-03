@@ -1,21 +1,29 @@
-package com.example.platform.interpreter;
+package com.tinet.flowfoundary.interpreter;
 
-import com.example.platform.interpreter.model.ExecutionEdge;
-import com.example.platform.interpreter.model.ExecutionNode;
-import com.example.platform.interpreter.model.ExecutionPlan;
-import com.example.platform.interpreter.model.HumanTaskCompletion;
-import com.example.platform.interpreter.model.InterpreterState;
-import com.example.platform.interpreter.model.InterpreterStatus;
-import com.example.platform.interpreter.runtime.ConditionEvaluator;
-import com.example.platform.interpreter.runtime.MappingEvaluator;
-import com.example.platform.interpreter.runtime.VariableStore;
+import com.tinet.flowfoundary.interpreter.model.ExecutionEdge;
+import com.tinet.flowfoundary.interpreter.model.ExecutionNode;
+import com.tinet.flowfoundary.interpreter.model.ExecutionPlan;
+import com.tinet.flowfoundary.interpreter.model.HumanTaskCompletion;
+import com.tinet.flowfoundary.interpreter.model.HumanTaskNodeState;
+import com.tinet.flowfoundary.interpreter.model.InterpreterState;
+import com.tinet.flowfoundary.interpreter.model.InterpreterStatus;
+import com.tinet.flowfoundary.interpreter.model.NodeKind;
+import com.tinet.flowfoundary.interpreter.runtime.ConditionEvaluator;
+import com.tinet.flowfoundary.interpreter.runtime.MappingEvaluator;
+import com.tinet.flowfoundary.interpreter.runtime.ActivityExecutionContext;
+import com.tinet.flowfoundary.interpreter.runtime.RunSource;
+import com.tinet.flowfoundary.interpreter.runtime.VariableStore;
 import io.temporal.activity.ActivityOptions;
 import io.temporal.common.RetryOptions;
 import io.temporal.workflow.ActivityStub;
 import io.temporal.workflow.ChildWorkflowOptions;
+import com.tinet.flowfoundary.activity.HumanTaskActivity;
+import com.tinet.flowfoundary.activity.ActivityTypes;
+import com.tinet.flowfoundary.workflow.WorkflowRunId;
 import io.temporal.workflow.Workflow;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -31,6 +39,8 @@ public class FlowInterpreterWorkflowImpl implements FlowInterpreterWorkflow {
 
   private ExecutionPlan plan;
   private String businessKey;
+  private RunSource runSource = RunSource.PRODUCTION;
+  private String workflowId;
   private VariableStore variables = new VariableStore(Map.of());
   private InterpreterStatus status = InterpreterStatus.RUNNING;
   private String currentNodeId;
@@ -39,9 +49,10 @@ public class FlowInterpreterWorkflowImpl implements FlowInterpreterWorkflow {
 
   @Override
   public InterpreterState run(
-      ExecutionPlan plan, String businessKey, Map<String, Object> input) {
+      ExecutionPlan plan, String businessKey, Map<String, Object> input, String runSource) {
     this.plan = plan;
     this.businessKey = businessKey;
+    this.runSource = RunSource.fromWire(runSource);
     this.variables = new VariableStore(input);
     this.status = InterpreterStatus.RUNNING;
     this.currentNodeId = plan.startNodeId();
@@ -50,7 +61,7 @@ public class FlowInterpreterWorkflowImpl implements FlowInterpreterWorkflow {
       while (currentNodeId != null) {
         ExecutionNode node = plan.requireNode(currentNodeId);
         executeNode(node);
-        if (node.requiredKind() == com.example.platform.interpreter.model.NodeKind.END) {
+        if (node.requiredKind() == com.tinet.flowfoundary.interpreter.model.NodeKind.END) {
           status = InterpreterStatus.COMPLETED;
           currentNodeId = null;
         } else {
@@ -71,11 +82,28 @@ public class FlowInterpreterWorkflowImpl implements FlowInterpreterWorkflow {
         plan == null ? null : plan.flowId(),
         plan == null ? null : plan.version(),
         businessKey,
+        runSource == null ? RunSource.PRODUCTION.wireValue() : runSource.wireValue(),
         status,
         currentNodeId,
         waitingHumanTaskNodeId,
         variables.variables(),
         variables.lastResult());
+  }
+
+  @Override
+  public List<HumanTaskNodeState> getHumanTasks() {
+    if (plan == null || plan.nodes() == null) {
+      return List.of();
+    }
+    List<HumanTaskNodeState> tasks = new ArrayList<>();
+    for (ExecutionNode node : plan.nodes().values()) {
+      if (!isHumanTaskNode(node)) {
+        continue;
+      }
+      String mode = humanTaskMode(node);
+      tasks.add(new HumanTaskNodeState(node.id(), mode, node.id().equals(waitingHumanTaskNodeId)));
+    }
+    return tasks;
   }
 
   @Override
@@ -88,13 +116,12 @@ public class FlowInterpreterWorkflowImpl implements FlowInterpreterWorkflow {
 
   private void executeNode(ExecutionNode node) {
     switch (node.requiredKind()) {
-      case START, END, DECISION -> {
+      case START, END, GATEWAY -> {
         // Routing is handled by outgoing edge conditions.
       }
       case ACTIVITY -> executeActivity(node);
-      case TIMER -> executeTimer(node);
-      case HUMAN_TASK -> executeHumanTask(node);
-      case SCRIPT_TASK -> executeScriptTask(node);
+      case INTERMEDIATE_EVENT -> executeIntermediateEvent(node);
+      case HUMAN_TASK -> executeActivity(normalizeHumanTaskNode(node));
       case CHILD_WORKFLOW -> executeChildWorkflow(node);
     }
   }
@@ -119,6 +146,56 @@ public class FlowInterpreterWorkflowImpl implements FlowInterpreterWorkflow {
         activity.execute(
             ROUTER_ACTIVITY_TYPE, Object.class, node.activityType(), routerInput(node));
     mappings.applyOutput(variables, result, node.outputMapping());
+
+    if (isHumanTaskNode(node)) {
+      awaitHumanTaskCompletionIfNeeded(node);
+    }
+  }
+
+  private ExecutionNode normalizeHumanTaskNode(ExecutionNode node) {
+    if (ActivityTypes.isHumanTaskActivity(node.activityType())) {
+      return node;
+    }
+    Map<String, Object> config =
+        node.config() == null ? new LinkedHashMap<>() : new LinkedHashMap<>(node.config());
+    config.putIfAbsent("nodeId", node.id());
+    return new ExecutionNode(
+        node.id(),
+        NodeKind.ACTIVITY,
+        ActivityTypes.HUMAN_TASK,
+        node.taskQueue(),
+        node.timeout(),
+        node.maxAttempts(),
+        node.inputArgs(),
+        node.inputMapping(),
+        node.outputMapping(),
+        config);
+  }
+
+  private boolean isHumanTaskNode(ExecutionNode node) {
+    if (node.requiredKind() == NodeKind.HUMAN_TASK) {
+      return true;
+    }
+    return node.requiredKind() == NodeKind.ACTIVITY
+        && ActivityTypes.isHumanTaskActivity(node.activityType());
+  }
+
+  private void awaitHumanTaskCompletionIfNeeded(ExecutionNode node) {
+    if ("offline".equalsIgnoreCase(humanTaskMode(node))) {
+      variables.assign("humanTask." + node.id() + ".outcome", "offline");
+      return;
+    }
+    waitingHumanTaskNodeId = node.id();
+    status = InterpreterStatus.WAITING_HUMAN_TASK;
+    Workflow.await(
+        () ->
+            pendingHumanTaskCompletion != null
+                && node.id().equals(pendingHumanTaskCompletion.nodeId()));
+    status = InterpreterStatus.RUNNING;
+    waitingHumanTaskNodeId = null;
+    mappings.applyOutput(variables, pendingHumanTaskCompletion.variables(), node.outputMapping());
+    variables.assign("humanTask." + node.id() + ".outcome", pendingHumanTaskCompletion.outcome());
+    pendingHumanTaskCompletion = null;
   }
 
   private void executeChildWorkflow(ExecutionNode node) {
@@ -132,10 +209,10 @@ public class FlowInterpreterWorkflowImpl implements FlowInterpreterWorkflow {
         Workflow.newChildWorkflowStub(
             FlowInterpreterWorkflow.class,
             ChildWorkflowOptions.newBuilder()
-                .setWorkflowId("flow-child-" + childPlan.flowId() + "-" + childBusinessKey)
+                .setWorkflowId(WorkflowRunId.forChildWorkflow(childPlan.flowId(), childBusinessKey))
                 .setTaskQueue(childTaskQueue(node))
                 .build());
-    InterpreterState result = child.run(childPlan, childBusinessKey, childInput);
+    InterpreterState result = child.run(childPlan, childBusinessKey, childInput, runSource.wireValue());
     mappings.applyOutput(variables, result, node.outputMapping());
   }
 
@@ -157,8 +234,12 @@ public class FlowInterpreterWorkflowImpl implements FlowInterpreterWorkflow {
   }
 
   private Map<String, Object> routerInput(ExecutionNode node) {
+    ensureWorkflowId();
     Map<String, Object> input = new LinkedHashMap<>();
     input.putAll(mappings.buildInput(variables, node.inputMapping()));
+    input.put(
+        ActivityExecutionContext.CONTEXT_KEY,
+        new ActivityExecutionContext(runSource, businessKey, workflowId).toMap());
     if (node.config() != null && !node.config().isEmpty()) {
       input.put("_config", node.config());
     }
@@ -168,7 +249,31 @@ public class FlowInterpreterWorkflowImpl implements FlowInterpreterWorkflow {
     return input;
   }
 
-  private void executeTimer(ExecutionNode node) {
+  private void executeIntermediateEvent(ExecutionNode node) {
+    String subtype = intermediateEventSubtype(node);
+    switch (subtype) {
+      case "timer", "duration" -> executeTimerWait(node);
+      case "message", "signal", "boundary" -> throw new UnsupportedOperationException(
+          "Intermediate event subtype '" + subtype + "' is not yet supported: " + node.id());
+      default -> executeTimerWait(node);
+    }
+  }
+
+  private String intermediateEventSubtype(ExecutionNode node) {
+    if (node.config() == null) {
+      return "timer";
+    }
+    Object subtype = node.config().get("eventSubtype");
+    if (subtype != null && !String.valueOf(subtype).isBlank()) {
+      return String.valueOf(subtype);
+    }
+    if (node.config().get("duration") != null || node.config().get("timerDefinition") != null) {
+      return "timer";
+    }
+    return "timer";
+  }
+
+  private void executeTimerWait(ExecutionNode node) {
     Object duration = node.config() == null ? null : node.config().get("duration");
     if (duration == null) {
       duration = node.config() == null ? null : node.config().get("durationExpression");
@@ -183,98 +288,45 @@ public class FlowInterpreterWorkflowImpl implements FlowInterpreterWorkflow {
     if (parsed.isNegative()) {
       throw new IllegalArgumentException("Timer duration cannot be negative: " + node.id());
     }
-    if (!parsed.isZero()) {
+    if (!parsed.isZero() && !runSource.usesStubActivities()) {
       Workflow.sleep(parsed);
     }
   }
 
-  private void executeHumanTask(ExecutionNode node) {
-    if ("offline".equalsIgnoreCase(humanTaskMode(node))) {
-      variables.assign("humanTask." + node.id() + ".outcome", "offline");
-      return;
-    }
-    waitingHumanTaskNodeId = node.id();
-    status = InterpreterStatus.WAITING_HUMAN_TASK;
-    Workflow.await(
-        () ->
-            pendingHumanTaskCompletion != null
-                && node.id().equals(pendingHumanTaskCompletion.nodeId()));
-    status = InterpreterStatus.RUNNING;
-    waitingHumanTaskNodeId = null;
-    mappings.applyOutput(variables, pendingHumanTaskCompletion.variables(), node.outputMapping());
-    variables.assign("humanTask." + node.id() + ".outcome", pendingHumanTaskCompletion.outcome());
-    pendingHumanTaskCompletion = null;
-  }
-
   private String humanTaskMode(ExecutionNode node) {
-    if (node.config() == null) {
-      return "managed";
-    }
-    Object raw = node.config().get("flowFoundryHumanTask");
-    if (raw instanceof Map<?, ?> map) {
-      Object mode = map.get("mode");
-      if (mode != null && !String.valueOf(mode).isBlank()) {
-        return String.valueOf(mode);
-      }
-    }
-    return "managed";
-  }
-
-  private void executeScriptTask(ExecutionNode node) {
-    if (node.config() == null) {
-      return;
-    }
-    Object rawScript = node.config().get("script");
-    Object rawFormat = node.config().getOrDefault("scriptFormat", "feel");
-    if (rawScript == null || !"feel".equalsIgnoreCase(String.valueOf(rawFormat))) {
-      return;
-    }
-    String script = String.valueOf(rawScript).trim();
-    int assignment = script.indexOf(":=");
-    if (assignment <= 0) {
-      throw new IllegalArgumentException("Only FEEL assignment scripts are supported: " + node.id());
-    }
-    String variableName = script.substring(0, assignment).trim();
-    String expression = script.substring(assignment + 2).trim();
-    variables.assign(variableName, evaluateSimpleFeelExpression(expression));
-  }
-
-  private Object evaluateSimpleFeelExpression(String expression) {
-    String trimmed = expression.trim();
-    int plus = trimmed.indexOf('+');
-    if (plus > 0) {
-      Object left = resolveScriptValue(trimmed.substring(0, plus));
-      Object right = resolveScriptValue(trimmed.substring(plus + 1));
-      if (left instanceof Number leftNumber && right instanceof Number rightNumber) {
-        if (leftNumber instanceof Double || rightNumber instanceof Double) {
-          return leftNumber.doubleValue() + rightNumber.doubleValue();
-        }
-        return leftNumber.longValue() + rightNumber.longValue();
-      }
-      return String.valueOf(left) + right;
-    }
-    return resolveScriptValue(trimmed);
-  }
-
-  private Object resolveScriptValue(String raw) {
-    String value = raw.trim();
-    if (value.matches("-?\\d+")) {
-      return Long.parseLong(value);
-    }
-    if (value.matches("-?\\d+\\.\\d+")) {
-      return Double.parseDouble(value);
-    }
-    if ("true".equalsIgnoreCase(value) || "false".equalsIgnoreCase(value)) {
-      return Boolean.parseBoolean(value);
-    }
-    if ((value.startsWith("\"") && value.endsWith("\""))
-        || (value.startsWith("'") && value.endsWith("'"))) {
-      return value.substring(1, value.length() - 1);
-    }
-    return variables.resolve(value);
+    return HumanTaskActivity.humanTaskMode(
+        node.config() == null ? Map.of() : node.config());
   }
 
   private String selectNextNode(ExecutionNode node) {
+    if (node.requiredKind() == NodeKind.GATEWAY) {
+      return selectGatewayNextNode(node);
+    }
+    return selectExclusiveNextNode(node);
+  }
+
+  private String selectGatewayNextNode(ExecutionNode node) {
+    String gatewayKind = gatewayKind(node);
+    return switch (gatewayKind) {
+      case "exclusive" -> selectExclusiveNextNode(node);
+      case "parallel", "inclusive", "eventBased" -> throw new UnsupportedOperationException(
+          "Gateway kind '" + gatewayKind + "' is not yet supported by the interpreter: " + node.id());
+      default -> selectExclusiveNextNode(node);
+    };
+  }
+
+  private String gatewayKind(ExecutionNode node) {
+    if (node.config() == null) {
+      return "exclusive";
+    }
+    Object raw = node.config().get("gatewayKind");
+    if (raw == null || String.valueOf(raw).isBlank()) {
+      return "exclusive";
+    }
+    return String.valueOf(raw);
+  }
+
+  private String selectExclusiveNextNode(ExecutionNode node) {
     List<ExecutionEdge> outgoing = plan.outgoingEdges(node.id());
     ExecutionEdge defaultEdge = null;
     for (ExecutionEdge edge : outgoing) {
@@ -312,10 +364,14 @@ public class FlowInterpreterWorkflowImpl implements FlowInterpreterWorkflow {
                 .setStartToCloseTimeout(DEFAULT_ACTIVITY_TIMEOUT)
                 .setRetryOptions(RetryOptions.newBuilder().setMaximumAttempts(3).build())
                 .build());
+    ensureWorkflowId();
     Map<String, Object> input = new LinkedHashMap<>();
     input.putAll(variables.snapshot());
+    input.put(
+        ActivityExecutionContext.CONTEXT_KEY,
+        new ActivityExecutionContext(runSource, businessKey, workflowId).toMap());
     input.put("_config", config);
-    Object result = activity.execute(ROUTER_ACTIVITY_TYPE, Object.class, "dmn-decision", input);
+    Object result = activity.execute(ROUTER_ACTIVITY_TYPE, Object.class, ActivityTypes.SCRIPT_RUNTIME, input);
     if (result instanceof Boolean bool) {
       return bool;
     }
@@ -330,6 +386,12 @@ public class FlowInterpreterWorkflowImpl implements FlowInterpreterWorkflow {
       }
     }
     return result != null;
+  }
+
+  private void ensureWorkflowId() {
+    if (workflowId == null || workflowId.isBlank()) {
+      workflowId = Workflow.getInfo().getWorkflowId();
+    }
   }
 
   private static Duration parseDuration(String raw, Duration fallback) {

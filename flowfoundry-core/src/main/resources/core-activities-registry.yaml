@@ -1,0 +1,31 @@
+# Core activities implemented in flowfoundry-core (merged with business registry at runtime).
+version: "1.0"
+namespace: flowfoundry-platform
+defaultTaskQueue: flowfoundry-platform
+
+activities:
+  - id: script-runtime
+    name: Script Runtime
+    description: Execute Script Task via internal Node.js script runtime service
+    timeout: 60s
+    retry:
+      maximumAttempts: 3
+    input:
+      - { name: scriptRef, type: string, required: false }
+      - { name: decisionRef, type: string, required: false }
+    output:
+      - { name: matched, type: boolean }
+      - { name: output, type: object }
+
+  - id: human-task
+    name: Human Task
+    description: Human task registration (managed waits for Signal; offline annotates only)
+    timeout: 60s
+    retry:
+      maximumAttempts: 1
+    input:
+      - { name: nodeId, type: string, required: false }
+    output:
+      - { name: mode, type: string }
+      - { name: outcome, type: string }
+      - { name: taskId, type: string }
