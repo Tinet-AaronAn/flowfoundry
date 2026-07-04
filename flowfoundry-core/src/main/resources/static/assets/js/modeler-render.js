@@ -431,10 +431,8 @@
         if (current.kind === 'boundaryEvent') return current.config?.attachedToRef || 'attached boundary';
         if (current.kind === 'workflow') return childWorkflowLabel(current);
         if (isHumanTaskKind(current.kind)) {
-          const mode = humanTaskMode(current);
           const groups = current.config?.flowFoundryAssignmentDefinition?.candidateGroups;
-          if (mode === 'offline') return 'offline';
-          return groups || mode;
+          return groups || 'human-task';
         }
         if (current.activityType) return current.activityType;
         if (current.decisionRef) return current.decisionRef;
@@ -872,41 +870,52 @@
           ${timerSection(n)}
           ${runtimeSections(n)}
         `;
+        initGatewayEdgePriorityList(n);
       }
 
       function renderEdgeProperties() {
         const e = selectedEdge();
         if (!e) return renderProcessProperties();
+        const source = state.model.nodes.find(n => n.id === e.from);
+        const showCondition =
+          source
+          && isGatewayKind(source.kind)
+          && source.kind !== 'eventBasedGateway';
+        const showGatewayBack = source
+          && isGatewayKind(source.kind)
+          && source.kind !== 'eventBasedGateway';
         const mode = edgeConditionMode(e);
-        const dmn = dmnCondition(e);
         $('propTitle').textContent = 'Properties';
         $('propType').textContent = 'Type: SequenceFlow';
         $('properties').innerHTML = `
+          ${showGatewayBack ? `<div class="prop-section">
+            <button type="button" class="secondary" onclick="select('node', '${escapeAttr(source.id)}')">${escapeHtml(t('prop.backToGateway'))}</button>
+          </div>` : ''}
           <div class="prop-section"><h3>General</h3>
             <label>ID *</label><input value="${escapeAttr(e.id)}" oninput="updateEdge('id', this.value)" />
             <label>Name</label><input value="${escapeAttr(e.name || '')}" oninput="updateEdge('name', this.value)" />
             <label>Documentation</label><textarea oninput="updateEdge('documentation', this.value)">${escapeHtml(e.documentation || '')}</textarea>
           </div>
+          ${showCondition ? `
           <div class="prop-section"><h3>Condition</h3>
             <label>Condition Type</label>
             <div class="segment">
               <button class="${mode === 'feel' ? 'active' : ''}" onclick="updateEdgeConditionMode('feel')">FEEL</button>
-              <button class="${mode === 'dmn' ? 'active' : ''}" onclick="updateEdgeConditionMode('dmn')">DMN</button>
-              <button class="${mode === 'default' ? 'active' : ''}" onclick="updateEdgeConditionMode('default')">Default</button>
+              ${source.kind === 'exclusiveGateway' ? `<button class="${mode === 'default' ? 'active' : ''}" onclick="updateEdgeConditionMode('default')">Default</button>` : ''}
             </div>
-            ${mode === 'dmn' ? `
-              <label>Decision Ref</label><input value="${escapeAttr(dmn.decisionRef || '')}" placeholder="risk-routing-decision" oninput="updateEdgeDmn('decisionRef', this.value)" />
-              <label>Decision Version</label><input value="${escapeAttr(dmn.decisionVersion || 'latest')}" oninput="updateEdgeDmn('decisionVersion', this.value)" />
-              <label>Result Path</label><input value="${escapeAttr(dmn.resultPath || 'matched')}" placeholder="matched" oninput="updateEdgeDmn('resultPath', this.value)" />
-              <div class="help">${escapeHtml(t('prop.edgeDmnHelp'))}</div>
-            ` : `
-              <label>FEEL Expression</label><input value="${escapeAttr(feelCondition(e))}" placeholder="\${amount > 1000}" oninput="updateEdgeFeel(this.value)" ${mode === 'default' ? 'disabled' : ''} />
+            ${mode === 'feel' ? `
+              <label>FEEL Expression</label><input value="${escapeAttr(feelCondition(e))}" placeholder="\${amount > 1000}" oninput="updateEdgeFeel(this.value)" />
               <div class="help">${escapeHtml(t('prop.edgeFeelHelp'))}</div>
-            `}
+            ` : ''}
           </div>
+          ${source.kind === 'exclusiveGateway' ? `
           <div class="prop-section"><h3>Default Flow</h3>
             <label class="switch-row"><input type="checkbox" ${e.condition === 'default' ? 'checked' : ''} onchange="updateEdge('condition', this.checked ? 'default' : '')" /> Taken when no other condition matches</label>
           </div>
+          ` : ''}
+          ` : `
+          <div class="prop-section"><div class="help">${escapeHtml(t('prop.activityEdgeNoConditionHelp'))}</div></div>
+          `}
         `;
       }
 
@@ -937,15 +946,69 @@
       }
 
       function routingSection(n) {
-        const outgoing = state.model.edges.filter(e => e.from === n.id);
+        if (!isGatewayKind(n.kind)) return '';
+        ensureGatewayEdgePriorities(n.id);
+        const outgoing = sortedOutgoingFrom(n.id);
+        if (outgoing.length === 0) {
+          return `<div class="prop-section"><h3>Routing</h3>
+            <div class="help">${escapeHtml(t('prop.gatewayNoOutgoing'))}</div>
+          </div>`;
+        }
+        const items = outgoing.map((e, index) => {
+          const target = state.model.nodes.find(node => node.id === e.to);
+          const targetLabel = target ? (target.name || target.id) : e.to;
+          const defaultBadge = e.condition === 'default'
+            ? `<span class="edge-priority-badge">${escapeHtml(t('prop.gatewayDefaultBadge'))}</span>`
+            : '';
+          return `<div class="edge-priority-item" draggable="true" data-edge-id="${escapeAttr(e.id)}">
+            <span class="edge-priority-handle" title="${escapeAttr(t('prop.gatewayEdgeDrag'))}">⋮⋮</span>
+            <span class="edge-priority-rank">${index + 1}</span>
+            <button type="button" class="edge-priority-link" onclick="select('edge', '${escapeAttr(e.id)}')">${escapeHtml(e.id)} → ${escapeHtml(targetLabel)}</button>
+            ${defaultBadge}
+          </div>`;
+        }).join('');
         return `<div class="prop-section"><h3>Routing</h3>
-          <label>Default outgoing flow</label>
+          <label>${escapeHtml(t('prop.gatewayEdgePriority'))}</label>
+          <div class="edge-priority-list" id="gatewayEdgePriorityList">${items}</div>
+          <div class="help">${escapeHtml(t('prop.gatewayEdgePriorityHelp'))}</div>
+          <label>${escapeHtml(t('prop.gatewayDefaultFlow'))}</label>
           <select onchange="setDefaultFlow(this.value)">
-            <option value="">None</option>
-            ${outgoing.map(e => `<option value="${e.id}" ${e.condition === 'default' ? 'selected' : ''}>${e.id} -> ${e.to}</option>`).join('')}
+            <option value="">${escapeHtml(t('prop.gatewayDefaultNone'))}</option>
+            ${outgoing.map(e => {
+              const target = state.model.nodes.find(node => node.id === e.to);
+              const targetLabel = target ? (target.name || target.id) : e.to;
+              return `<option value="${escapeAttr(e.id)}" ${e.condition === 'default' ? 'selected' : ''}>${escapeHtml(e.id)} → ${escapeHtml(targetLabel)}</option>`;
+            }).join('')}
           </select>
-          <div class="help">Taken when no other condition matches.</div>
+          <div class="help">${escapeHtml(t('prop.gatewayDefaultHelp'))}</div>
         </div>`;
+      }
+
+      function initGatewayEdgePriorityList(gateway) {
+        const list = document.getElementById('gatewayEdgePriorityList');
+        if (!list || !isGatewayKind(gateway.kind)) return;
+        let dragEdgeId = null;
+        list.querySelectorAll('.edge-priority-item').forEach(item => {
+          item.addEventListener('dragstart', event => {
+            dragEdgeId = item.dataset.edgeId;
+            item.classList.add('dragging');
+            event.dataTransfer.effectAllowed = 'move';
+          });
+          item.addEventListener('dragend', () => {
+            item.classList.remove('dragging');
+            dragEdgeId = null;
+          });
+          item.addEventListener('dragover', event => {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'move';
+          });
+          item.addEventListener('drop', event => {
+            event.preventDefault();
+            const targetEdgeId = item.dataset.edgeId;
+            if (!dragEdgeId || dragEdgeId === targetEdgeId) return;
+            reorderGatewayOutgoingEdges(gateway.id, dragEdgeId, targetEdgeId);
+          });
+        });
       }
 
       function taskDefinitionSection(n) {
@@ -960,25 +1023,13 @@
         </div>`;
       }
 
-      function humanTaskMode(n) {
-        return n.config?.flowFoundryHumanTask?.mode || 'managed';
-      }
-
       function humanTaskSection(n) {
         if (!isHumanTaskKind(n.kind)) return '';
-        const mode = humanTaskMode(n);
         return `<div class="prop-section"><h3>${escapeHtml(t('prop.humanTaskTitle'))}</h3>
-          <label>${escapeHtml(t('prop.humanTaskMode'))}</label>
-          <select onchange="updateConfigPath(['flowFoundryHumanTask','mode'], this.value); renderProperties();">
-            <option value="managed" ${mode === 'managed' ? 'selected' : ''}>${escapeHtml(t('prop.humanTaskModeManaged'))}</option>
-            <option value="offline" ${mode === 'offline' ? 'selected' : ''}>${escapeHtml(t('prop.humanTaskModeOffline'))}</option>
-          </select>
-          <div class="help">${escapeHtml(t('prop.humanTaskModeHelp'))}</div>
-          ${mode === 'managed' ? `
-            <label>Candidate Groups</label><input value="${escapeAttr(n.config?.flowFoundryAssignmentDefinition?.candidateGroups || '')}" oninput="updateConfigPath(['flowFoundryAssignmentDefinition','candidateGroups'], this.value)" />
-            <label>Assignee</label><input value="${escapeAttr(n.config?.flowFoundryAssignmentDefinition?.assignee || '')}" oninput="updateConfigPath(['flowFoundryAssignmentDefinition','assignee'], this.value)" />
-            <div class="help">${escapeHtml(t('prop.assignmentHelp'))}</div>
-          ` : `<div class="help">${escapeHtml(t('prop.humanTaskOfflineHelp'))}</div>`}
+          <div class="help">${escapeHtml(t('prop.humanTaskHelp'))}</div>
+          <label>Candidate Groups</label><input value="${escapeAttr(n.config?.flowFoundryAssignmentDefinition?.candidateGroups || '')}" oninput="updateConfigPath(['flowFoundryAssignmentDefinition','candidateGroups'], this.value)" />
+          <label>Assignee</label><input value="${escapeAttr(n.config?.flowFoundryAssignmentDefinition?.assignee || '')}" oninput="updateConfigPath(['flowFoundryAssignmentDefinition','assignee'], this.value)" />
+          <div class="help">${escapeHtml(t('prop.assignmentHelp'))}</div>
         </div>`;
       }
 
@@ -1098,18 +1149,50 @@
       }
 
       function headersSection(n) {
-        return `<div class="prop-section"><h3>Task Headers</h3>
-          <textarea oninput="updateJsonNode('headers', this.value)">${pretty(n.headers || {})}</textarea>
+        const headers = n.config?.taskHeaders || {};
+        return `<div class="prop-section"><h3>${t('prop.taskHeadersTitle')}</h3>
+          <textarea oninput="updateJsonConfigPath(['taskHeaders'], this.value)">${pretty(headers)}</textarea>
+          <div class="help">${escapeHtml(t('prop.taskHeadersHelp'))}</div>
         </div>`;
       }
 
       function loopSection(n) {
-        return `<div class="prop-section"><h3>Loop</h3>
+        const loop = n.config?.flowFoundryLoop || {};
+        const mode = n.loop || 'none';
+        const standardFields = mode === 'standardLoop' ? `
+          <label>${t('prop.loopCondition')}</label>
+          <input value="${escapeAttr(loop.condition || '')}" placeholder="${escapeAttr(t('prop.loopConditionPlaceholder'))}"
+            oninput="updateConfigPath(['flowFoundryLoop','condition'], this.value)" />
+          <label>${t('prop.loopMaxIterations')}</label>
+          <input type="number" min="1" max="10000" value="${loop.maxIterations ?? 100}"
+            oninput="updateConfigPath(['flowFoundryLoop','maxIterations'], Number(this.value) || 100)" />
+          <label>${t('prop.loopIterationVar')}</label>
+          <input value="${escapeAttr(loop.iterationVar || 'loop.iteration')}"
+            oninput="updateConfigPath(['flowFoundryLoop','iterationVar'], this.value)" />
+          <p class="prop-help">${t('prop.loopStandardHelp')}</p>
+        ` : '';
+        const multiFields = mode === 'multiInstance' ? `
+          <label>${t('prop.loopCollection')}</label>
+          <input value="${escapeAttr(loop.collection || '')}" placeholder="${escapeAttr(t('prop.loopCollectionPlaceholder'))}"
+            oninput="updateConfigPath(['flowFoundryLoop','collection'], this.value)" />
+          <label>${t('prop.loopElementVar')}</label>
+          <input value="${escapeAttr(loop.elementVar || 'loop.item')}"
+            oninput="updateConfigPath(['flowFoundryLoop','elementVar'], this.value)" />
+          <label>${t('prop.loopIndexVar')}</label>
+          <input value="${escapeAttr(loop.indexVar || 'loop.index')}"
+            oninput="updateConfigPath(['flowFoundryLoop','indexVar'], this.value)" />
+          <label>${t('prop.loopMaxIterations')}</label>
+          <input type="number" min="1" max="10000" value="${loop.maxIterations ?? 100}"
+            oninput="updateConfigPath(['flowFoundryLoop','maxIterations'], Number(this.value) || 100)" />
+          <p class="prop-help">${t('prop.loopMultiHelp')}</p>
+        ` : '';
+        return `<div class="prop-section"><h3>${t('prop.loopTitle')}</h3>
           <div class="segment">${[
-            ['none','None'],
-            ['multiInstance','Multi-Instance'],
-            ['standardLoop','Standard']
-          ].map(([value,label]) => `<button class="${n.loop === value ? 'active' : ''}" onclick="updateNode('loop','${value}')">${label}</button>`).join('')}</div>
+            ['none', t('prop.loopNone')],
+            ['multiInstance', t('prop.loopMultiInstance')],
+            ['standardLoop', t('prop.loopStandard')]
+          ].map(([value,label]) => `<button class="${mode === value ? 'active' : ''}" onclick="updateLoopMode('${value}')">${label}</button>`).join('')}</div>
+          ${standardFields}${multiFields}
         </div>`;
       }
 
@@ -1613,6 +1696,16 @@
 
       function createSequenceFlow(from, to, fromHandle = 'right', toHandle = 'left', options = {}) {
         if (!from || !to || from === to) return;
+        const sourceNode = state.model.nodes.find(n => n.id === from);
+        if (sourceNode && isActivityKind(sourceNode.kind)) {
+          const existing = state.model.edges.filter(e => e.from === from);
+          if (existing.length >= 1) {
+            state.connectionSource = null;
+            state.connectionSourceHandle = null;
+            message(t('message.activitySingleOutgoing', { nodeId: from }), 'error');
+            return;
+          }
+        }
         const duplicate = state.model.edges.find(e => e.from === from && e.to === to);
         if (duplicate) {
           state.connectionSource = null;
@@ -1623,7 +1716,10 @@
         }
         if (!options.skipHistory) pushHistory();
         const id = `F_${from}_${to}_${Date.now().toString(36)}`;
-        state.model.edges.push({ ...edge(id, from, to), fromHandle, toHandle });
+        const priority = sourceNode && isGatewayKind(sourceNode.kind) ? nextOutgoingPriority(from) : undefined;
+        const created = { ...edge(id, from, to, 'default'), fromHandle, toHandle };
+        if (priority != null) created.priority = priority;
+        state.model.edges.push(created);
         state.connectionSource = null;
         state.connectionSourceHandle = null;
         state.connectionDraftTarget = null;

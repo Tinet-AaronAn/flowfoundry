@@ -7,8 +7,8 @@ import java.util.Map;
 import org.springframework.stereotype.Component;
 
 /**
- * Human Task activity. Registers / annotates human work; managed tasks still
- * wait for Workflow Signal in the interpreter after this Activity returns.
+ * Human Task activity: registers in-system work context. The interpreter waits for
+ * {@code completeHumanTask} after this Activity returns.
  */
 @Component
 public class HumanTaskActivity extends DualModeActivityHandler {
@@ -24,12 +24,6 @@ public class HumanTaskActivity extends DualModeActivityHandler {
     result.put("nodeId", nodeId);
     result.put("mode", mode);
     result.put("assignment", assignment);
-
-    if ("offline".equalsIgnoreCase(mode)) {
-      result.put("outcome", "offline");
-      result.put("waiting", false);
-      return result;
-    }
 
     if (ActivityExecutionContext.from(safeInput).usesStubActivities()) {
       result.put("taskId", "stub-human-task:" + nodeId);
@@ -49,7 +43,11 @@ public class HumanTaskActivity extends DualModeActivityHandler {
     if (raw instanceof Map<?, ?> map) {
       Object mode = map.get("mode");
       if (mode != null && !String.valueOf(mode).isBlank()) {
-        return String.valueOf(mode);
+        String normalized = String.valueOf(mode).trim();
+        if ("offline".equalsIgnoreCase(normalized)) {
+          return "managed";
+        }
+        return normalized;
       }
     }
     return "managed";

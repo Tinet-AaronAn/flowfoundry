@@ -94,16 +94,18 @@ Temporal 层命名**固定不动**；上层命名以本文为准。
 
 | 键 | 适用 `kind` | 用途 |
 |----|-------------|------|
-| `flowFoundryHumanTask` | `humanTask` | `{ mode: "managed" \| "offline" }` |
+| `flowFoundryHumanTask` | `humanTask` | `{ mode: "managed" }`（legacy `offline` 归一化为 `managed`） |
 | `flowFoundryAssignmentDefinition` | `humanTask` | `{ candidateGroups, assignee }` |
 | `flowFoundryTaskDefinition` | `serviceTask` | 设计期元数据（type/retries），非运行时必需 |
+| `taskHeaders` | `serviceTask`、`scriptTask`、`humanTask` 等 Activity 节点 | 静态键值元数据；编译进 `ExecutionNode.config`，运行时经 `_config.taskHeaders` 传给 Activity |
 | `flowFoundryChildWorkflow` | `workflow` | DSL 编译时写入；引用 `{ childWorkflowId, childWorkflowVersion, name }` |
 | `flowFoundryParticipant` | `participant` | `{ participantRef }` |
 | `flowFoundryParticipant`（DSL） | 任意运行节点 | 编译时从 `participantId` 注入泳道元数据 |
 | `subtype` | `intermediateEvent` | 事件子类型：`timer`（MVP）、未来 `message` / `signal` |
 | `timerDefinition` | `intermediateEvent`（subtype=timer） | `{ type: "duration", value: "1m" }` → DSL 归一化为 `duration` |
 | `childWorkflowId` / `childWorkflowVersion` / `childWorkflowName` | `workflow` | 画布编辑期字段，编译进 `flowFoundryChildWorkflow` |
-| `decisionRef` / `decisionVersion` | `scriptTask` | 脚本/DMN 引用（节点级字段也会出现在 DSL 顶层） |
+| `decisionRef` / `decisionVersion` | `scriptTask` | 脚本引用（节点级字段也会出现在 DSL 顶层） |
+| `flowFoundryLoop` | `ACTIVITY` | `{ mode, condition?, collection?, elementVar?, indexVar?, iterationVar?, maxIterations?, sequential? }` — 见 [loop-design.md](./loop-design.md) |
 
 ---
 
@@ -154,6 +156,7 @@ Temporal 层命名**固定不动**；上层命名以本文为准。
 | `eventSubtype` | `INTERMEDIATE_EVENT` | `timer`（MVP）、未来 `message` / `signal` |
 | `duration` | `INTERMEDIATE_EVENT`（timer） | 归一化后的等待时长 |
 | `flowFoundryHumanTask` | `ACTIVITY`（`activityType: human-task`） | 人工任务模式 |
+| `taskHeaders` | `ACTIVITY` | 静态 Task Headers；Activity 从 `_config.taskHeaders` 读取 |
 | `flowFoundryChildWorkflow` | `CHILD_WORKFLOW` | 子流程引用 |
 | `childWorkflowDefinition` / `childExecutionPlan` | `CHILD_WORKFLOW` | 嵌套定义 / 编译产物 |
 

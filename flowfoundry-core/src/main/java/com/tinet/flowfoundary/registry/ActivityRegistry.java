@@ -39,7 +39,35 @@ public record ActivityRegistry(
       RetryPolicy retry,
       IdempotencyPolicy idempotency,
       List<ParameterSpec> input,
-      List<ParameterSpec> output) {
+      List<ParameterSpec> output,
+      Boolean cancellable) {
+
+    public ActivityDefinition(
+        String id,
+        String name,
+        String description,
+        String taskQueue,
+        String timeout,
+        RetryPolicy retry,
+        IdempotencyPolicy idempotency,
+        List<ParameterSpec> input,
+        List<ParameterSpec> output) {
+      this(
+          id,
+          name,
+          description,
+          taskQueue,
+          timeout,
+          retry,
+          idempotency,
+          input,
+          output,
+          null);
+    }
+
+    public boolean isCancellable() {
+      return Boolean.TRUE.equals(cancellable);
+    }
 
     public Duration timeoutDuration() {
       return parseDuration(timeout, Duration.ofMinutes(1));

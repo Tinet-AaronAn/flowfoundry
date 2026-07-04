@@ -43,6 +43,18 @@
         updateButtons();
       }
 
+      function updateLoopMode(value) {
+        const n = selectedNode();
+        if (!n) return;
+        pushHistory();
+        n.loop = value;
+        const mode = value === 'none' ? 'none' : value === 'standardLoop' ? 'standard' : 'multiInstance';
+        n.config = { ...(n.config || {}), flowFoundryLoop: { ...(n.config?.flowFoundryLoop || {}), mode } };
+        refreshNodePreview(n);
+        renderProperties();
+        updateButtons();
+      }
+
       function updateNodeNumber(key, value) {
         updateNode(key, value === '' ? null : Number(value));
       }
@@ -119,6 +131,27 @@
         }
       }
 
+      function updateJsonConfigPath(path, value) {
+        const n = selectedNode();
+        try {
+          pushHistory();
+          const parsed = JSON.parse(value || '{}');
+          n.config = { ...(n.config || {}) };
+          let current = n.config;
+          for (let i = 0; i < path.length - 1; i++) {
+            current[path[i]] = { ...(current[path[i]] || {}) };
+            current = current[path[i]];
+          }
+          current[path[path.length - 1]] = parsed;
+          if (path.length === 1 && path[0] === 'taskHeaders') {
+            migrateNodeTaskHeaders(n);
+          }
+          refreshNodePreview(n);
+        } catch (err) {
+          message(t('message.jsonInvalid', { error: err.message }), 'error');
+        }
+      }
+
       function updateEdge(key, value) {
         const e = selectedEdge();
         if (!e) return;
@@ -134,7 +167,6 @@
 
       function edgeConditionMode(edge) {
         if (!edge.condition || edge.condition === 'default') return 'default';
-        if (typeof edge.condition === 'object' && String(edge.condition.type || edge.condition.language).toLowerCase() === 'dmn') return 'dmn';
         return 'feel';
       }
 
@@ -142,17 +174,27 @@
         return edgeConditionMode(edge) === 'feel' ? String(edge.condition || '') : '';
       }
 
-      function dmnCondition(edge) {
-        return edgeConditionMode(edge) === 'dmn' ? edge.condition : {};
-      }
-
       function edgeConditionLabel(edge) {
         if (String(edge.name || '').trim()) return edge.name.trim();
+        const source = state.model.nodes.find(n => n.id === edge.from);
+        if (source && isActivityKind(source.kind)) return '';
         if (!edge.condition || edge.condition === 'default') return '';
-        if (edgeConditionMode(edge) === 'dmn') {
-          return `DMN: ${edge.condition.decisionRef || 'decision'}`;
-        }
         return String(edge.condition || '');
+      }
+
+      function reorderGatewayOutgoingEdges(gatewayId, dragEdgeId, targetEdgeId) {
+        const ordered = sortedOutgoingFrom(gatewayId).map(e => e.id);
+        const fromIdx = ordered.indexOf(dragEdgeId);
+        const toIdx = ordered.indexOf(targetEdgeId);
+        if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return;
+        ordered.splice(fromIdx, 1);
+        ordered.splice(toIdx, 0, dragEdgeId);
+        pushHistory();
+        ordered.forEach((id, index) => {
+          const edge = state.model.edges.find(e => e.id === id);
+          if (edge) edge.priority = index;
+        });
+        renderAll();
       }
 
       function updateEdgeConditionMode(mode) {
@@ -161,13 +203,6 @@
         pushHistory();
         if (mode === 'default') {
           e.condition = 'default';
-        } else if (mode === 'dmn') {
-          e.condition = {
-            type: 'dmn',
-            decisionRef: 'demo-decision',
-            decisionVersion: 'latest',
-            resultPath: 'matched'
-          };
         } else {
           e.condition = '${amount > 1000}';
         }
@@ -179,17 +214,5 @@
         if (!e) return;
         pushHistory();
         e.condition = value || 'default';
-        refreshEdgePreview();
-      }
-
-      function updateEdgeDmn(key, value) {
-        const e = selectedEdge();
-        if (!e) return;
-        pushHistory();
-        e.condition = {
-          type: 'dmn',
-          ...dmnCondition(e),
-          [key]: value
-        };
         refreshEdgePreview();
       }

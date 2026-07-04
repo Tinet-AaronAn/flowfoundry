@@ -1626,6 +1626,57 @@
         color: #cbd5e1;
       }
       .segment button.active { background: var(--blue); color: white; }
+      .edge-priority-list {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin-top: 6px;
+      }
+      .edge-priority-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: #171a1f;
+        cursor: grab;
+      }
+      .edge-priority-item.dragging {
+        opacity: 0.55;
+        cursor: grabbing;
+      }
+      .edge-priority-handle {
+        color: var(--muted);
+        font-size: 12px;
+        letter-spacing: -1px;
+        user-select: none;
+      }
+      .edge-priority-rank {
+        min-width: 18px;
+        color: #93c5fd;
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .edge-priority-link {
+        flex: 1;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        color: #e2e8f0;
+        text-align: left;
+        font: inherit;
+        cursor: pointer;
+      }
+      .edge-priority-link:hover { color: #93c5fd; }
+      .edge-priority-badge {
+        padding: 2px 6px;
+        border-radius: 999px;
+        background: rgba(37, 135, 230, 0.18);
+        color: #93c5fd;
+        font-size: 10px;
+        white-space: nowrap;
+      }
       .json-panel {
         display: none;
         position: fixed;

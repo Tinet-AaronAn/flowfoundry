@@ -32,7 +32,7 @@ temporal:
 
 activity:
   script-runtime:
-    service-url: ${SCRIPT_RUNTIME_SERVICE_URL:${DMN_SERVICE_URL:}}
+    service-url: ${SCRIPT_RUNTIME_SERVICE_URL:}
 
 platform:
   activity-registry:

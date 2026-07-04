@@ -104,7 +104,16 @@
         if (!model?.nodes) return;
         model.nodes.forEach(n => {
           if (n.kind === 'userTask') n.kind = 'humanTask';
+          normalizeHumanTaskMode(n);
+          migrateNodeTaskHeaders(n);
         });
+      }
+
+      function normalizeHumanTaskMode(node) {
+        if (!node?.config?.flowFoundryHumanTask) return;
+        if (String(node.config.flowFoundryHumanTask.mode || '').toLowerCase() === 'offline') {
+          node.config.flowFoundryHumanTask.mode = 'managed';
+        }
       }
 
       async function loadWorkflowStore() {

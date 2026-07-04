@@ -136,7 +136,7 @@
 | NT-04 | `humanTask` | Human Task | 人工任务（managed / offline） |
 | NT-05 | `humanTask` | Human Task Offline | 线下人工步骤（offline 模式） |
 | NT-08 | `scriptTask` | Script Task | 脚本任务 |
-| NT-09 | `scriptTask` | Script Task | Node.js 脚本 / DMN |
+| NT-09 | `scriptTask` | Script Task | Node.js 脚本 |
 | NT-10 | `workflow` | Workflow Task | 子工作流调用 |
 | NT-11 | `exclusiveGateway` | Exclusive Gateway | 排他网关 |
 | NT-12 | `parallelGateway` | Parallel Gateway | 并行网关 |
@@ -151,7 +151,7 @@
 
 | ID | 用例名称 | 描述 | 关键断言 |
 |----|----------|------|----------|
-| NT-18 | preserves node-specific configuration in generated DSL | 各节点专属配置正确写入 DSL | Receive `signalName`、Script `script`、DMN `activityType`、Workflow `childWorkflowId`、Timer `duration`、Participant 归属 |
+| NT-18 | preserves node-specific configuration in generated DSL | 各节点专属配置正确写入 DSL | Receive `signalName`、Script `script`、`activityType`、Workflow `childWorkflowId`、Timer `duration`、Participant 归属 |
 
 **前置**：`importModel(nodeTypeMatrixWorkflow())`——在单个 Participant 泳道内排列全部节点类型。
 

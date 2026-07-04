@@ -64,10 +64,20 @@ test.describe('FlowFoundry node type coverage', () => {
     await expect(page.locator('#appNotice')).toContainText(/Generic Task/i);
   });
 
-  test('renders offline human task mode', async ({ page }) => {
-    await clickNodeById(page, 'Task_Human_Offline');
+  test('renders human task properties without mode selector', async ({ page }) => {
+    await clickNodeById(page, 'Task_User');
     await expect(page.locator('#propType')).toContainText('humanTask');
-    await expect(page.locator('#properties')).toContainText('Offline');
+    await expect(page.locator('#properties')).toContainText('Candidate Groups');
+    await expect(page.locator('#properties')).not.toContainText('Offline');
+  });
+
+  test('exclusive gateway edge FEEL page can return to gateway properties', async ({ page }) => {
+    await clickNodeById(page, 'Gateway_Exclusive');
+    await page.locator('.edge-priority-link').first().click();
+    await expect(page.locator('#propType')).toContainText('SequenceFlow');
+    await page.locator('#properties button.secondary').click();
+    await expect(page.locator('#propType')).toContainText('exclusiveGateway');
+    await expect(page.locator('#properties')).toContainText('Routing');
   });
 
 
@@ -89,7 +99,7 @@ test.describe('FlowFoundry node type coverage', () => {
     expect(human.config.flowFoundryHumanTask.mode).toBe('managed');
     expect(humanOffline.kind).toBe('ACTIVITY');
     expect(humanOffline.activityType).toBe('human-task');
-    expect(humanOffline.config.flowFoundryHumanTask.mode).toBe('offline');
+    expect(humanOffline.config.flowFoundryHumanTask.mode).toBe('managed');
     expect(script.kind).toBe('ACTIVITY');
     expect(script.activityType).toBe('script-runtime');
     expect(script.decisionRef).toBe('risk-check');

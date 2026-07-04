@@ -249,7 +249,7 @@ activities:
 
   - id: evaluate-next-round
     name: 评估是否进入下一轮
-    description: 供 DMN / 网关使用的决策 Activity，也可内嵌规则
+    description: 供网关分支使用的决策 Activity，也可内嵌规则
     taskQueue: ai-collection-strategy
     timeout: 30s
     retry:

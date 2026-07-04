@@ -207,7 +207,7 @@ SCENARIO=your-scenario ./scripts/redeploy-worker.sh
 2. 创建 Workflow，从 Palette 拖入节点（见 [entity-naming.md](./entity-naming.md) §2.1）：
    - **Service Task**：属性里选择 Registry 中的 `activityType`，配置输入映射。
    - **Human Task**：`flowFoundryHumanTask.mode` = `managed`（暂停等 Signal）或 `offline`（仅标注）。
-   - **Script Task**：平台 `script-runtime`，用于 FEEL/DMN 类决策。
+   - **Script Task**：平台 `script-runtime`，用于复杂业务规则计算；结果写入变量后，由 Gateway 出边上的 FEEL 条件选路。
    - **Gateway**：边上写 Safe FEEL 条件。
    - **Intermediate Event**：定时等待（Timer）。
    - **Child Workflow**：引用已发布的子流程。

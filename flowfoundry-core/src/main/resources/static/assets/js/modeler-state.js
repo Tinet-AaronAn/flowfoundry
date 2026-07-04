@@ -112,7 +112,6 @@
           inputMapping: {},
           inputMappingMode: 'passthrough-unmapped',
           outputMapping: {},
-          headers: {},
           loop: 'none',
           config: {},
           ...extra
@@ -144,6 +143,41 @@
 
       function edge(id, from, to, condition = 'default') {
         return { id, from, to, condition, name: '', documentation: '' };
+      }
+
+      function isGatewayKind(kind) {
+        return String(kind || '').includes('Gateway');
+      }
+
+      function isActivityKind(kind) {
+        return ['serviceTask', 'scriptTask', 'humanTask', 'userTask', 'activity'].includes(kind);
+      }
+
+      function isDefaultEdgeCondition(condition) {
+        return condition == null || condition === '' || condition === 'default';
+      }
+
+      function sortedOutgoingFrom(nodeId) {
+        const outgoing = state.model.edges.filter(e => e.from === nodeId);
+        return outgoing.slice().sort((a, b) => {
+          const pa = a.priority == null ? Number.MAX_SAFE_INTEGER : a.priority;
+          const pb = b.priority == null ? Number.MAX_SAFE_INTEGER : b.priority;
+          if (pa !== pb) return pa - pb;
+          return state.model.edges.indexOf(a) - state.model.edges.indexOf(b);
+        });
+      }
+
+      function ensureGatewayEdgePriorities(nodeId) {
+        sortedOutgoingFrom(nodeId).forEach((edge, index) => {
+          if (edge.priority == null) edge.priority = index;
+        });
+      }
+
+      function nextOutgoingPriority(nodeId) {
+        const outgoing = state.model.edges.filter(e => e.from === nodeId);
+        if (outgoing.length === 0) return 0;
+        const max = outgoing.reduce((acc, e) => Math.max(acc, e.priority == null ? -1 : e.priority), -1);
+        return max + 1;
       }
 
       function $(id) { return document.getElementById(id); }

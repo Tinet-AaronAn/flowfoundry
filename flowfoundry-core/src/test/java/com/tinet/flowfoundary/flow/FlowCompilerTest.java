@@ -3,6 +3,7 @@ package com.tinet.flowfoundary.flow;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.tinet.flowfoundary.interpreter.model.ExecutionEdge;
 import com.tinet.flowfoundary.interpreter.model.NodeKind;
 import com.tinet.flowfoundary.activity.ActivityTypes;
 import com.tinet.flowfoundary.registry.ActivityRegistry;
@@ -55,11 +56,41 @@ class FlowCompilerTest {
   }
 
   @Test
-  void compilesGatewayNodesWithGatewayKind() {
+  void compilesParallelGatewaySplitJoinTopology() {
     FlowDefinition definition =
         new FlowDefinition(
             "1.0",
             new FlowMetadata("GatewayFlow", "Gateway Flow", "1.0.0"),
+            Map.of(),
+            Map.of(),
+            List.of(
+                node("Start", "START", Map.of()),
+                node("PG_Split", "GATEWAY", Map.of("gatewayKind", "parallel")),
+                activityNode("Task_A", ActivityTypes.SCRIPT_RUNTIME),
+                activityNode("Task_B", ActivityTypes.SCRIPT_RUNTIME),
+                node("PG_Join", "GATEWAY", Map.of("gatewayKind", "parallel")),
+                node("End", "END", Map.of())),
+            List.of(
+                new FlowEdge("Start", "PG_Split", "default"),
+                new FlowEdge("PG_Split", "Task_A", "default"),
+                new FlowEdge("PG_Split", "Task_B", "default"),
+                new FlowEdge("Task_A", "PG_Join", "default"),
+                new FlowEdge("Task_B", "PG_Join", "default"),
+                new FlowEdge("PG_Join", "End", "default")));
+
+    var plan = compiler.compile(definition);
+
+    assertThat(plan.requireNode("PG_Split").config()).containsEntry("gatewayRole", "split");
+    assertThat(plan.requireNode("PG_Join").config()).containsEntry("gatewayRole", "join");
+    assertThat(plan.requireNode("PG_Join").config()).containsEntry("expectedBranchCount", 2);
+  }
+
+  @Test
+  void rejectsInvalidParallelGatewayTopology() {
+    FlowDefinition definition =
+        new FlowDefinition(
+            "1.0",
+            new FlowMetadata("BadGatewayFlow", "Bad Gateway Flow", "1.0.0"),
             Map.of(),
             Map.of(),
             List.of(
@@ -70,10 +101,8 @@ class FlowCompilerTest {
                 new FlowEdge("Start", "Gateway", "default"),
                 new FlowEdge("Gateway", "End", "default")));
 
-    var plan = compiler.compile(definition);
-
-    assertThat(plan.requireNode("Gateway").kind()).isEqualTo(NodeKind.GATEWAY);
-    assertThat(plan.requireNode("Gateway").config()).containsEntry("gatewayKind", "parallel");
+    assertThatThrownBy(() -> compiler.compile(definition))
+        .isInstanceOf(IllegalArgumentException.class);
   }
 
   @Test
@@ -284,6 +313,216 @@ class FlowCompilerTest {
     assertThatThrownBy(() -> compiler.compile(definition))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Generic Task");
+  }
+
+  @Test
+  void rejectsActivityWithMultipleOutgoingEdges() {
+    FlowDefinition definition =
+        new FlowDefinition(
+            "1.0",
+            new FlowMetadata("MultiOutFlow", "Multi Out Flow", "1.0.0"),
+            Map.of(),
+            Map.of(),
+            List.of(
+                node("Start", "START", Map.of()),
+                activityNode("Task", ActivityTypes.SCRIPT_RUNTIME),
+                node("EndA", "END", Map.of()),
+                node("EndB", "END", Map.of())),
+            List.of(
+                new FlowEdge("Start", "Task", "default"),
+                new FlowEdge("Task", "EndA", "default"),
+                new FlowEdge("Task", "EndB", "default")));
+
+    assertThatThrownBy(() -> compiler.compile(definition))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("at most one outgoing edge");
+  }
+
+  @Test
+  void rejectsActivityOutgoingEdgeWithCondition() {
+    FlowDefinition definition =
+        new FlowDefinition(
+            "1.0",
+            new FlowMetadata("CondOutFlow", "Conditional Out Flow", "1.0.0"),
+            Map.of(),
+            Map.of(),
+            List.of(
+                node("Start", "START", Map.of()),
+                activityNode("Task", ActivityTypes.SCRIPT_RUNTIME),
+                node("End", "END", Map.of())),
+            List.of(
+                new FlowEdge("Start", "Task", "default"),
+                new FlowEdge("Task", "End", "${approved == true}")));
+
+    assertThatThrownBy(() -> compiler.compile(definition))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("must not have a condition");
+  }
+
+  @Test
+  void ordersGatewayOutgoingEdgesByPriority() {
+    FlowDefinition definition =
+        new FlowDefinition(
+            "1.0",
+            new FlowMetadata("PriorityFlow", "Priority Flow", "1.0.0"),
+            Map.of(),
+            Map.of(),
+            List.of(
+                node("Start", "START", Map.of()),
+                node("Gateway", "GATEWAY", Map.of("gatewayKind", "exclusive")),
+                node("BranchA", "END", Map.of()),
+                node("BranchB", "END", Map.of()),
+                node("BranchC", "END", Map.of())),
+            List.of(
+                new FlowEdge("Start", "Gateway", "default"),
+                new FlowEdge("Gateway", "BranchA", "${a == 1}", 2),
+                new FlowEdge("Gateway", "BranchB", "${b == 1}", 0),
+                new FlowEdge("Gateway", "BranchC", "default", 1)));
+
+    var plan = compiler.compile(definition);
+
+    assertThat(plan.outgoingEdges("Gateway"))
+        .extracting(ExecutionEdge::target)
+        .containsExactly("BranchB", "BranchC", "BranchA");
+  }
+
+  @Test
+  void compilesActivityWithStandardLoop() {
+    FlowDefinition definition =
+        new FlowDefinition(
+            "1.0",
+            new FlowMetadata("LoopFlow", "Loop Flow", "1.0.0"),
+            Map.of(),
+            Map.of(),
+            List.of(
+                node("Start", "START", Map.of()),
+                activityNode(
+                    "Task",
+                    ActivityTypes.SCRIPT_RUNTIME,
+                    Map.of(
+                        "flowFoundryLoop",
+                        Map.of(
+                            "mode", "standard",
+                            "condition", "${remaining > 0}",
+                            "maxIterations", 50))),
+                node("End", "END", Map.of())),
+            List.of(
+                new FlowEdge("Start", "Task", "default"),
+                new FlowEdge("Task", "End", "default")));
+
+    var plan = compiler.compile(definition);
+
+    @SuppressWarnings("unchecked")
+    Map<String, Object> loop =
+        (Map<String, Object>) plan.requireNode("Task").config().get("flowFoundryLoop");
+    assertThat(loop)
+        .containsEntry("mode", "standard")
+        .containsEntry("condition", "${remaining > 0}")
+        .containsEntry("maxIterations", 50);
+  }
+
+  @Test
+  void rejectsLoopOnGateway() {
+    FlowDefinition definition =
+        new FlowDefinition(
+            "1.0",
+            new FlowMetadata("BadLoopFlow", "Bad Loop Flow", "1.0.0"),
+            Map.of(),
+            Map.of(),
+            List.of(
+                node("Start", "START", Map.of()),
+                node(
+                    "Gateway",
+                    "GATEWAY",
+                    Map.of(
+                        "gatewayKind", "exclusive",
+                        "flowFoundryLoop", Map.of("mode", "standard", "condition", "true"))),
+                node("End", "END", Map.of())),
+            List.of(
+                new FlowEdge("Start", "Gateway", "default"),
+                new FlowEdge("Gateway", "End", "default")));
+
+    assertThatThrownBy(() -> compiler.compile(definition))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("only supported on ACTIVITY");
+  }
+
+  @Test
+  void rejectsStandardLoopWithoutCondition() {
+    FlowDefinition definition =
+        new FlowDefinition(
+            "1.0",
+            new FlowMetadata("NoCondLoop", "No Cond Loop", "1.0.0"),
+            Map.of(),
+            Map.of(),
+            List.of(
+                node("Start", "START", Map.of()),
+                activityNode(
+                    "Task",
+                    ActivityTypes.SCRIPT_RUNTIME,
+                    Map.of("flowFoundryLoop", Map.of("mode", "standard"))),
+                node("End", "END", Map.of())),
+            List.of(
+                new FlowEdge("Start", "Task", "default"),
+                new FlowEdge("Task", "End", "default")));
+
+    assertThatThrownBy(() -> compiler.compile(definition))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("flowFoundryLoop.condition");
+  }
+
+  @Test
+  void preservesTaskHeadersInActivityConfig() {
+    FlowDefinition definition =
+        new FlowDefinition(
+            "1.0",
+            new FlowMetadata("HeaderFlow", "Header Flow", "1.0.0"),
+            Map.of(),
+            Map.of(),
+            List.of(
+                node("Start", "START", Map.of()),
+                activityNode(
+                    "Task_A",
+                    ActivityTypes.SCRIPT_RUNTIME,
+                    Map.of(
+                        "decisionRef",
+                        "demo",
+                        "taskHeaders",
+                        Map.of("x-tenant", "demo", "x-priority", "high"))),
+                node("End", "END", Map.of())),
+            List.of(
+                new FlowEdge("Start", "Task_A", "default"),
+                new FlowEdge("Task_A", "End", "default")));
+
+    var plan = compiler.compile(definition);
+    var taskNode = plan.requireNode("Task_A");
+
+    assertThat(taskNode.config()).containsKey("taskHeaders");
+    assertThat(taskNode.config().get("taskHeaders"))
+        .isEqualTo(Map.of("x-tenant", "demo", "x-priority", "high"));
+  }
+
+  private FlowNode activityNode(String id, String activityType) {
+    return activityNode(id, activityType, Map.of());
+  }
+
+  private FlowNode activityNode(String id, String activityType, Map<String, Object> config) {
+    return new FlowNode(
+        id,
+        "ACTIVITY",
+        id,
+        "serviceTask",
+        activityType,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        null,
+        config);
   }
 
   private FlowNode node(String id, String kind, Map<String, Object> config) {

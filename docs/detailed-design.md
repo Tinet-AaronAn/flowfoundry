@@ -237,7 +237,6 @@ Flyway 迁移：`flowfoundry-core/src/main/resources/db/migration/V1__workflow_s
 - 生成总结报告
 
 不推荐直接暴露为节点：
-- for 循环
 - try-catch
 - HTTP 重试
 - 分页拉取
@@ -245,6 +244,8 @@ Flyway 迁移：`flowfoundry-core/src/main/resources/db/migration/V1__workflow_s
 - 错误码转换
 - 数据库事务
 ```
+
+复杂多轮循环优先 **Exclusive Gateway + 回边**；同一 Activity 的紧凑重复可用 **Activity Loop**（见 [loop-design.md](./loop-design.md)）。
 
 
 
@@ -545,7 +546,7 @@ Workflow Interpreter 运行时只执行 AST evaluator，不重新解析任意脚
 - 不执行自定义函数或脚本。
 - evaluator 版本与 Execution Plan 版本绑定。
 
-Script Task 用于执行业务脚本与复杂规则。它不在 Workflow 内执行 JS，而是通过 `script-runtime` Activity 调用外部 Node.js 脚本服务：
+Script Task 用于执行业务脚本与复杂规则。它不在 Workflow 内执行 JS，而是通过 `script-runtime` Activity 调用外部 Node.js 脚本服务。**第一版不在 Sequence Flow 上支持 DMN 或边上脚本**；需要复杂判断时，应在前置 Script Task 中用 Node.js 实现高代码逻辑，将结果写入流程变量，再由 Gateway 出边上的 Safe FEEL 表达式根据变量值选路。
 
 ```text
 Script Task
@@ -580,7 +581,7 @@ Script Task
 }
 ```
 
-Node.js DMN 服务请求示例：
+Node.js 脚本服务请求示例：
 
 ```json
 {
@@ -627,13 +628,13 @@ CHILD_WORKFLOW
 暂时不要做：
 
 ```text
-for 循环
 任意 HTTP 节点
-复杂并行网关
 动态子流程
 异常边界事件
 补偿事务
 ```
+
+**Activity Loop**（Standard / Multi-Instance）见 [loop-design.md](./loop-design.md)；复杂多轮业务循环仍优先 **Gateway 回边**。
 
 并行、子流程和更复杂的异常处理可以放到第二阶段。
 
@@ -1251,7 +1252,7 @@ QuantumBPM / BPMN 中会区分多种 Task 类型。本平台**收敛画布元素
 | **Human Task** | 人工步骤（统一入口）            | `ACTIVITY`（`human-task`）          | 见下方 `mode`                                       |
 | Script Task    | 脚本 / 决策           | `ACTIVITY`（`script-runtime`，平台 core） | ScriptRuntimeActivity → Node.js 脚本运行时 |
 | Workflow       | 调用子流程                 | `CHILD_WORKFLOW`                  | Temporal Child Workflow                          |
-| Gateway        | 分支 / 汇聚（Exclusive 等） | `GATEWAY`                         | 解释器空操作，按出边 FEEL / DMN 选路                         |
+| Gateway        | 分支 / 汇聚（Exclusive 等） | `GATEWAY`                         | 解释器空操作，按出边 Safe FEEL 选路                         |
 
 #### 4.7.2 Human Task 与 `flowFoundryHumanTask.mode`
 
@@ -1313,7 +1314,7 @@ Compiler 保证每个 Human Task 节点写入：
 自动业务动作     -> Service Task -> Temporal Activity（含轮询等待外呼/AI 打标）
 人工审批         -> Human Task（managed，Workflow 暂停等完成 Signal）
 定时等待         -> Intermediate Event（eventSubtype=timer）-> Workflow.sleep
-分支             -> Gateway（DSL: GATEWAY，config.gatewayKind）+ Safe FEEL / DMN
+分支             -> Gateway（DSL: GATEWAY，config.gatewayKind）+ Safe FEEL
 ```
 
 

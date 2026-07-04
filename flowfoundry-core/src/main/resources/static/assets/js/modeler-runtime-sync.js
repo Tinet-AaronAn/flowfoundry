@@ -87,13 +87,13 @@
       }
 
       function humanTaskModeForNode(node) {
-        return node.config?.flowFoundryHumanTask?.mode || 'managed';
+        const raw = node.config?.flowFoundryHumanTask?.mode || 'managed';
+        return String(raw).toLowerCase() === 'offline' ? 'managed' : raw;
       }
 
       function humanTasksFromModel(waitingNodeId = null) {
         return state.model.nodes
           .filter(n => isHumanTaskKind(n.kind))
-          .filter(n => humanTaskModeForNode(n) !== 'offline')
           .map(n => ({
             nodeId: n.id,
             mode: humanTaskModeForNode(n),
@@ -108,7 +108,7 @@
         if (fromApi.length) {
           return fromApi.map(task => ({
             nodeId: task.nodeId,
-            mode: task.mode || 'managed',
+            mode: task.mode === 'offline' ? 'managed' : (task.mode || 'managed'),
             waiting: !!task.waiting,
             name: nodeLabel(task.nodeId) || task.nodeId
           }));
@@ -117,6 +117,5 @@
       }
 
       function humanTaskChoiceLabel(task) {
-        const modeLabel = task.mode === 'offline' ? t('prop.humanTaskModeOffline') : t('prop.humanTaskModeManaged');
         return `${task.name} (${task.nodeId})`;
       }

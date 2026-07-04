@@ -63,8 +63,8 @@ QuantumBPM / BPMN + Temporal 这类方案对这些问题的解决思路是：
 BPMN / 简洁业务画布
   -> 表达高层业务流程语义
 
-DMN / 决策表
-  -> 把业务规则作为一等资产管理
+Script Task + Safe FEEL
+  -> 复杂规则用 Node.js 高代码计算，分支用 FEEL 读变量选路
 
 Temporal Runtime
   -> 承载长周期、可恢复、可重试、可等待的可靠执行
@@ -79,7 +79,8 @@ Activity / External Worker
 - **人机协同**：人工任务可以映射为业务待办 + Signal / Update，流程可以可靠暂停和继续。
 - **强审计**：流程定义版本、节点执行记录、人工操作、决策输入输出可以作为结构化事件沉淀。
 - **版本治理**：Flow DSL / Execution Plan 发布后不可变，运行中实例引用固定版本。
-- **规则治理**：复杂判断从画布分支中抽离到 Script Task（`script-runtime`），便于业务评审和测试。
+- **规则治理**：复杂判断不在 Gateway 出边上直接写脚本，而是前置 **Script Task**（`script-runtime`）用 Node.js 计算并写入变量，再由出边 **Safe FEEL** 根据变量选路，便于业务评审和测试。
+- **循环策略**：多轮业务编排（如外呼多轮）优先 **Gateway 回边 + 变量**；同一 Task 按条件或集合重复时使用 Activity **`flowFoundryLoop`**（Standard / Multi-Instance），详见 [loop-design.md](./loop-design.md)。
 - **技术复杂度下沉**：HTTP 调用、重试、分页、限流、错误码转换、幂等等逻辑封装进 Activity。
 - **业务画布简洁**：画布保留高层业务节点、少量业务判断、人工任务、等待和子流程。
 
@@ -95,7 +96,7 @@ Activity / External Worker
 
 ```text
 借鉴 Dify / n8n 的易用画布体验
-吸收 QuantumBPM / BPMN 的简洁流程抽象和 DMN 思路
+吸收 QuantumBPM / BPMN 的简洁流程抽象，分支条件统一为 Safe FEEL
 使用 Temporal 作为唯一可靠执行 runtime
 用 Activity  承接工程复杂度
 ```

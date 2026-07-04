@@ -9,6 +9,7 @@ import com.tinet.flowfoundary.activity.ActivityTypes;
 import com.tinet.flowfoundary.registry.ActivityRegistry;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,6 +37,9 @@ public class FlowCompiler {
       throw new IllegalArgumentException("At least one node is required");
     }
 
+    Map<String, Map<String, Object>> gatewayConfigPatches =
+        GatewayTopologyValidator.validateAndEnrich(definition.nodes(), definition.edges());
+
     Map<String, ExecutionNode> nodes = new LinkedHashMap<>();
     String startNodeId = null;
     int endCount = 0;
@@ -58,7 +62,7 @@ public class FlowCompiler {
       if (kind == NodeKind.END) {
         endCount++;
       }
-      ExecutionNode executionNode = compileNode(node, kind);
+      ExecutionNode executionNode = compileNode(node, kind, gatewayConfigPatches);
       nodes.put(node.id(), executionNode);
     }
 
@@ -78,7 +82,8 @@ public class FlowCompiler {
         edges);
   }
 
-  private ExecutionNode compileNode(FlowNode node, NodeKind kind) {
+  private ExecutionNode compileNode(
+      FlowNode node, NodeKind kind, Map<String, Map<String, Object>> gatewayConfigPatches) {
     String activityType = node.activityType();
     Map<String, Object> config = node.config() == null ? Map.of() : new LinkedHashMap<>(node.config());
     if (kind == NodeKind.HUMAN_TASK) {
@@ -103,12 +108,20 @@ public class FlowCompiler {
       if (ActivityTypes.isHumanTaskActivity(activityType)) {
         config = ensureHumanTaskConfig(node, config);
       }
+      config = ensureLoopConfig(node, config);
+    }
+    if (kind != NodeKind.ACTIVITY) {
+      LoopDefinition loop = LoopDefinition.fromConfig(config);
+      if (loop.isEnabled()) {
+        throw new IllegalArgumentException(
+            "Loop is only supported on ACTIVITY nodes: " + node.id());
+      }
     }
     if (kind == NodeKind.CHILD_WORKFLOW) {
       config = compileChildWorkflowConfig(node, config);
     }
     if (kind == NodeKind.GATEWAY) {
-      config = ensureGatewayConfig(node, config);
+      config = ensureGatewayConfig(node, config, gatewayConfigPatches);
     }
     if (kind == NodeKind.INTERMEDIATE_EVENT) {
       config = ensureIntermediateEventConfig(node, config);
@@ -126,6 +139,30 @@ public class FlowCompiler {
         node.inputMapping(),
         node.outputMapping(),
         config);
+  }
+
+  private Map<String, Object> ensureLoopConfig(FlowNode node, Map<String, Object> config) {
+    LoopDefinition loop = LoopDefinition.fromConfig(config);
+    if (!loop.isEnabled()) {
+      return config;
+    }
+    loop.validate(node.id());
+    Map<String, Object> compiled = new LinkedHashMap<>(config);
+    Map<String, Object> loopConfig = new LinkedHashMap<>();
+    loopConfig.put("mode", loop.mode());
+    if (loop.isStandard()) {
+      loopConfig.put("condition", loop.condition());
+      loopConfig.put("iterationVar", loop.iterationVar());
+    }
+    if (loop.isMultiInstance()) {
+      loopConfig.put("collection", loop.collection());
+      loopConfig.put("elementVar", loop.elementVar());
+      loopConfig.put("indexVar", loop.indexVar());
+      loopConfig.put("sequential", loop.sequential());
+    }
+    loopConfig.put("maxIterations", loop.maxIterations());
+    compiled.put(LoopDefinition.CONFIG_KEY, loopConfig);
+    return compiled;
   }
 
   private Map<String, Object> ensureInputMappingMode(FlowNode node, Map<String, Object> config) {
@@ -161,7 +198,9 @@ public class FlowCompiler {
     if (flowEdges == null) {
       return edges;
     }
-    for (FlowEdge edge : flowEdges) {
+    List<IndexedFlowEdge> indexed = new ArrayList<>();
+    for (int index = 0; index < flowEdges.size(); index++) {
+      FlowEdge edge = flowEdges.get(index);
       if (edge == null || blank(edge.from()) || blank(edge.to())) {
         throw new IllegalArgumentException("Every edge requires from and to");
       }
@@ -171,11 +210,69 @@ public class FlowCompiler {
       if (!nodes.containsKey(edge.to())) {
         throw new IllegalArgumentException("Edge target does not exist: " + edge.to());
       }
-      edges.computeIfAbsent(edge.from(), ignored -> new ArrayList<>())
-          .add(new ExecutionEdge(edge.to(), safeFeelCompiler.compile(edge.condition())));
+      indexed.add(new IndexedFlowEdge(edge, index));
+    }
+    validateOutgoingEdges(indexed, nodes);
+
+    Map<String, List<IndexedFlowEdge>> grouped = new LinkedHashMap<>();
+    for (IndexedFlowEdge item : indexed) {
+      grouped.computeIfAbsent(item.edge().from(), ignored -> new ArrayList<>()).add(item);
+    }
+    for (Map.Entry<String, List<IndexedFlowEdge>> entry : grouped.entrySet()) {
+      List<IndexedFlowEdge> outgoing = entry.getValue();
+      outgoing.sort(
+          Comparator.comparing(
+                  (IndexedFlowEdge item) ->
+                      item.edge().priority() == null ? Integer.MAX_VALUE : item.edge().priority())
+              .thenComparingInt(IndexedFlowEdge::index));
+      List<ExecutionEdge> compiled = new ArrayList<>();
+      for (IndexedFlowEdge item : outgoing) {
+        compiled.add(
+            new ExecutionEdge(item.edge().to(), safeFeelCompiler.compile(item.edge().condition())));
+      }
+      edges.put(entry.getKey(), compiled);
     }
     return edges;
   }
+
+  private void validateOutgoingEdges(
+      List<IndexedFlowEdge> indexed, Map<String, ExecutionNode> nodes) {
+    Map<String, List<FlowEdge>> byFrom = new LinkedHashMap<>();
+    for (IndexedFlowEdge item : indexed) {
+      byFrom.computeIfAbsent(item.edge().from(), ignored -> new ArrayList<>()).add(item.edge());
+    }
+    for (Map.Entry<String, List<FlowEdge>> entry : byFrom.entrySet()) {
+      ExecutionNode node = nodes.get(entry.getKey());
+      if (node == null || node.requiredKind() != NodeKind.ACTIVITY) {
+        continue;
+      }
+      if (entry.getValue().size() > 1) {
+        throw new IllegalArgumentException(
+            "Activity node allows at most one outgoing edge: " + entry.getKey());
+      }
+      for (FlowEdge edge : entry.getValue()) {
+        if (!isDefaultCondition(edge.condition())) {
+          throw new IllegalArgumentException(
+              "Activity outgoing edge must not have a condition; insert a Gateway for branching: "
+                  + entry.getKey()
+                  + " -> "
+                  + edge.to());
+        }
+      }
+    }
+  }
+
+  private static boolean isDefaultCondition(Object condition) {
+    if (condition == null) {
+      return true;
+    }
+    if (condition instanceof String text) {
+      return text.isBlank() || "default".equalsIgnoreCase(text.trim());
+    }
+    return false;
+  }
+
+  private record IndexedFlowEdge(FlowEdge edge, int index) {}
 
   private Map<String, Object> ensureHumanTaskConfig(FlowNode node, Map<String, Object> config) {
     Map<String, Object> compiled = new LinkedHashMap<>(config);
@@ -190,11 +287,18 @@ public class FlowCompiler {
     return compiled;
   }
 
-  private Map<String, Object> ensureGatewayConfig(FlowNode node, Map<String, Object> config) {
+  private Map<String, Object> ensureGatewayConfig(
+      FlowNode node,
+      Map<String, Object> config,
+      Map<String, Map<String, Object>> gatewayConfigPatches) {
     Map<String, Object> compiled = new LinkedHashMap<>(config);
     Object gatewayKind = compiled.get("gatewayKind");
     if (gatewayKind == null || String.valueOf(gatewayKind).isBlank()) {
       compiled.put("gatewayKind", "exclusive");
+    }
+    Map<String, Object> patch = gatewayConfigPatches.get(node.id());
+    if (patch != null) {
+      compiled.putAll(patch);
     }
     return compiled;
   }

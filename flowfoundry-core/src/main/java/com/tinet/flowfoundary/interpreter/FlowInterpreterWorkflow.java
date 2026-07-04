@@ -26,4 +26,7 @@ public interface FlowInterpreterWorkflow {
 
   @SignalMethod
   void completeHumanTask(HumanTaskCompletion completion);
+
+  @SignalMethod
+  void receiveFlowSignal(String signalName, Map<String, Object> payload);
 }

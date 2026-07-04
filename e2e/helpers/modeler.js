@@ -208,6 +208,7 @@ async function openFreshModelerWithOutboundDemo(page) {
 async function importModel(page, model) {
   await page.evaluate(m => {
     state.model = m;
+    if (typeof normalizeLoadedModel === 'function') normalizeLoadedModel(state.model);
     syncParticipantAssignments();
     renderAll();
   }, model);

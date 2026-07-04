@@ -1,3 +1,42 @@
+      function resolveTaskHeaders(node) {
+        const fromConfig = node?.config?.taskHeaders;
+        const fromLegacy = node?.headers;
+        const configHeaders =
+          fromConfig && typeof fromConfig === 'object' && !Array.isArray(fromConfig) ? fromConfig : null;
+        const legacyHeaders =
+          fromLegacy && typeof fromLegacy === 'object' && !Array.isArray(fromLegacy) ? fromLegacy : null;
+        if (configHeaders && Object.keys(configHeaders).length > 0) {
+          return legacyHeaders && Object.keys(legacyHeaders).length > 0
+            ? { ...legacyHeaders, ...configHeaders }
+            : { ...configHeaders };
+        }
+        if (legacyHeaders && Object.keys(legacyHeaders).length > 0) {
+          return { ...legacyHeaders };
+        }
+        return null;
+      }
+
+      function migrateNodeTaskHeaders(node) {
+        if (!node) return;
+        const headers = resolveTaskHeaders(node);
+        if (headers && Object.keys(headers).length > 0) {
+          node.config = { ...(node.config || {}), taskHeaders: headers };
+        } else if (node.config?.taskHeaders) {
+          const nextConfig = { ...(node.config || {}) };
+          delete nextConfig.taskHeaders;
+          node.config = nextConfig;
+        }
+        if (node.headers !== undefined) delete node.headers;
+      }
+
+      function mergeTaskHeadersConfig(config, node) {
+        const headers = resolveTaskHeaders(node);
+        if (headers && Object.keys(headers).length > 0) {
+          config.taskHeaders = headers;
+        }
+        return config;
+      }
+
       function buildDsl() {
         assertParticipantContainment();
         validateStartEventUniqueness(state.model);
@@ -49,7 +88,11 @@
             })),
           edges: model.edges
             .filter(e => runtimeNodeIds.has(e.from) && runtimeNodeIds.has(e.to))
-            .map(e => ({ from: e.from, to: e.to, condition: e.condition || 'default' }))
+            .map(e => {
+              const item = { from: e.from, to: e.to, condition: e.condition || 'default' };
+              if (e.priority != null) item.priority = e.priority;
+              return item;
+            })
         };
       }
 
@@ -160,7 +203,32 @@
           };
           config.nodeId = n.id;
         }
+        const loop = buildFlowFoundryLoop(n);
+        if (loop) {
+          config.flowFoundryLoop = loop;
+        }
+        mergeTaskHeadersConfig(config, n);
         return config;
+      }
+
+      function buildFlowFoundryLoop(n) {
+        if (!n.loop || n.loop === 'none') return null;
+        const stored = n.config?.flowFoundryLoop || {};
+        const mode = n.loop === 'standardLoop' ? 'standard' : 'multiInstance';
+        const loop = {
+          mode,
+          maxIterations: stored.maxIterations ?? 100,
+          sequential: stored.sequential !== false
+        };
+        if (mode === 'standard') {
+          loop.condition = stored.condition || '';
+          loop.iterationVar = stored.iterationVar || 'loop.iteration';
+        } else {
+          loop.collection = stored.collection || '';
+          loop.elementVar = stored.elementVar || 'loop.item';
+          loop.indexVar = stored.indexVar || 'loop.index';
+        }
+        return loop;
       }
 
       function participantByIdInModel(id, model) {
@@ -225,6 +293,9 @@
         if (n.config?.flowFoundryTaskDefinition) result.flowFoundryTaskDefinition = n.config.flowFoundryTaskDefinition;
         if (n.config?.flowFoundryAssignmentDefinition) result.flowFoundryAssignmentDefinition = n.config.flowFoundryAssignmentDefinition;
         if (n.config?.flowFoundryHumanTask) result.flowFoundryHumanTask = n.config.flowFoundryHumanTask;
+        if (n.config?.taskHeaders && Object.keys(n.config.taskHeaders).length) {
+          result.flowFoundryTaskHeaders = n.config.taskHeaders;
+        }
         if (n.decisionRef) result.flowFoundryDecisionDefinition = { decisionRef: n.decisionRef, decisionVersion: n.decisionVersion };
         if (n.kind === 'workflow') {
           result.flowFoundryChildWorkflow = {

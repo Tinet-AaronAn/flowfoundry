@@ -50,19 +50,6 @@ class CompositeDynamicActivityRouterTest {
   }
 
   @Test
-  void supportsLegacyDmnDecisionAlias() {
-    CompositeDynamicActivityRouter router =
-        new CompositeDynamicActivityRouter(coreActivityRouter(), List.of());
-
-    Object result =
-        router.execute(
-            ActivityTypes.LEGACY_DMN_DECISION,
-            Map.of("_config", Map.of("decisionRef", "legacy", "decisionVersion", "1.0.0")));
-
-    assertThat(result).isInstanceOf(Map.class);
-  }
-
-  @Test
   void rejectsUnknownActivityType() {
     CompositeDynamicActivityRouter router =
         new CompositeDynamicActivityRouter(coreActivityRouter(), List.of());
