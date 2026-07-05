@@ -50,9 +50,6 @@ final class GatewayTopologyValidator {
       if ("parallel".equals(gatewayKind) || "inclusive".equals(gatewayKind)) {
         String role = inCount == 1 && outCount >= 2 ? "split" : "join";
         patch.put("gatewayRole", role);
-        if ("split".equals(role)) {
-          validateSplitEdges(node.id(), gatewayKind, outgoing.get(node.id()));
-        }
       } else if ("eventBased".equals(gatewayKind)) {
         patch.put("gatewayRole", "split");
         validateEventBasedSplit(node.id(), outgoing.get(node.id()), nodesById);
@@ -91,14 +88,6 @@ final class GatewayTopologyValidator {
                 + nodeId);
       }
     }
-  }
-
-  private static void validateSplitEdges(
-      String nodeId, String gatewayKind, List<FlowEdge> edges) {
-    if (edges == null) {
-      return;
-    }
-    // Parallel and Inclusive split edges may carry FEEL conditions.
   }
 
   private static void validateEventBasedSplit(

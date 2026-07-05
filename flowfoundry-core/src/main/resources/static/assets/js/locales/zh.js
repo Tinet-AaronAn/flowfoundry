@@ -124,6 +124,7 @@
         'json.compiledPlanTitle': 'Execution Plan',
         'prop.deleteNodeHelp': '删除节点会同时删除所有进入和离开该节点的 Sequence Flow。',
         'prop.edgeFeelHelp': 'FEEL 会被 Flow Compiler 编译为 Safe FEEL AST，并在 Temporal Workflow 内确定性执行。',
+        'prop.parallelEdgeFeelHelp': '留空表示该分支始终并行激活；填写 FEEL 时仅条件为 true 的分支会被 fork。',
         'prop.gatewayEdgePriority': '出边优先级',
         'prop.gatewayEdgePriorityHelp': '拖拽调整 Exclusive Gateway 出边求值顺序；排在前面的 FEEL 条件会先被评估。',
         'prop.gatewayEdgeDrag': '拖拽排序',

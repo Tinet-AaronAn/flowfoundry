@@ -56,6 +56,39 @@ class FlowInterpreterEngineTest {
   }
 
   @Test
+  void runsParallelSplitJoinOnlyActivatedBranches() throws Exception {
+    ExecutionPlan plan =
+        compiler.compile(
+            new FlowDefinition(
+                "1.0",
+                new FlowMetadata("ParallelFeelFlow", "Parallel Feel", "1.0.0"),
+                Map.of(),
+                Map.of(),
+                List.of(
+                    node("Start", "START"),
+                    gateway("PG_Split", "parallel", "split"),
+                    activity("Task_A"),
+                    activity("Task_B"),
+                    gateway("PG_Join", "parallel", "join"),
+                    node("End", "END")),
+                List.of(
+                    edge("Start", "PG_Split"),
+                    new FlowEdge("PG_Split", "Task_A", "${branchA == true}", 0),
+                    new FlowEdge("PG_Split", "Task_B", "${branchB == true}", 1),
+                    edge("Task_A", "PG_Join"),
+                    edge("Task_B", "PG_Join"),
+                    edge("PG_Join", "End"))));
+
+    SyncEnginePort port = SyncEnginePort.withActivityResult(ActivityTypes.SCRIPT_RUNTIME, Map.of());
+    VariableStore variables = new VariableStore(Map.of("branchA", true, "branchB", false));
+    new FlowInterpreterEngine().runUntilEnd(plan, variables, port);
+
+    assertThat(port.visitedNodes()).contains("Task_A").doesNotContain("Task_B");
+    assertThat(port.activityCalls()).isEqualTo(1);
+    assertThat(variables.lastResult()).isNull();
+  }
+
+  @Test
   void runsInclusiveSplitJoinOnlyActivatedBranches() throws Exception {
     ExecutionPlan plan =
         compiler.compile(

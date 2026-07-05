@@ -80,6 +80,16 @@ test.describe('FlowFoundry node type coverage', () => {
     await expect(page.locator('#properties')).toContainText('Routing');
   });
 
+  test('parallel gateway outgoing edge supports FEEL configuration', async ({ page }) => {
+    await clickNodeById(page, 'Gateway_Parallel');
+    await page.locator('.edge-priority-link').first().click();
+    await expect(page.locator('#propType')).toContainText('SequenceFlow');
+    await expect(page.locator('#properties')).toContainText('FEEL');
+    await page.locator('#properties input[placeholder="${amount > 1000}"]').fill('branchA == true');
+    await page.locator('#properties button.secondary').click();
+    await expect(page.locator('#propType')).toContainText('parallelGateway');
+  });
+
 
   test('preserves node-specific configuration in generated DSL', async ({ page }) => {
     await clickCanvasToolbarButton(page, 'View DSL');

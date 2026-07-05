@@ -873,6 +873,17 @@
         initGatewayEdgePriorityList(n);
       }
 
+      function gatewayEdgeConditionMode(edge, gatewayKind) {
+        if (gatewayKind === 'exclusiveGateway') return edgeConditionMode(edge);
+        return 'feel';
+      }
+
+      function gatewayEdgeFeelValue(edge, gatewayKind) {
+        if (gatewayKind === 'exclusiveGateway') return feelCondition(edge);
+        if (!edge.condition || edge.condition === 'default') return '';
+        return String(edge.condition || '');
+      }
+
       function renderEdgeProperties() {
         const e = selectedEdge();
         if (!e) return renderProcessProperties();
@@ -884,7 +895,8 @@
         const showGatewayBack = source
           && isGatewayKind(source.kind)
           && source.kind !== 'eventBasedGateway';
-        const mode = edgeConditionMode(e);
+        const mode = source ? gatewayEdgeConditionMode(e, source.kind) : edgeConditionMode(e);
+        const feelValue = source ? gatewayEdgeFeelValue(e, source.kind) : feelCondition(e);
         $('propTitle').textContent = 'Properties';
         $('propType').textContent = 'Type: SequenceFlow';
         $('properties').innerHTML = `
@@ -898,14 +910,16 @@
           </div>
           ${showCondition ? `
           <div class="prop-section"><h3>Condition</h3>
+            ${source.kind === 'exclusiveGateway' ? `
             <label>Condition Type</label>
             <div class="segment">
               <button class="${mode === 'feel' ? 'active' : ''}" onclick="updateEdgeConditionMode('feel')">FEEL</button>
-              ${source.kind === 'exclusiveGateway' ? `<button class="${mode === 'default' ? 'active' : ''}" onclick="updateEdgeConditionMode('default')">Default</button>` : ''}
+              <button class="${mode === 'default' ? 'active' : ''}" onclick="updateEdgeConditionMode('default')">Default</button>
             </div>
+            ` : ''}
             ${mode === 'feel' ? `
-              <label>FEEL Expression</label><input value="${escapeAttr(feelCondition(e))}" placeholder="\${amount > 1000}" oninput="updateEdgeFeel(this.value)" />
-              <div class="help">${escapeHtml(t('prop.edgeFeelHelp'))}</div>
+              <label>FEEL Expression</label><input value="${escapeAttr(feelValue)}" placeholder="\${amount > 1000}" oninput="updateEdgeFeel(this.value)" />
+              <div class="help">${escapeHtml(source.kind === 'parallelGateway' ? t('prop.parallelEdgeFeelHelp') : t('prop.edgeFeelHelp'))}</div>
             ` : ''}
           </div>
           ${source.kind === 'exclusiveGateway' ? `

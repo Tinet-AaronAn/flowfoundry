@@ -123,6 +123,7 @@
         'json.compiledPlanTitle': 'Execution Plan',
         'prop.deleteNodeHelp': 'Deleting a node also removes all incoming and outgoing sequence flows.',
         'prop.edgeFeelHelp': 'FEEL is compiled into a Safe FEEL AST and executed deterministically inside the Temporal Workflow.',
+        'prop.parallelEdgeFeelHelp': 'Leave empty to always fork this branch; when set, only branches with a true FEEL expression are forked.',
         'prop.gatewayEdgePriority': 'Outgoing edge priority',
         'prop.gatewayEdgePriorityHelp': 'Drag to set Exclusive Gateway evaluation order. Higher-priority FEEL conditions are evaluated first.',
         'prop.gatewayEdgeDrag': 'Drag to reorder',

@@ -86,6 +86,35 @@ class FlowCompilerTest {
   }
 
   @Test
+  void compilesParallelGatewaySplitWithFeelConditions() {
+    FlowDefinition definition =
+        new FlowDefinition(
+            "1.0",
+            new FlowMetadata("ParallelFeelFlow", "Parallel Feel Flow", "1.0.0"),
+            Map.of(),
+            Map.of(),
+            List.of(
+                node("Start", "START", Map.of()),
+                node("PG_Split", "GATEWAY", Map.of("gatewayKind", "parallel")),
+                activityNode("Task_A", ActivityTypes.SCRIPT_RUNTIME),
+                activityNode("Task_B", ActivityTypes.SCRIPT_RUNTIME),
+                node("PG_Join", "GATEWAY", Map.of("gatewayKind", "parallel")),
+                node("End", "END", Map.of())),
+            List.of(
+                new FlowEdge("Start", "PG_Split", "default"),
+                new FlowEdge("PG_Split", "Task_A", "${branchA == true}", 0),
+                new FlowEdge("PG_Split", "Task_B", "${branchB == true}", 1),
+                new FlowEdge("Task_A", "PG_Join", "default"),
+                new FlowEdge("Task_B", "PG_Join", "default"),
+                new FlowEdge("PG_Join", "End", "default")));
+
+    var plan = compiler.compile(definition);
+
+    assertThat(plan.requireNode("PG_Split").config()).containsEntry("gatewayRole", "split");
+    assertThat(plan.outgoingEdges("PG_Split")).hasSize(2);
+  }
+
+  @Test
   void rejectsInvalidParallelGatewayTopology() {
     FlowDefinition definition =
         new FlowDefinition(
