@@ -78,8 +78,9 @@
               taskQueue: n.taskQueue,
               timeout: n.timeout,
               maxAttempts: n.maxAttempts,
-              decisionRef: n.decisionRef,
-              decisionVersion: n.decisionVersion,
+              scriptCodeId: n.scriptCodeId,
+              scriptVersion: n.scriptVersion,
+              scriptName: n.scriptName,
               inputArgs: n.inputArgs,
               inputMapping: n.inputMapping,
               inputMappingMode: n.inputMappingMode,
@@ -296,7 +297,7 @@
         if (n.config?.taskHeaders && Object.keys(n.config.taskHeaders).length) {
           result.flowFoundryTaskHeaders = n.config.taskHeaders;
         }
-        if (n.decisionRef) result.flowFoundryDecisionDefinition = { decisionRef: n.decisionRef, decisionVersion: n.decisionVersion };
+        if (n.scriptCodeId) result.flowFoundryScriptDefinition = { scriptCodeId: n.scriptCodeId, scriptVersion: n.scriptVersion, scriptName: n.scriptName };
         if (n.kind === 'workflow') {
           result.flowFoundryChildWorkflow = {
             childWorkflowId: n.config?.childWorkflowId || '',

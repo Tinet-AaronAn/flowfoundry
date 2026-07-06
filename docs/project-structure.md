@@ -31,7 +31,7 @@ flowfoundry-app                               ← 仅聚合 modules，无代码
 
 ## flowfoundry-core/（平台内核）
 
-**包名：** `com.tinet.flowfoundary.*`（启动类在 `com.tinet.flowfoundary.boot`）
+**包名：** `com.tinet.flowfoundry.*`（启动类在 `com.tinet.flowfoundry.boot`）
 
 | 包 | 作用 |
 |----|------|
@@ -62,7 +62,7 @@ flowfoundry-app                               ← 仅聚合 modules，无代码
 
 ## flowfoundry-app/modules/ai-collection-strategy/（业务场景示例）
 
-**包名：** `com.tinet.flowfoundary.demo.aicollection.*`
+**包名：** `com.tinet.flowfoundry.demo.aicollection.*`
 
 | 内容 | 作用 |
 |------|------|

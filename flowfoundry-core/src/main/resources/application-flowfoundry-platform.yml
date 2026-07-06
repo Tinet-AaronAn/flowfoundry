@@ -33,6 +33,14 @@ temporal:
 activity:
   script-runtime:
     service-url: ${SCRIPT_RUNTIME_SERVICE_URL:}
+    timeout-seconds: ${SCRIPT_RUNTIME_TIMEOUT_SECONDS:30}
+    enterprise-id: ${SCRIPT_RUNTIME_ENTERPRISE_ID:}
+    source-type: ${SCRIPT_RUNTIME_SOURCE_TYPE:flowfoundry}
+    catalog:
+      base-url: ${SCRIPT_CATALOG_BASE_URL:}
+      scripts-path: ${SCRIPT_CATALOG_SCRIPTS_PATH:/ivr/jsCode/list}
+      versions-path: ${SCRIPT_CATALOG_VERSIONS_PATH:/ivr/jsCode/version/list}
+      http-method: ${SCRIPT_CATALOG_HTTP_METHOD:GET}
 
 platform:
   activity-registry:
@@ -50,5 +58,5 @@ management:
 
 logging:
   level:
-    com.tinet.flowfoundary: INFO
+    com.tinet.flowfoundry: INFO
     io.temporal: INFO

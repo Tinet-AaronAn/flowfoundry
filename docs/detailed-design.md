@@ -141,7 +141,7 @@ Flyway 迁移：`flowfoundry-core/src/main/resources/db/migration/V1__workflow_s
 
 ### 2.2 服务层
 
-包：`com.tinet.flowfoundary.workflow`
+包：`com.tinet.flowfoundry.workflow`
 
 - `WorkflowService`：列表、详情、创建、保存版本、新建版本、更新元数据、删除、分配 ID
 - `WorkflowMapper`：Entity ↔ DTO

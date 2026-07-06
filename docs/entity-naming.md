@@ -172,7 +172,7 @@ Temporal 层命名**固定不动**；上层命名以本文为准。
 
 ## 4. L3 FlowFoundry 语义层
 
-Java 包：`com.tinet.flowfoundary.interpreter.model.*`、`com.tinet.flowfoundary.flow.*`
+Java 包：`com.tinet.flowfoundry.interpreter.model.*`、`com.tinet.flowfoundry.flow.*`
 
 ### 4.1 核心类型
 

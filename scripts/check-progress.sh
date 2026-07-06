@@ -3,9 +3,11 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 export PATH="/Applications/OrbStack.app/Contents/MacOS:/opt/homebrew/bin:/opt/homebrew/opt/openjdk@17/bin:$PATH"
 
+COMPOSE_FILE="$ROOT/deploy/docker-compose.local.yml"
+
 MODE="${CHECK_MODE:-auto}"
 if [[ "$MODE" == "auto" ]]; then
-  if docker info >/dev/null 2>&1 && docker compose -f "$ROOT/deploy/docker-compose.local.yml" ps --status running 2>/dev/null | grep -q worker; then
+  if docker info >/dev/null 2>&1 && docker compose -f "$COMPOSE_FILE" ps --status running 2>/dev/null | grep -q worker; then
     MODE=docker
   else
     MODE=local
@@ -27,11 +29,15 @@ check() {
 }
 
 check_temporal_ui() {
-  curl -sf -o /dev/null http://127.0.0.1:8080/ || curl -sf -o /dev/null http://127.0.0.1:8233/
+  curl -sf -o /dev/null http://127.0.0.1:8080/
 }
 
 check_app_health() {
   curl -sf --noproxy '*' "http://127.0.0.1:${WORKER_PORT:-8081}/actuator/health" | grep -q UP
+}
+
+check_postgres() {
+  docker compose -f "$COMPOSE_FILE" exec -T postgres pg_isready -U temporal >/dev/null 2>&1
 }
 
 check "java" command -v java >/dev/null
@@ -48,19 +54,21 @@ check "helm-temporal" test -f "$ROOT/deploy/helm/temporal/values-production.yaml
 check "helm-flowfoundry" test -f "$ROOT/deploy/helm/flowfoundry/values-production.yaml"
 
 if [[ "$MODE" == "docker" ]]; then
-  check "compose-redis" docker compose -f "$ROOT/deploy/docker-compose.local.yml" ps redis | grep -q Up
-  check "compose-temporal" docker compose -f "$ROOT/deploy/docker-compose.local.yml" ps temporal | grep -q Up
-  check "compose-worker" docker compose -f "$ROOT/deploy/docker-compose.local.yml" ps worker | grep -q Up
+  check "compose-postgres" docker compose -f "$COMPOSE_FILE" ps postgres | grep -q Up
+  check "compose-redis" docker compose -f "$COMPOSE_FILE" ps redis | grep -q Up
+  check "compose-temporal" docker compose -f "$COMPOSE_FILE" ps temporal | grep -q Up
+  check "compose-worker" docker compose -f "$COMPOSE_FILE" ps worker | grep -q Up
   check "app-health" check_app_health
   check "temporal-ui" check_temporal_ui
-  if docker compose -f "$ROOT/deploy/docker-compose.local.yml" --profile full ps flowfoundry-devserver 2>/dev/null | grep -q Up; then
+  if docker compose -f "$COMPOSE_FILE" --profile full ps flowfoundry-devserver 2>/dev/null | grep -q Up; then
     check "flowfoundry-ui" curl -sf -o /dev/null http://127.0.0.1:9060
   else
-    REPORT+=("SKIP flowfoundry-ui (start with: docker compose --profile full up -d flowfoundry-devserver)")
+    REPORT+=("SKIP flowfoundry-ui (optional: docker compose --profile full up -d flowfoundry-devserver)")
   fi
   check "temporal-health" temporal operator cluster health --address 127.0.0.1:7233
   check "namespace-call-campaign" temporal operator namespace describe call-campaign --address 127.0.0.1:7233
 else
+  check "compose-postgres" check_postgres
   check "redis-up" redis-cli -p "${REDIS_PORT:-6379}" ping
   check "temporal-up" temporal operator cluster health --address 127.0.0.1:7233
   check "namespace-call-campaign" temporal operator namespace describe call-campaign --address 127.0.0.1:7233
@@ -75,10 +83,10 @@ echo "================================"
 if [[ $FAIL -eq 0 ]]; then
   echo "ALL_GREEN: compile + runtime stack ready"
   echo "Modeler:       http://127.0.0.1:${WORKER_PORT:-8081}/"
-  echo "Temporal UI:   http://127.0.0.1:8080/ (Docker) or http://127.0.0.1:8233/ (start-dev)"
-  echo "See docs/service-urls.md for details"
+  echo "Temporal UI:   http://127.0.0.1:8080/"
+  echo "See docs/local-development.md"
 else
   echo "PENDING: see FAIL items above"
-  echo "Tip: app down -> ./scripts/redeploy-worker.sh"
+  echo "Tip: ./scripts/local-dev.sh up  (infra down) or ./scripts/redeploy-worker.sh (app down)"
 fi
 exit $FAIL

@@ -90,6 +90,20 @@
         renderProperties();
       }
 
+      async function updateScriptTaskRef(scriptCodeId) {
+        const n = selectedNode();
+        if (!n || n.kind !== 'scriptTask') return;
+        pushHistory();
+        const entry = scriptCatalogEntry(scriptCodeId);
+        n.scriptCodeId = scriptCodeId || '';
+        if (entry?.scriptName) n.scriptName = entry.scriptName;
+        const versions = await ensureScriptVersions(scriptCodeId);
+        const active = versions.find(v => v.active) || versions.find(v => v.published) || versions[0];
+        n.scriptVersion = active?.version || entry?.activeVersion || entry?.latestPublishedVersion || '1';
+        refreshNodePreview(n);
+        renderProperties();
+      }
+
       function updateParticipantOwner(value) {
         const n = selectedNode();
         if (!n || !isParticipantAssignable(n)) return;

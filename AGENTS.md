@@ -3,7 +3,7 @@
 ## 本地建模器联调（8081）
 
 - **测试页面**：http://127.0.0.1:8081/
-- **Temporal UI**：http://127.0.0.1:8080/（Docker）或 http://127.0.0.1:8233/（`temporal server start-dev`）— 详见 [docs/service-urls.md](docs/service-urls.md)
+- **Temporal UI**：http://127.0.0.1:8080/（Docker）— 详见 [docs/service-urls.md](docs/service-urls.md)
 - **平台代码**：`flowfoundry-core/`（含 `static/` 建模器前端）
 - **可运行 JAR**：`flowfoundry-app/modules/<场景>/`（如 `ai-collection-strategy`）
 - **业务聚合**：`flowfoundry-app/`（`packaging=pom`，无 `src/`）
@@ -18,9 +18,10 @@
 
 修改 `flowfoundry-core/`、`flowfoundry-app/` 或 `flowfoundry-app/modules/` 内任意文件后，**在结束任务前**必须：
 
-1. 运行 `./scripts/redeploy-worker.sh`（或 `./scripts/local-dev.sh redeploy`）
-2. 确认 `curl --noproxy '*' http://127.0.0.1:8081/actuator/health` 返回 UP
-3. 告知测试人员：**请刷新 http://127.0.0.1:8081/**
+1. 确保 `./scripts/local-dev.sh infra` 或 `up` 已拉起 Docker 基础设施
+2. 运行 `./scripts/redeploy-worker.sh`（或 `./scripts/local-dev.sh redeploy`）
+3. 确认 `curl --noproxy '*' http://127.0.0.1:8081/actuator/health` 返回 UP
+4. 告知测试人员：**请刷新 http://127.0.0.1:8081/**
 
 **禁止**只提交代码更改而不重启本地应用。
 
@@ -30,14 +31,15 @@
 - 不要在文档里写已删除路径：`worker/`、`registry/`（根目录）、`bpmn/`、`demos/`
 - 不要把 Temporal UI 统一写成 8233（Docker 栈用 **8080**）
 - 不要把 `npm run test:e2e`（`:4173`）当作人工联调地址
-- 不要在日常 UI 迭代中默认走 Docker 重建（除非用户明确要求或改动涉及 compose/Dockerfile）
+- 本地调试使用 `./scripts/local-dev.sh`（Docker 基础设施 + 宿主机 JAR），不要在日常 UI 迭代中走 `docker-stack.sh rebuild`
 - 不要让用户自行打包、部署或重启——由改代码的一方负责 redeploy
 - 不要把业务逻辑、示例流程、业务注册表写进 `flowfoundry-core/`
 
 ## 详细文档
 
 - [docs/service-urls.md](docs/service-urls.md) — **服务地址与路径权威表**
-- [docs/local-development.md](docs/local-development.md)
+- [docs/local-development.md](docs/local-development.md) — 本地调试
+- [docs/production-deployment.md](docs/production-deployment.md) — 生产部署
 - [docs/project-structure.md](docs/project-structure.md)
 
 ## Git 远程仓库
@@ -47,23 +49,23 @@
 | 项 | 值 |
 |----|-----|
 | Remote 名 | `origin` |
-| URL | `git@github.com:Tinet-AaronAn/Flow-Foundary.git` |
+| URL | `git@github.com:Tinet-AaronAn/flowfoundry.git` |
 | 默认基线分支 | `main` |
 
 **Agent 或协作者在执行 `git push` 前：**
 
 1. 运行 `git remote -v`；若看不到 `origin`，执行：
    ```bash
-   git remote add origin git@github.com:Tinet-AaronAn/Flow-Foundary.git
+   git remote add origin git@github.com:Tinet-AaronAn/flowfoundry.git
    ```
 2. 若 `origin` 已存在但 URL 不对，执行：
    ```bash
-   git remote set-url origin git@github.com:Tinet-AaronAn/Flow-Foundary.git
+   git remote set-url origin git@github.com:Tinet-AaronAn/flowfoundry.git
    ```
 3. 推送当前分支：`git push -u origin HEAD`
 
 **禁止**在未配置 remote 的情况下只告知用户「请自行 push」——应先按上表补全 `origin` 再推送。新 clone 可直接：
 
 ```bash
-git clone git@github.com:Tinet-AaronAn/Flow-Foundary.git
+git clone git@github.com:Tinet-AaronAn/flowfoundry.git
 ```

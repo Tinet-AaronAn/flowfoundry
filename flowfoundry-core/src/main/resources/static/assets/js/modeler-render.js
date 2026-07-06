@@ -6,8 +6,69 @@
         } catch (err) {
           message(t('message.loadActivitiesFailed', { error: err.message }), 'error');
         }
+        await loadScriptCatalog();
         await loadFromMemory();
         renderAll();
+      }
+
+      async function loadScriptCatalog() {
+        try {
+          const res = await fetch('/api/script-catalog/scripts');
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = await res.json();
+          state.scriptCatalog = data.scripts || [];
+          state.scriptCatalogSource = data.source || 'unknown';
+          state.scriptVersionsByCodeId = {};
+        } catch (err) {
+          state.scriptCatalog = [];
+          state.scriptCatalogSource = 'unavailable';
+          state.scriptVersionsByCodeId = {};
+        }
+      }
+
+      async function ensureScriptVersions(scriptCodeId) {
+        if (!scriptCodeId) return [];
+        if (state.scriptVersionsByCodeId[scriptCodeId]) {
+          return state.scriptVersionsByCodeId[scriptCodeId];
+        }
+        try {
+          const res = await fetch(`/api/script-catalog/scripts/${encodeURIComponent(scriptCodeId)}/versions`);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = await res.json();
+          state.scriptVersionsByCodeId[scriptCodeId] = data.versions || [];
+        } catch (err) {
+          state.scriptVersionsByCodeId[scriptCodeId] = [];
+        }
+        renderProperties();
+        return state.scriptVersionsByCodeId[scriptCodeId];
+      }
+
+      function scriptCatalogEntry(scriptCodeId) {
+        return state.scriptCatalog.find(item => item.scriptCodeId === scriptCodeId);
+      }
+
+      function scriptCatalogOptions(selectedScriptCodeId) {
+        return state.scriptCatalog
+          .map(item => {
+            const label = item.scriptName
+              ? `${item.scriptName} (${item.scriptCodeId})`
+              : item.scriptCodeId;
+            return `<option value="${escapeAttr(item.scriptCodeId)}" ${item.scriptCodeId === selectedScriptCodeId ? 'selected' : ''}>${escapeHtml(label)}</option>`;
+          })
+          .join('');
+      }
+
+      function scriptVersionOptions(scriptCodeId, selectedVersion) {
+        const versions = state.scriptVersionsByCodeId[scriptCodeId] || [];
+        if (versions.length === 0) {
+          const fallback = selectedVersion || '1';
+          return `<option value="${escapeAttr(fallback)}" selected>v${escapeHtml(fallback)}</option>`;
+        }
+        return versions.map(item => {
+          const suffix = item.active ? ' (active)' : item.published ? '' : ' (draft)';
+          const label = item.label ? `${item.label}${suffix}` : `v${item.version}${suffix}`;
+          return `<option value="${escapeAttr(item.version)}" ${String(item.version) === String(selectedVersion) ? 'selected' : ''}>${escapeHtml(label)}</option>`;
+        }).join('');
       }
 
       function renderAll() {
@@ -435,7 +496,7 @@
           return groups || 'human-task';
         }
         if (current.activityType) return current.activityType;
-        if (current.decisionRef) return current.decisionRef;
+        if (current.scriptCodeId) return current.scriptCodeId;
         if (current.config?.flowFoundryAssignmentDefinition?.candidateGroups) return current.config.flowFoundryAssignmentDefinition.candidateGroups;
         if (current.config?.script) return current.config.script;
         return current.id;
@@ -1049,9 +1110,26 @@
 
       function scriptSection(n) {
         if (n.kind !== 'scriptTask') return '';
+        if (n.scriptCodeId && !state.scriptVersionsByCodeId[n.scriptCodeId]) {
+          ensureScriptVersions(n.scriptCodeId);
+        }
+        const catalogHelp = state.scriptCatalog.length
+          ? `<div class="help">${escapeHtml(t('prop.scriptCatalogHelp', { source: state.scriptCatalogSource || 'stub' }))}</div>`
+          : `<div class="help">${escapeHtml(t('prop.scriptCatalogEmptyHelp'))}</div>`;
         return `<div class="prop-section"><h3>Script (Node.js)</h3>
-          <label>Script Ref</label><input value="${escapeAttr(n.decisionRef || '')}" oninput="updateNode('decisionRef', this.value)" />
-          <label>Script Version</label><input value="${escapeAttr(n.decisionVersion || '1.0.0')}" oninput="updateNode('decisionVersion', this.value)" />
+          <label>${escapeHtml(t('prop.scriptSelect'))}</label>
+          <select onchange="updateScriptTaskRef(this.value)" ${state.scriptCatalog.length ? '' : 'disabled'}>
+            <option value="">${escapeHtml(t('prop.scriptSelectPlaceholder'))}</option>
+            ${scriptCatalogOptions(n.scriptCodeId)}
+          </select>
+          <label>${escapeHtml(t('prop.scriptVersionSelect'))}</label>
+          <select onchange="updateNode('scriptVersion', this.value)" ${n.scriptCodeId ? '' : 'disabled'}>
+            ${scriptVersionOptions(n.scriptCodeId, n.scriptVersion)}
+          </select>
+          <label>Script Code ID</label><input value="${escapeAttr(n.scriptCodeId || '')}" oninput="updateNode('scriptCodeId', this.value)" placeholder="tinetJsCodeId" />
+          <label>Script Version</label><input value="${escapeAttr(n.scriptVersion || '1')}" oninput="updateNode('scriptVersion', this.value)" placeholder="tinetJsCodeVersion" />
+          <label>Script Name</label><input value="${escapeAttr(n.scriptName || '')}" oninput="updateNode('scriptName', this.value)" placeholder="tinetScriptName (optional)" />
+          ${catalogHelp}
           <div class="help">${escapeHtml(t('prop.scriptTaskHelp'))}</div>
         </div>`;
       }
@@ -1270,8 +1348,8 @@
         n.name = selected.defaultName || selected.label;
         n.config = selected.config ? structuredClone(selected.config) : {};
         n.activityType = selected.activityType || '';
-        n.decisionRef = selected.decisionRef;
-        n.decisionVersion = selected.decisionVersion;
+        n.scriptCodeId = selected.scriptCodeId;
+        n.scriptVersion = selected.scriptVersion;
         n.maxAttempts = selected.maxAttempts;
         if (['task','serviceTask'].includes(n.kind)) {
           n.activityType = selected.activityType || state.activities[0]?.id || '';
@@ -1279,8 +1357,8 @@
         }
         if (n.kind === 'scriptTask') {
           n.activityType = 'script-runtime';
-          n.decisionRef = selected.decisionRef || n.decisionRef || 'demo-script';
-          n.decisionVersion = selected.decisionVersion || n.decisionVersion || '1.0.0';
+          n.scriptCodeId = selected.scriptCodeId || n.scriptCodeId || 'demo-script';
+          n.scriptVersion = selected.scriptVersion || n.scriptVersion || '1';
         }
         if (n.kind === 'humanTask') {
           n.activityType = 'human-task';
@@ -1300,7 +1378,7 @@
           { kind: 'task', label: 'Generic Task' },
           { kind: 'serviceTask', label: 'Service Task' },
           { kind: 'humanTask', label: 'Human Task', activityType: 'human-task', config: { flowFoundryHumanTask: { mode: 'managed' }, flowFoundryAssignmentDefinition: { candidateGroups: 'operator' } } },
-          { kind: 'scriptTask', label: 'Script Task', activityType: 'script-runtime', decisionRef: 'demo-script', decisionVersion: '1.0.0' }
+          { kind: 'scriptTask', label: 'Script Task', activityType: 'script-runtime', scriptCodeId: 'demo-script', scriptVersion: '1' }
         ];
       }
 
@@ -1395,8 +1473,8 @@
         if (item.kind.includes('Gateway')) return createGatewayDragImage(item);
         if (item.kind.includes('Event')) return createEventDragImage(item);
         const previewNode = node('__drag_preview__', item.kind, item.label, 0, 0, {
-          decisionRef: item.decisionRef,
-          decisionVersion: item.decisionVersion,
+          scriptCodeId: item.scriptCodeId,
+          scriptVersion: item.scriptVersion,
           config: item.config ? structuredClone(item.config) : {}
         });
         const wrapper = document.createElement('div');
@@ -1534,8 +1612,8 @@
         const position = point || { x: 180 + state.model.nodes.length * 24, y: 140 + state.model.nodes.length * 18 };
         const n = node(id, item.kind, item.label, 180 + state.model.nodes.length * 24, 140 + state.model.nodes.length * 18, {
           activityType: item.activityType,
-          decisionRef: item.decisionRef,
-          decisionVersion: item.decisionVersion,
+          scriptCodeId: item.scriptCodeId,
+          scriptVersion: item.scriptVersion,
           documentation: item.documentation || '',
           config: item.config ? structuredClone(item.config) : {}
         });
@@ -1558,8 +1636,8 @@
         if (item.activityType) n.activityType = item.activityType;
         if (item.kind === 'scriptTask') {
           n.activityType = 'script-runtime';
-          if (item.decisionRef) n.decisionRef = item.decisionRef;
-          if (item.decisionVersion) n.decisionVersion = item.decisionVersion;
+          if (item.scriptCodeId) n.scriptCodeId = item.scriptCodeId;
+          if (item.scriptVersion) n.scriptVersion = item.scriptVersion;
         }
         if (item.kind === 'humanTask') {
           n.activityType = 'human-task';

@@ -71,6 +71,31 @@ test.describe('FlowFoundry node type coverage', () => {
     await expect(page.locator('#properties')).not.toContainText('Offline');
   });
 
+  test('script task property panel loads catalog and applies script selection', async ({ page }) => {
+    await clickNodeById(page, 'Task_Script');
+    await expect(page.locator('#propType')).toContainText('scriptTask');
+    await expect(page.locator('#properties')).toContainText('Script (Node.js)');
+
+    const scriptSection = page.locator('#properties .prop-section').filter({
+      has: page.getByRole('heading', { name: 'Script (Node.js)' }),
+    });
+    const scriptSelect = scriptSection.locator('select').first();
+    await expect(scriptSelect).toBeEnabled();
+    await expect(scriptSelect.locator('option')).toContainText(['Risk Check (risk-check)', 'Demo Script (demo-script)']);
+
+    await scriptSelect.selectOption('demo-script');
+    await expect(page.locator('#properties input[placeholder="tinetJsCodeId"]')).toHaveValue('demo-script');
+    await expect(page.locator('#properties input[placeholder="tinetScriptName (optional)"]')).toHaveValue('Demo Script');
+    await expect(page.locator('#properties input[placeholder="tinetJsCodeVersion"]')).toHaveValue('1');
+
+    await clickCanvasToolbarButton(page, 'View DSL');
+    const dsl = await jsonPanelValue(page);
+    const script = dsl.nodes.find(n => n.id === 'Task_Script');
+    expect(script.scriptCodeId).toBe('demo-script');
+    expect(script.scriptName).toBe('Demo Script');
+    expect(script.scriptVersion).toBe('1');
+  });
+
   test('exclusive gateway edge FEEL page can return to gateway properties', async ({ page }) => {
     await clickNodeById(page, 'Gateway_Exclusive');
     await page.locator('.edge-priority-link').first().click();
@@ -112,7 +137,7 @@ test.describe('FlowFoundry node type coverage', () => {
     expect(humanOffline.config.flowFoundryHumanTask.mode).toBe('managed');
     expect(script.kind).toBe('ACTIVITY');
     expect(script.activityType).toBe('script-runtime');
-    expect(script.decisionRef).toBe('risk-check');
+    expect(script.scriptCodeId).toBe('risk-check');
     expect(dsl.nodes.find(n => n.id === 'Gateway_Exclusive').kind).toBe('GATEWAY');
     expect(dsl.nodes.find(n => n.id === 'Gateway_Exclusive').config.gatewayKind).toBe('exclusive');
     expect(dsl.nodes.find(n => n.id === 'Gateway_Parallel').config.gatewayKind).toBe('parallel');

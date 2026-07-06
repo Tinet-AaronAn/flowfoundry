@@ -13,7 +13,7 @@
             { kind: 'task', label: 'Generic Task', basic: true },
             { kind: 'serviceTask', label: 'Service Task', basic: true },
             { kind: 'humanTask', label: 'Human Task', basic: true, activityType: 'human-task', config: { flowFoundryHumanTask: { mode: 'managed' }, flowFoundryAssignmentDefinition: { candidateGroups: 'operator' } } },
-            { kind: 'scriptTask', label: 'Script Task', basic: true, activityType: 'script-runtime', decisionRef: 'demo-script', decisionVersion: '1.0.0' }
+            { kind: 'scriptTask', label: 'Script Task', basic: true, activityType: 'script-runtime', scriptCodeId: 'demo-script', scriptVersion: '1' }
           ]
         },
         {
@@ -48,6 +48,9 @@
 
       const state = {
         activities: [],
+        scriptCatalog: [],
+        scriptVersionsByCodeId: {},
+        scriptCatalogSource: 'stub',
         currentView: 'workflows',
         workflows: [],
         activeWorkflowId: null,

@@ -47,6 +47,34 @@ function sampleMainFlowWorkflow() {
   };
 }
 
+const scriptCatalogRegistry = [
+  {
+    scriptCodeId: 'risk-check',
+    scriptName: 'Risk Check',
+    description: 'Risk routing script (e2e mock)',
+    latestPublishedVersion: '1',
+    activeVersion: '1',
+    published: true,
+  },
+  {
+    scriptCodeId: 'demo-script',
+    scriptName: 'Demo Script',
+    description: 'Local demo script (e2e mock)',
+    latestPublishedVersion: '1',
+    activeVersion: '1',
+    published: true,
+  },
+];
+
+const scriptVersionRegistry = {
+  'risk-check': [
+    { version: '1', published: true, active: true, label: 'V1 active' },
+  ],
+  'demo-script': [
+    { version: '1', published: true, active: true, label: 'V1' },
+  ],
+};
+
 async function mockBackend(page, state = {}) {
   state.compileRequests = [];
   state.runRequests = [];
@@ -55,6 +83,25 @@ async function mockBackend(page, state = {}) {
     contentType: 'application/json',
     body: JSON.stringify({ activities: activityRegistry }),
   }));
+
+  await page.route('**/api/script-catalog/scripts', route => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({ source: 'stub', scripts: scriptCatalogRegistry }),
+  }));
+
+  await page.route('**/api/script-catalog/scripts/*/versions', async route => {
+    const url = route.request().url();
+    const match = url.match(/\/api\/script-catalog\/scripts\/([^/?]+)\/versions/);
+    const scriptCodeId = match ? decodeURIComponent(match[1]) : '';
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        source: 'stub',
+        scriptCodeId,
+        versions: scriptVersionRegistry[scriptCodeId] || [],
+      }),
+    });
+  });
 
   await page.route('**/api/flows/compile', async route => {
     const body = route.request().postDataJSON();
@@ -410,7 +457,7 @@ function nodeTypeMatrixWorkflow() {
     ['Task_Human_Offline', 'humanTask', 'Human Task Offline', { config: { flowFoundryHumanTask: { mode: 'offline' } } }],
     ['Task_Send', 'serviceTask', 'Notify Task', { activityType: 'notify-owner-report', maxAttempts: 3 }],
     ['Task_Receive', 'serviceTask', 'Wait Task', { activityType: 'wait-tagging-completion', maxAttempts: 3 }],
-    ['Task_Script', 'scriptTask', 'Script Task', { activityType: 'script-runtime', decisionRef: 'risk-check', decisionVersion: '1.0.0' }],
+    ['Task_Script', 'scriptTask', 'Script Task', { activityType: 'script-runtime', scriptCodeId: 'risk-check', scriptVersion: '1' }],
     ['Task_Workflow', 'workflow', 'Workflow Task', { config: { childWorkflowId: 'Definitions_Child', childWorkflowVersion: '1.0.0', childWorkflowName: 'Child Workflow' } }],
     ['Gateway_Exclusive', 'exclusiveGateway', 'Exclusive Gateway'],
     ['Gateway_Parallel', 'parallelGateway', 'Parallel Gateway'],

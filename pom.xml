@@ -11,7 +11,7 @@
     <relativePath/>
   </parent>
 
-  <groupId>com.tinet.flowfoundary</groupId>
+  <groupId>com.tinet.flowfoundry</groupId>
   <artifactId>flowfoundry-parent</artifactId>
   <version>1.0.0-SNAPSHOT</version>
   <packaging>pom</packaging>

@@ -6,13 +6,14 @@ defaultTaskQueue: flowfoundry-platform
 activities:
   - id: script-runtime
     name: Script Runtime
-    description: Execute Script Task via internal Node.js script runtime service
+    description: Execute Script Task via Function Data Actions Integration (FDAI) Node.js service
     timeout: 60s
     retry:
       maximumAttempts: 3
     input:
-      - { name: scriptRef, type: string, required: false }
-      - { name: decisionRef, type: string, required: false }
+      - { name: scriptCodeId, type: string, required: false }
+      - { name: scriptVersion, type: string, required: false }
+      - { name: scriptName, type: string, required: false }
     output:
       - { name: matched, type: boolean }
       - { name: output, type: object }
