@@ -2,6 +2,7 @@ package com.tinet.flowfoundry.api;
 
 import com.tinet.flowfoundry.config.FlowFoundryProperties;
 import com.tinet.flowfoundry.config.StaticAssetVersion;
+import com.tinet.flowfoundry.security.PlatformSecurityHeaders;
 import com.tinet.flowfoundry.security.ApiClientBootstrapRunner;
 import com.tinet.flowfoundry.security.PlatformSecurityProperties;
 import java.util.LinkedHashMap;
@@ -43,6 +44,9 @@ public class PlatformBootstrapController {
     Map<String, Object> config = new LinkedHashMap<>();
     config.put("securityEnabled", securityProperties.enabled());
     config.put("devNamespace", securityProperties.devNamespace());
+    config.put("defaultTenantId", securityProperties.devNamespace());
+    config.put("tenantHeader", PlatformSecurityHeaders.TENANT_ID);
+    config.put("namespaceHeader", PlatformSecurityHeaders.PLATFORM_NAMESPACE);
     config.put("staticAssetVersion", staticAssetVersion.value());
     config.put("modeler", modelerConfig);
     return ResponseEntity.ok()
@@ -63,6 +67,8 @@ public class PlatformBootstrapController {
     return noStoreJs(
         "window.FLOWFOUNDRY_API_KEY="
             + jsonString(apiKey)
+            + ";window.FLOWFOUNDRY_TENANT_ID="
+            + jsonString(namespace)
             + ";window.FLOWFOUNDRY_NAMESPACE="
             + jsonString(namespace)
             + ";");

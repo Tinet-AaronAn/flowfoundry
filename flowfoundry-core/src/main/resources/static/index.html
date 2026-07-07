@@ -12,6 +12,10 @@
       <header class="topbar">
         <div class="brand"><span class="logo"></span><span>FlowFoundry</span></div>
         <div class="spacer"></div>
+        <label class="locale-switch" for="tenantSelect" id="tenantSwitch">
+          <span data-i18n="tenant.label">Tenant</span>
+          <select id="tenantSelect" onchange="setActiveTenantId(this.value)"></select>
+        </label>
         <label class="locale-switch" for="localeSelect">
           <span data-i18n="locale.label">Language</span>
           <select id="localeSelect" onchange="setLocale(this.value)">
@@ -330,6 +334,7 @@
     <script src="assets/js/i18n.js?v=@flowfoundry.static.version@"></script>
     <script src="/api/platform/auth.js?v=@flowfoundry.static.version@"></script>
     <script src="assets/js/modeler-api.js?v=@flowfoundry.static.version@"></script>
+    <script src="assets/js/modeler-tenant.js?v=@flowfoundry.static.version@"></script>
     <script src="assets/js/locales/en.js?v=@flowfoundry.static.version@"></script>
     <script src="assets/js/locales/zh.js?v=@flowfoundry.static.version@"></script>
     <script src="assets/js/modeler-state.js?v=@flowfoundry.static.version@"></script>
@@ -348,8 +353,10 @@
     <script src="assets/js/modeler-admin.js?v=@flowfoundry.static.version@"></script>
     <script>
       initI18n();
-      loadActivities();
-      loadAdminProfile();
+      initTenantContext().then(() => {
+        loadActivities();
+        loadAdminProfile();
+      });
     </script>
   </body>
 </html>

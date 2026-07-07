@@ -1,5 +1,7 @@
 package com.tinet.flowfoundry.api;
 
+import com.tinet.flowfoundry.security.NamespaceAccessService;
+import com.tinet.flowfoundry.workflow.TenantContextDto;
 import com.tinet.flowfoundry.workflow.WorkflowContracts.AllocateIdRequest;
 import com.tinet.flowfoundry.workflow.WorkflowContracts.AllocateIdResponse;
 import com.tinet.flowfoundry.workflow.WorkflowContracts.CreateWorkflowRequest;
@@ -29,9 +31,17 @@ import org.springframework.web.bind.annotation.RestController;
 public class WorkflowController {
 
   private final WorkflowService workflowService;
+  private final NamespaceAccessService namespaceAccess;
 
-  public WorkflowController(WorkflowService workflowService) {
+  public WorkflowController(
+      WorkflowService workflowService, NamespaceAccessService namespaceAccess) {
     this.workflowService = workflowService;
+    this.namespaceAccess = namespaceAccess;
+  }
+
+  @GetMapping("/context")
+  public TenantContextDto tenantContext() {
+    return namespaceAccess.tenantContext();
   }
 
   @GetMapping

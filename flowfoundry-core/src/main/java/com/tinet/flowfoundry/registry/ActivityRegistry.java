@@ -13,7 +13,18 @@ public record ActivityRegistry(
     String version,
     String namespace,
     String defaultTaskQueue,
+    List<ActivityGroup> groups,
     List<ActivityDefinition> activities) {
+
+  public ActivityRegistry {
+    groups = groups == null ? List.of() : List.copyOf(groups);
+    activities = activities == null ? List.of() : List.copyOf(activities);
+  }
+
+  public ActivityRegistry(
+      String version, String namespace, String defaultTaskQueue, List<ActivityDefinition> activities) {
+    this(version, namespace, defaultTaskQueue, List.of(), activities);
+  }
 
   private Map<String, ActivityDefinition> index() {
     return activities.stream()
@@ -30,10 +41,14 @@ public record ActivityRegistry(
   }
 
   @JsonIgnoreProperties(ignoreUnknown = true)
+  public record ActivityGroup(String id, String name, String description, Integer order) {}
+
+  @JsonIgnoreProperties(ignoreUnknown = true)
   public record ActivityDefinition(
       String id,
       String name,
       String description,
+      String group,
       String taskQueue,
       String timeout,
       RetryPolicy retry,
@@ -56,6 +71,7 @@ public record ActivityRegistry(
           id,
           name,
           description,
+          null,
           taskQueue,
           timeout,
           retry,
@@ -63,6 +79,35 @@ public record ActivityRegistry(
           input,
           output,
           null);
+    }
+
+    public ActivityDefinition(
+        String id,
+        String name,
+        String description,
+        String taskQueue,
+        String timeout,
+        RetryPolicy retry,
+        IdempotencyPolicy idempotency,
+        List<ParameterSpec> input,
+        List<ParameterSpec> output,
+        Boolean cancellable) {
+      this(
+          id,
+          name,
+          description,
+          null,
+          taskQueue,
+          timeout,
+          retry,
+          idempotency,
+          input,
+          output,
+          cancellable);
+    }
+
+    public String resolvedGroup() {
+      return group == null || group.isBlank() ? "default" : group.trim();
     }
 
     public boolean isCancellable() {

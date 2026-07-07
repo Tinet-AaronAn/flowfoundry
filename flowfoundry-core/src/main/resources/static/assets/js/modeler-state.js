@@ -48,6 +48,9 @@
 
       const state = {
         activities: [],
+        activityGroups: [],
+        activityGroupFilter: 'all',
+        allowedTenantIds: [],
         scriptCatalog: [],
         scriptVersionsByCodeId: {},
         scriptCatalogSource: 'stub',

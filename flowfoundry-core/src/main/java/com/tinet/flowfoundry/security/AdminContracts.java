@@ -37,7 +37,11 @@ public final class AdminContracts {
   public record CreateApiClientResponse(ApiClientDto client, String apiKey) {}
 
   public record CallerProfileDto(
-      String clientId, boolean admin, Set<String> namespaces, boolean securityEnabled) {}
+      String clientId,
+      boolean admin,
+      Set<String> namespaces,
+      Set<String> allowedTenantIds,
+      boolean securityEnabled) {}
 
   public record AuditLogDto(
       Long id,

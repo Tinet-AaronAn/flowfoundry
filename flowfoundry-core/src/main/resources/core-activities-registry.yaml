@@ -3,8 +3,15 @@ version: "1.0"
 namespace: flowfoundry-platform
 defaultTaskQueue: flowfoundry-platform
 
+groups:
+  - id: platform-core
+    name: Platform Core
+    description: Built-in script and human task activities
+    order: 0
+
 activities:
   - id: script-runtime
+    group: platform-core
     name: Script Runtime
     description: Execute Script Task via Function Data Actions Integration (FDAI) Node.js service
     timeout: 60s
@@ -19,6 +26,7 @@ activities:
       - { name: output, type: object }
 
   - id: human-task
+    group: platform-core
     name: Human Task
     description: Human task registration (managed waits for Signal; offline annotates only)
     timeout: 60s

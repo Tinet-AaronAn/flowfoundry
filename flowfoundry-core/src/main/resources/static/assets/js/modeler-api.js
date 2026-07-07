@@ -18,8 +18,14 @@
     return global.FLOWFOUNDRY_API_KEY || readStored('flowfoundry.apiKey') || '';
   }
 
-  function platformNamespace() {
-    return global.FLOWFOUNDRY_NAMESPACE || readStored('flowfoundry.namespace') || '';
+  function platformTenantId() {
+    return (
+      global.FLOWFOUNDRY_TENANT_ID
+      || global.FLOWFOUNDRY_NAMESPACE
+      || readStored('flowfoundry.tenantId')
+      || readStored('flowfoundry.namespace')
+      || ''
+    );
   }
 
   global.configurePlatformApi = function configurePlatformApi(config) {
@@ -29,7 +35,22 @@
       global.FLOWFOUNDRY_API_BASE = apiBase;
     }
     if (config.apiKey) global.FLOWFOUNDRY_API_KEY = config.apiKey;
-    if (config.namespace) global.FLOWFOUNDRY_NAMESPACE = config.namespace;
+    if (config.tenantId) global.setPlatformTenantId(config.tenantId);
+    if (config.namespace) global.setPlatformTenantId(config.namespace);
+  };
+
+  global.setPlatformTenantId = function setPlatformTenantId(tenantId) {
+    const value = tenantId == null ? '' : String(tenantId);
+    global.FLOWFOUNDRY_TENANT_ID = value;
+    global.FLOWFOUNDRY_NAMESPACE = value;
+    try {
+      if (global.localStorage) {
+        global.localStorage.setItem('flowfoundry.tenantId', value);
+        global.localStorage.setItem('flowfoundry.namespace', value);
+      }
+    } catch (ignored) {
+      // ignore storage failures in embedded contexts
+    }
   };
 
   global.platformApiBase = function platformApiBase() {
@@ -50,10 +71,15 @@
     const headers = { ...(extra || {}) };
     const apiKey = platformApiKey();
     if (apiKey) headers['X-Api-Key'] = apiKey;
-    const namespace = platformNamespace();
-    if (namespace) headers['X-Platform-Namespace'] = namespace;
+    const tenantId = platformTenantId();
+    if (tenantId) {
+      headers['X-Tenant-Id'] = tenantId;
+      headers['X-Platform-Namespace'] = tenantId;
+    }
     return headers;
   };
+
+  global.platformTenantId = platformTenantId;
 
   global.platformFetch = async function platformFetch(path, options) {
     const response = await fetch(platformApiUrl(path), {
@@ -75,6 +101,9 @@
     const config = await response.json();
     if (config?.modeler?.apiBase) {
       configurePlatformApi({ apiBase: config.modeler.apiBase });
+    }
+    if (!platformTenantId() && config?.defaultTenantId) {
+      setPlatformTenantId(config.defaultTenantId);
     }
     global.FLOWFOUNDRY_PUBLIC_CONFIG = config;
     return config;

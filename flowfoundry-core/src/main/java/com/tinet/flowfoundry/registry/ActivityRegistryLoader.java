@@ -75,11 +75,32 @@ public class ActivityRegistryLoader {
         merged.add(definition);
       }
     }
+    List<ActivityRegistry.ActivityGroup> groups = mergeGroups(core, business);
     return new ActivityRegistry(
         business.version(),
         business.namespace(),
         business.defaultTaskQueue(),
+        groups,
         merged);
+  }
+
+  private List<ActivityRegistry.ActivityGroup> mergeGroups(
+      ActivityRegistry core, ActivityRegistry business) {
+    List<ActivityRegistry.ActivityGroup> groups = new ArrayList<>();
+    Set<String> seen = new LinkedHashSet<>();
+    if (core != null) {
+      for (ActivityRegistry.ActivityGroup group : core.groups()) {
+        if (group.id() != null && seen.add(group.id())) {
+          groups.add(group);
+        }
+      }
+    }
+    for (ActivityRegistry.ActivityGroup group : business.groups()) {
+      if (group.id() != null && seen.add(group.id())) {
+        groups.add(group);
+      }
+    }
+    return groups;
   }
 
   private ActivityRegistry loadRequired(String path) {

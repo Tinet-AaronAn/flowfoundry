@@ -7,8 +7,35 @@ version: "1.0"
 namespace: ai-collection-strategy
 defaultTaskQueue: ai-collection-strategy
 
+groups:
+  - id: campaign-setup
+    name: 活动准备
+    description: 导入号码、加载活动、筛选分批
+    order: 10
+  - id: outbound
+    name: 外呼执行
+    description: 准备批次、发起外呼、等待完成
+    order: 20
+  - id: tagging
+    name: AI 打标
+    description: 录音打标与等待结果
+    order: 30
+  - id: round-control
+    name: 轮次控制
+    description: 汇总、筛选与评估下一轮
+    order: 40
+  - id: review
+    name: 人工复核
+    description: 主管复核与审批
+    order: 50
+  - id: campaign-close
+    name: 活动收尾
+    description: 归档与结束活动
+    order: 60
+
 activities:
   - id: import-numbers
+    group: campaign-setup
     name: 下发号码批次
     description: 从业务系统导入待外呼号码批次，初始化活动上下文
     taskQueue: ai-collection-strategy
@@ -25,6 +52,7 @@ activities:
       ttl: 24h
 
   - id: filter-and-split-batches
+    group: campaign-setup
     name: 规则筛选并分批
     description: 按业务规则筛选号码并拆分为外呼批次
     taskQueue: ai-collection-strategy
@@ -41,6 +69,7 @@ activities:
       ttl: 72h
 
   - id: notify-owner-report
+    group: campaign-setup
     name: 汇报批次结果
     description: 向业务负责人发送批次筛选结果摘要
     taskQueue: ai-collection-strategy
@@ -59,6 +88,7 @@ activities:
       ttl: 72h
 
   - id: load-campaign
+    group: campaign-setup
     name: 加载呼叫活动
     description: 校验活动配置，加载联系人批次与轮次策略
     taskQueue: ai-collection-strategy
@@ -81,6 +111,7 @@ activities:
       ttl: 24h
 
   - id: prepare-call-round
+    group: outbound
     name: 准备本轮呼叫
     description: 根据上一轮结果筛选待呼联系人，生成本轮呼叫批次
     taskQueue: ai-collection-strategy
@@ -98,6 +129,7 @@ activities:
       ttl: 72h
 
   - id: execute-call-round
+    group: outbound
     name: 执行本轮外呼
     description: 调用外呼平台发起批量呼叫，返回 taskId
     taskQueue: ai-collection-strategy
@@ -117,6 +149,7 @@ activities:
       ttl: 72h
 
   - id: wait-round-completion
+    group: outbound
     name: 等待外呼结束
     description: Activity 内轮询外呼平台直到本轮全部终态
     taskQueue: ai-collection-strategy
@@ -138,6 +171,7 @@ activities:
       ttl: 72h
 
   - id: start-ai-tagging
+    group: tagging
     name: 启动录音 AI 打标
     description: 提交本轮录音到 AI 打标服务
     taskQueue: ai-collection-strategy
@@ -156,6 +190,7 @@ activities:
       ttl: 72h
 
   - id: wait-tagging-completion
+    group: tagging
     name: 等待打标完成
     description: Activity 内轮询 AI 打标任务直到完成
     taskQueue: ai-collection-strategy
@@ -176,6 +211,7 @@ activities:
       ttl: 72h
 
   - id: filter-next-round
+    group: round-control
     name: 筛选下一轮名单
     description: 结合标签、呼叫结果等条件筛选下一轮外呼名单，并判断是否继续
     taskQueue: ai-collection-strategy
@@ -195,6 +231,7 @@ activities:
       ttl: 72h
 
   - id: aggregate-round-results
+    group: round-control
     name: 汇总本轮结果
     description: 写入本轮统计，更新联系人状态，计算是否进入下一轮
     taskQueue: ai-collection-strategy
@@ -213,6 +250,7 @@ activities:
       ttl: 72h
 
   - id: supervisor-review
+    group: review
     name: 主管复核（Human Task 配套 Activity）
     description: 创建主管待办，等待 Signal 后继续；由 Human Task 节点触发
     taskQueue: ai-collection-strategy
@@ -231,6 +269,7 @@ activities:
       ttl: 168h
 
   - id: finalize-campaign
+    group: campaign-close
     name: 结束活动
     description: 归档统计、发送报告、释放资源
     taskQueue: ai-collection-strategy
@@ -248,6 +287,7 @@ activities:
       ttl: 168h
 
   - id: evaluate-next-round
+    group: round-control
     name: 评估是否进入下一轮
     description: 供网关分支使用的决策 Activity，也可内嵌规则
     taskQueue: ai-collection-strategy

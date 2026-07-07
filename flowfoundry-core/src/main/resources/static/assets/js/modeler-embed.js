@@ -127,6 +127,7 @@
           const res = await fetch(platformApiUrl('/activities'), { headers: platformApiHeaders() });
           const data = await res.json();
           state.activities = data.activities || [];
+          state.activityGroups = data.groups || [];
         } catch (err) {
           message(t('message.loadActivitiesFailed', { error: err.message }), 'error');
         }

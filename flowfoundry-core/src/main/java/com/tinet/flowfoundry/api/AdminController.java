@@ -55,6 +55,7 @@ public class AdminController {
         adminAccessService.actorClientId(),
         adminAccessService.isLocalAdminRequest(),
         namespaceAccessService.allowedNamespaces(),
+        namespaceAccessService.allowedTenantIds(),
         securityProperties.enabled());
   }
 

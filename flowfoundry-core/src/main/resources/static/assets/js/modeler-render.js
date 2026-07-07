@@ -3,6 +3,7 @@
           const res = await fetch(platformApiUrl('/activities'), { headers: platformApiHeaders() });
           const data = await res.json();
           state.activities = data.activities || [];
+          state.activityGroups = data.groups || [];
         } catch (err) {
           message(t('message.loadActivitiesFailed', { error: err.message }), 'error');
         }
@@ -1094,15 +1095,80 @@
         });
       }
 
+      function findRegisteredActivity(activityId) {
+        return (state.activities || []).find(activity => activity.id === activityId);
+      }
+
+      function activityGroupMeta(groupId) {
+        const meta = (state.activityGroups || []).find(group => group.id === groupId);
+        if (meta) return meta;
+        return { id: groupId, name: groupId, order: 999 };
+      }
+
+      function sortedActivityGroups() {
+        const groupIds = new Set();
+        for (const activity of state.activities || []) {
+          groupIds.add(activity.group || 'default');
+        }
+        return [...groupIds]
+          .map(id => activityGroupMeta(id))
+          .sort(
+            (left, right) =>
+              (left.order ?? 999) - (right.order ?? 999)
+              || String(left.name || left.id).localeCompare(String(right.name || right.id))
+          );
+      }
+
+      function buildActivityTypeOptions(selectedId, groupFilter) {
+        let html = `<option value="">${escapeHtml(t('prop.activitySelectPlaceholder'))}</option>`;
+        for (const group of sortedActivityGroups()) {
+          if (groupFilter && group.id !== groupFilter) continue;
+          const items = (state.activities || []).filter(
+            activity => (activity.group || 'default') === group.id
+          );
+          if (items.length === 0) continue;
+          html += `<optgroup label="${escapeAttr(group.name || group.id)}">`;
+          for (const activity of items) {
+            html += `<option value="${escapeAttr(activity.id)}" ${
+              activity.id === selectedId ? 'selected' : ''
+            }>${escapeHtml(activity.name || activity.id)}</option>`;
+          }
+          html += '</optgroup>';
+        }
+        return html;
+      }
+
       function taskDefinitionSection(n) {
         if (!['task','serviceTask','scriptTask'].includes(n.kind)) return '';
-        const options = state.activities.map(a => `<option value="${a.id}" ${a.id === n.activityType ? 'selected' : ''}>${a.name || a.id}</option>`).join('');
+        const filter = state.activityGroupFilter || 'all';
+        const groupOptions = [
+          `<option value="all" ${filter === 'all' ? 'selected' : ''}>${escapeHtml(t('prop.activityGroupAll'))}</option>`,
+          ...sortedActivityGroups().map(
+            group =>
+              `<option value="${escapeAttr(group.id)}" ${filter === group.id ? 'selected' : ''}>${escapeHtml(group.name || group.id)}</option>`
+          )
+        ].join('');
+        const options = buildActivityTypeOptions(
+          n.activityType,
+          filter === 'all' ? null : filter
+        );
+        const selected = findRegisteredActivity(n.activityType);
+        const defaultRetries = selected?.retry?.maximumAttempts ?? 3;
+        const defaultTimeout = selected?.timeout || '';
         return `<div class="prop-section"><h3>Task Definition</h3>
+          <label>${escapeHtml(t('prop.activityGroup'))}</label>
+          <select onchange="state.activityGroupFilter=this.value; renderProperties()">${groupOptions}</select>
           <label>Task Type</label>
-          <select onchange="updateActivityType(this.value)"><option value="">Select registered activity</option>${options}</select>
-          <input style="margin-top:8px" value="${escapeAttr(n.activityType || '')}" placeholder="e.g. email-worker" oninput="updateActivityType(this.value)" />
+          <select onchange="updateActivityType(this.value)">${options}</select>
+          <label>${escapeHtml(t('prop.activityId'))}</label>
+          <input class="readonly-field" readonly tabindex="-1" value="${escapeAttr(n.activityType || '')}" placeholder="${escapeAttr(t('prop.activityIdPlaceholder'))}" />
+          ${selected?.description ? `<div class="help">${escapeHtml(selected.description)}</div>` : ''}
+          <label>${escapeHtml(t('prop.timeout'))}</label>
+          <input value="${escapeAttr(n.timeout || defaultTimeout)}" placeholder="${escapeAttr(defaultTimeout || '60s')}" oninput="updateTaskTimeout(this.value)" />
+          <div class="help">${escapeHtml(t('prop.timeoutHelp'))}</div>
           <label>Retries</label>
-          <input type="number" value="${n.maxAttempts || 3}" oninput="updateNodeNumber('maxAttempts', this.value)" />
+          <input type="number" min="1" value="${n.maxAttempts ?? defaultRetries}" oninput="updateTaskRetries(this.value)" />
+          <div class="help">${escapeHtml(t('prop.retriesHelp'))}</div>
         </div>`;
       }
 
@@ -1358,21 +1424,19 @@
         n.kind = selected.kind;
         n.name = selected.defaultName || selected.label;
         n.config = selected.config ? structuredClone(selected.config) : {};
-        n.activityType = selected.activityType || '';
         n.scriptCodeId = selected.scriptCodeId;
         n.scriptVersion = selected.scriptVersion;
-        n.maxAttempts = selected.maxAttempts;
         if (['task','serviceTask'].includes(n.kind)) {
-          n.activityType = selected.activityType || state.activities[0]?.id || '';
-          n.maxAttempts = selected.maxAttempts || 3;
-        }
-        if (n.kind === 'scriptTask') {
-          n.activityType = 'script-runtime';
+          applyRegisteredActivityDefaults(
+            n,
+            selected.activityType || state.activities[0]?.id || ''
+          );
+        } else if (n.kind === 'scriptTask') {
           n.scriptCodeId = selected.scriptCodeId || n.scriptCodeId || 'demo-script';
           n.scriptVersion = selected.scriptVersion || n.scriptVersion || '1';
-        }
-        if (n.kind === 'humanTask') {
-          n.activityType = 'human-task';
+          applyRegisteredActivityDefaults(n, 'script-runtime');
+        } else if (n.kind === 'humanTask') {
+          applyRegisteredActivityDefaults(n, 'human-task');
         }
         state.model.edges = state.model.edges.filter(e => isConnectableNode(n) || (e.from !== n.id && e.to !== n.id));
         if (isParticipantAssignable(n)) syncNodeParticipant(n);
@@ -1641,17 +1705,16 @@
         if (!canPlaceNodeInParticipantMode(n)) return null;
         pushHistory();
         if (['task','serviceTask'].includes(item.kind)) {
-          n.activityType = state.activities[0]?.id || '';
-          n.maxAttempts = 3;
+          applyRegisteredActivityDefaults(n, state.activities[0]?.id || '');
         }
-        if (item.activityType) n.activityType = item.activityType;
+        if (item.activityType) applyRegisteredActivityDefaults(n, item.activityType);
         if (item.kind === 'scriptTask') {
-          n.activityType = 'script-runtime';
           if (item.scriptCodeId) n.scriptCodeId = item.scriptCodeId;
           if (item.scriptVersion) n.scriptVersion = item.scriptVersion;
+          applyRegisteredActivityDefaults(n, 'script-runtime');
         }
         if (item.kind === 'humanTask') {
-          n.activityType = 'human-task';
+          applyRegisteredActivityDefaults(n, 'human-task');
         }
         state.model.nodes.push(n);
         if (isParticipantContainer(n) || isSubProcessContainer(n)) syncParticipantAssignments();

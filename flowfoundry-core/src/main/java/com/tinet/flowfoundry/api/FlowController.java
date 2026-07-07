@@ -70,12 +70,13 @@ public class FlowController {
       @RequestHeader(value = RunSourceResolver.WEB_MODELER_CLIENT_HEADER, required = false)
           String clientHeader) {
     namespaceAccess.requireAuthenticatedNamespace();
+    String tenantId = namespaceAccess.resolveActiveTenantId();
     ExecutionPlan plan = compiler.compile(request.flow());
     RunSource runSource = RunSourceResolver.resolve(request.runSource(), clientHeader);
     String businessKey =
         request.businessKey() == null || request.businessKey().isBlank()
-            ? plan.flowId() + "-" + UUID.randomUUID()
-            : request.businessKey();
+            ? tenantId + ":" + plan.flowId() + "-" + UUID.randomUUID()
+            : tenantId + ":" + request.businessKey();
     String workflowId =
         request.workflowId() == null || request.workflowId().isBlank()
             ? WorkflowRunId.forRun(runSource, plan.flowId())

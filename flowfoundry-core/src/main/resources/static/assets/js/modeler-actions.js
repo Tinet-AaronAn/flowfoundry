@@ -59,12 +59,45 @@
         updateNode(key, value === '' ? null : Number(value));
       }
 
+      function syncTaskDefinitionFromNode(node) {
+        if (!node?.activityType) return;
+        node.config = {
+          ...(node.config || {}),
+          flowFoundryTaskDefinition: {
+            ...(node.config?.flowFoundryTaskDefinition || {}),
+            type: node.activityType,
+            retries: String(node.maxAttempts ?? 3)
+          }
+        };
+      }
+
+      function applyRegisteredActivityDefaults(node, activityId) {
+        if (!node) return;
+        node.activityType = activityId || '';
+        if (!activityId) {
+          delete node.timeout;
+          node.maxAttempts = 3;
+          syncTaskDefinitionFromNode(node);
+          return;
+        }
+        const definition = findRegisteredActivity(activityId);
+        node.maxAttempts = definition?.retry?.maximumAttempts ?? 3;
+        if (definition?.timeout) {
+          node.timeout = definition.timeout;
+        } else {
+          delete node.timeout;
+        }
+        if (definition?.taskQueue && !node.taskQueue) {
+          node.taskQueue = definition.taskQueue;
+        }
+        syncTaskDefinitionFromNode(node);
+      }
+
       function updateActivityType(value) {
         const n = selectedNode();
         if (!n) return;
         pushHistory();
-        n.activityType = value;
-        n.config = { ...(n.config || {}), flowFoundryTaskDefinition: { ...(n.config?.flowFoundryTaskDefinition || {}), type: value, retries: String(n.maxAttempts || 3) } };
+        applyRegisteredActivityDefaults(n, value);
         if (value === 'script-runtime') {
           n.scriptCodeId = n.scriptCodeId || 'demo-script';
           n.scriptVersion = n.scriptVersion || '1';
@@ -75,6 +108,23 @@
         }
         refreshNodePreview(n);
         renderProperties();
+      }
+
+      function updateTaskRetries(value) {
+        const n = selectedNode();
+        if (!n) return;
+        pushHistory();
+        n.maxAttempts = value === '' ? null : Number(value);
+        syncTaskDefinitionFromNode(n);
+        refreshNodePreview(n);
+      }
+
+      function updateTaskTimeout(value) {
+        const n = selectedNode();
+        if (!n) return;
+        pushHistory();
+        n.timeout = value || undefined;
+        refreshNodePreview(n);
       }
 
       function updateConfig(key, value) {

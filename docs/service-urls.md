@@ -41,6 +41,15 @@
 | 数据库迁移 | `flowfoundry-core/src/main/resources/db/migration/` |
 | Activity 注册表（催收） | `flowfoundry-app/modules/ai-collection-strategy/config/activities-registry.yaml` |
 
+## 多租户（tenantId = workflow namespace）
+
+- **租户标识**：`tenantId` 与 `workflow_definition.namespace` 一一对应，用于隔离不同租户的流程定义。
+- **请求头（优先）**：`X-Tenant-Id: <tenantId>`；兼容旧客户端：`X-Platform-Namespace`（同值）。
+- **API Key 授权**：非管理员 Key 在 `platform_api_client.namespaces` 中配置可访问的 tenantId 列表。
+- **建模器**：顶栏 Tenant 下拉切换当前租户；Workflow 列表展示 namespace 列。
+- **Activity 分组**：注册表 `groups` + 每条 activity 的 `group` 字段；建模器 Task Type 按分组 optgroup 展示。
+- **上下文 API**：`GET /api/workflows/context` 返回 `{ tenantId, allowedTenantIds, tenantHeader }`。
+
 ## 本地调试命令
 
 ```bash
