@@ -194,7 +194,7 @@ while currentNodeId != null:
 | `END` | 否 | 结束 |
 | `GATEWAY` | 否 | 仅路由；条件在出边上求值 |
 | `ACTIVITY` / `HUMAN_TASK` | 是 | Activity 返回 → `applyOutput` |
-| `INTERMEDIATE_EVENT` | 否 | Timer 等待，不读写 vars |
+| `INTERMEDIATE_EVENT` | 读（仅 Timer `value`/`timezone`） | Timer 等待；**不写** vars；`value` 可引用 `${...}`，见 [timer-design.md](./timer-design.md) |
 | `CHILD_WORKFLOW` | 是 | 子流程 input 来自 mapping；结果写回父 vars |
 
 ---
@@ -381,7 +381,12 @@ Human Task 统一语义：调用 Activity 后 Workflow 暂停，等待 `complete
 
 ### 8.3 Timer（INTERMEDIATE_EVENT）
 
-仅 `Workflow.sleep` / Timer，**不读写变量**。长时间等待应使用 Timer，而非 Activity 内 sleep。
+Timer 节点 **不向 `vars` 写入**；进入节点时从当前 `VariableStore` **读取** `timerDefinition.value` / `timezone`（支持 `${slot.fixedTime}` 等），计算等待时长后调用 Temporal Timer。
+
+- **`type=duration`**：`value` 解析为相对时长（如 `5m`、`${waitMs}`）
+- **`type=date`**：`value` + `timezone` 解析为绝对时刻；目标已过时由 `pastTargetStrategy` 决定立即继续或失败
+
+完整语义见 [timer-design.md](./timer-design.md)。长时间等待应使用 Timer，而非 Activity 内 sleep。
 
 ---
 

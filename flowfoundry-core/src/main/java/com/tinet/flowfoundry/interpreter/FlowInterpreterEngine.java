@@ -8,6 +8,7 @@ import com.tinet.flowfoundry.interpreter.model.NodeKind;
 import com.tinet.flowfoundry.interpreter.runtime.ConditionEvaluator;
 import com.tinet.flowfoundry.interpreter.runtime.InputMappingMode;
 import com.tinet.flowfoundry.interpreter.runtime.MappingEvaluator;
+import com.tinet.flowfoundry.interpreter.runtime.TimerEvaluator;
 import com.tinet.flowfoundry.interpreter.runtime.VariableStore;
 import java.lang.reflect.Array;
 import java.util.Arrays;
@@ -256,14 +257,14 @@ public final class FlowInterpreterEngine {
       ExecutionNode node, VariableStore variables, EnginePort port) throws Exception {
     String subtype = intermediateEventSubtype(node);
     switch (subtype) {
-      case "timer", "duration" -> port.executeTimer(node, timerDurationMs(node));
+      case "timer", "duration" -> port.executeTimer(node, timerDelayMs(node, variables));
       case "signal", "message" -> {
         String signalName = signalName(node);
         if (!port.awaitSignal(signalName)) {
           throw new IllegalStateException("Signal not received: " + signalName);
         }
       }
-      default -> port.executeTimer(node, timerDurationMs(node));
+      default -> port.executeTimer(node, timerDelayMs(node, variables));
     }
   }
 
@@ -392,38 +393,8 @@ public final class FlowInterpreterEngine {
     return String.valueOf(raw);
   }
 
-  private static long timerDurationMs(ExecutionNode node) {
-    Object duration = node.config() == null ? null : node.config().get("duration");
-    if (duration == null && node.config() != null) {
-      Object timerDefinition = node.config().get("timerDefinition");
-      if (timerDefinition instanceof Map<?, ?> map) {
-        duration = map.get("value");
-      }
-    }
-    if (duration == null) {
-      return 0L;
-    }
-    return parseDurationMs(String.valueOf(duration));
-  }
-
-  private static long parseDurationMs(String raw) {
-    if (raw == null || raw.isBlank()) {
-      return 0L;
-    }
-    String value = raw.trim().toLowerCase();
-    if (value.endsWith("ms")) {
-      return Long.parseLong(value.replace("ms", ""));
-    }
-    if (value.endsWith("s")) {
-      return Long.parseLong(value.replace("s", "")) * 1000L;
-    }
-    if (value.endsWith("m")) {
-      return Long.parseLong(value.replace("m", "")) * 60_000L;
-    }
-    if (value.endsWith("h")) {
-      return Long.parseLong(value.replace("h", "")) * 3_600_000L;
-    }
-    return 0L;
+  private static long timerDelayMs(ExecutionNode node, VariableStore variables) {
+    return TimerEvaluator.evaluate(node, variables, System.currentTimeMillis()).delayMs();
   }
 
   /** Port for activity/timer/signal/parallel execution. */

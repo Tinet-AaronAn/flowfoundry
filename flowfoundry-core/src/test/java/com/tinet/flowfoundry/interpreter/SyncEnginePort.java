@@ -2,6 +2,7 @@ package com.tinet.flowfoundry.interpreter;
 
 import com.tinet.flowfoundry.interpreter.model.ExecutionNode;
 import com.tinet.flowfoundry.interpreter.model.ExecutionPlan;
+import com.tinet.flowfoundry.interpreter.runtime.TimerEvaluator;
 import com.tinet.flowfoundry.interpreter.runtime.VariableStore;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -111,7 +112,7 @@ final class SyncEnginePort implements FlowInterpreterEngine.EnginePort {
         }
         continue;
       }
-      long ms = timerMs(node);
+      long ms = TimerEvaluator.evaluate(node, branchVariables, System.currentTimeMillis()).delayMs();
       if (ms < bestMs) {
         bestMs = ms;
         bestIdx = i;
@@ -123,19 +124,4 @@ final class SyncEnginePort implements FlowInterpreterEngine.EnginePort {
   @Override
   public void enrichRouterInput(
       ExecutionNode node, VariableStore branchVariables, Map<String, Object> input) {}
-
-  private static long timerMs(ExecutionNode node) {
-    Object duration = node.config() == null ? null : node.config().get("duration");
-    if (duration == null) {
-      return Long.MAX_VALUE;
-    }
-    String raw = String.valueOf(duration).trim().toLowerCase();
-    if (raw.endsWith("ms")) {
-      return Long.parseLong(raw.replace("ms", ""));
-    }
-    if (raw.endsWith("s")) {
-      return Long.parseLong(raw.replace("s", "")) * 1000L;
-    }
-    return Long.MAX_VALUE;
-  }
 }

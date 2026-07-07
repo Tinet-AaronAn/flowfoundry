@@ -443,7 +443,7 @@ ACTIVITY（activityType: human-task）
   -> HumanTaskActivity 注册/标注；managed 模式下 Workflow.await 等待 completeHumanTask Signal；offline 自动继续
 
 INTERMEDIATE_EVENT
-  -> 按 eventSubtype 等待（timer -> Workflow.sleep；message/signal 后续）
+  -> 按 eventSubtype 等待（timer -> TimerEvaluator + Workflow.newTimer；见 timer-design.md）
 
 CHILD_WORKFLOW
   -> 启动 Child Workflow
@@ -470,7 +470,7 @@ node.activityType = execute-call-round
 
 - Core 提供 `DualModeActivityHandler` 与 `ActivityExecutionContext`；Workflow 启动时将 `runSource` 写入 Activity input 的 `_executionContext`。
 - 业务模块实现 `XxxActivitiesImpl`（真实）与 `XxxActivitiesStub`（桩）；Router 继承 `DualModeActivityHandler` 按 `runSource` 委托。
-- `web-modeler`：仅当请求体 `runSource=web-modeler` **且** 请求头 `X-FlowFoundry-Client: web-modeler` 同时成立时生效；Temporal 执行 Workflow ID 为 `workflow_test_{flowId}_{uuid}`（子流程为 `workflow_test_child_...`）；Timer 跳过 `Workflow.sleep`；长等待 Activity stub 立即返回完成态。
+- `web-modeler`：仅当请求体 `runSource=web-modeler` **且** 请求头 `X-FlowFoundry-Client: web-modeler` 同时成立时生效；Temporal 执行 Workflow ID 为 `workflow_test_{flowId}_{uuid}`（子流程为 `workflow_test_child_...`）；Timer 跳过 `Workflow.newTimer`；长等待 Activity stub 立即返回完成态。
 - `production`：对外 API 强制使用，忽略客户端 stub 标记；Temporal 执行 Workflow ID 为 `workflow_{flowId}_{uuid}`（子流程为 `workflow_child_...`）；Activity 走真实实现。
 
 
@@ -499,8 +499,12 @@ Intermediate Event（timer）：
 
 ```text
 INTERMEDIATE_EVENT（eventSubtype: timer）
-  -> Workflow.sleep(duration)
+  -> TimerEvaluator（解析 timerDefinition.type / value / timezone / 变量）
+  -> delayMs
+  -> Workflow.newTimer(Duration.ofMillis(delayMs))
 ```
+
+支持 `duration`（相对）与 `date`（绝对时刻 + 时区 + pastTargetStrategy）；`value` 可 `${...}`。详见 [timer-design.md](./timer-design.md)。
 
 长时间等待应该交给 Temporal Timer，不应该让 Activity 自己 sleep。
 
@@ -634,7 +638,7 @@ CHILD_WORKFLOW
 补偿事务
 ```
 
-**Activity Loop**（Standard / Multi-Instance）见 [loop-design.md](./loop-design.md)；复杂多轮业务循环仍优先 **Gateway 回边**。
+**Activity Loop**（Standard / Multi-Instance）见 [loop-design.md](./loop-design.md)；**Timer Definition**（duration / date / 变量）见 [timer-design.md](./timer-design.md)；复杂多轮业务循环仍优先 **Gateway 回边**。
 
 并行、子流程和更复杂的异常处理可以放到第二阶段。
 
@@ -873,7 +877,7 @@ Events 用来表达流程生命周期和事件等待语义。FlowFoundry 将 Eve
 | ------------------ | ------- | -------------------------------------- | --------------------------- | --------------------------------------------------------------------------- |
 | Start Event        | 流程入口    | 创建新的流程实例，表示流程从这里开始                     | ✅                           | Execution Plan 的 `startNodeId`；未来 Message / Timer / Signal Start 可映射为不同启动入口 |
 | End Event          | 流程结束    | 表示某条路径完成，流程或分支到达终点                     | ✅                           | Interpreter 到达 END 节点后完成当前执行路径                                              |
-| Intermediate Event | 流程中事件等待 | 执行到这里后等待事件（Timer / Message / Signal 等），再继续后续路径 | ✅（`intermediateEvent`） | `INTERMEDIATE_EVENT`；MVP `eventSubtype=timer` → `Workflow.sleep` |
+| Intermediate Event | 流程中事件等待 | 执行到这里后等待事件（Timer / Message / Signal 等），再继续后续路径 | ✅（`intermediateEvent`） | `INTERMEDIATE_EVENT`；MVP `eventSubtype=timer` → `TimerEvaluator` + Temporal Timer（见 [timer-design.md](./timer-design.md)） |
 | Boundary Event     | 任务边界事件  | 挂在某个 Task 边界上，在 Task 执行期间监听超时、消息、错误等事件 | 后续版本 | Task 执行期间的 Timer / Signal 监听 |
 
 
@@ -1313,7 +1317,7 @@ Compiler 保证每个 Human Task 节点写入：
 ```text
 自动业务动作     -> Service Task -> Temporal Activity（含轮询等待外呼/AI 打标）
 人工审批         -> Human Task（managed，Workflow 暂停等完成 Signal）
-定时等待         -> Intermediate Event（eventSubtype=timer）-> Workflow.sleep
+定时等待         -> Intermediate Event（eventSubtype=timer）-> TimerEvaluator + Workflow.newTimer（见 timer-design.md）
 分支             -> Gateway（DSL: GATEWAY，config.gatewayKind）+ Safe FEEL
 ```
 

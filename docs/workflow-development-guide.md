@@ -333,10 +333,10 @@ Registry → 建模器编排 → 编译 ExecutionPlan → FlowInterpreterWorkflo
 | Human Task | `ACTIVITY` + `human-task`；managed 时 Workflow 等 Signal |
 | Script Task | `ACTIVITY` + `script-runtime` |
 | Gateway | 解释器按 Safe FEEL 选边 |
-| Intermediate Event (timer) | `Workflow.sleep`（web-modeler 联调可跳过 sleep） |
+| Intermediate Event (timer) | `TimerEvaluator` + `Workflow.newTimer`（`duration` / `date`；web-modeler 联调可跳过 Timer）— 见 [timer-design.md](./timer-design.md) |
 | Child Workflow | Temporal Child Workflow |
 
-完整对照表见 [entity-naming.md](./entity-naming.md) 与 [detailed-design.md](./detailed-design.md) §4.7。
+完整对照表见 [entity-naming.md](./entity-naming.md)、[timer-design.md](./timer-design.md) 与 [detailed-design.md](./detailed-design.md) §4.7。
 
 ---
 

@@ -185,7 +185,8 @@
         }
         if (isIntermediateEventCanvasKind(n.kind)) {
           config.eventSubtype = resolveEventSubtype(config);
-          if (config.timerDefinition?.value) {
+          const timerType = config.timerDefinition?.type || 'duration';
+          if (config.timerDefinition?.value && timerType === 'duration') {
             config.duration = normalizeTimerDuration(config.timerDefinition.value);
           }
         }
@@ -253,7 +254,7 @@
 
       function normalizeTimerDuration(value) {
         const text = String(value || '').trim();
-        if (text.startsWith('${')) return '1m';
+        if (text.startsWith('${')) return text;
         if (/^\d+[smh]$/.test(text)) return text;
         if (/^\d+M$/.test(text)) return text.toLowerCase();
         return text || '1m';

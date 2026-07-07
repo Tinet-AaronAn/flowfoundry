@@ -14,6 +14,7 @@ import com.tinet.flowfoundry.interpreter.model.NodeKind;
 import com.tinet.flowfoundry.interpreter.runtime.ActivityExecutionContext;
 import com.tinet.flowfoundry.interpreter.runtime.MappingEvaluator;
 import com.tinet.flowfoundry.interpreter.runtime.RunSource;
+import com.tinet.flowfoundry.interpreter.runtime.TimerEvaluator;
 import com.tinet.flowfoundry.interpreter.runtime.VariableStore;
 import com.tinet.flowfoundry.workflow.WorkflowRunId;
 import io.temporal.activity.ActivityOptions;
@@ -258,7 +259,7 @@ public class FlowInterpreterWorkflowImpl implements FlowInterpreterWorkflow {
           promises.add(
               Async.function(
                   () -> {
-                    waitForEventNode(eventNodes.get(idx));
+                    waitForEventNode(eventNodes.get(idx), branchVariables);
                     return idx;
                   }));
         }
@@ -290,7 +291,7 @@ public class FlowInterpreterWorkflowImpl implements FlowInterpreterWorkflow {
     };
   }
 
-  private void waitForEventNode(ExecutionNode node) {
+  private void waitForEventNode(ExecutionNode node, VariableStore branchVariables) {
     String subtype =
         node.config() == null || node.config().get("eventSubtype") == null
             ? "timer"
@@ -302,44 +303,11 @@ public class FlowInterpreterWorkflowImpl implements FlowInterpreterWorkflow {
       pendingSignals.removeIf(name -> name.equals(signalName));
       return;
     }
-    long durationMs = timerDurationMs(node);
+    long durationMs =
+        TimerEvaluator.evaluate(node, branchVariables, Workflow.currentTimeMillis()).delayMs();
     if (durationMs > 0 && !runSource.usesStubActivities()) {
       Workflow.newTimer(Duration.ofMillis(durationMs)).get();
     }
-  }
-
-  private static long timerDurationMs(ExecutionNode node) {
-    Object duration = node.config() == null ? null : node.config().get("duration");
-    if (duration == null && node.config() != null) {
-      Object timerDefinition = node.config().get("timerDefinition");
-      if (timerDefinition instanceof Map<?, ?> map) {
-        duration = map.get("value");
-      }
-    }
-    if (duration == null) {
-      return 0L;
-    }
-    return parseDurationMs(String.valueOf(duration));
-  }
-
-  private static long parseDurationMs(String raw) {
-    if (raw == null || raw.isBlank()) {
-      return 0L;
-    }
-    String value = raw.trim().toLowerCase();
-    if (value.endsWith("ms")) {
-      return Long.parseLong(value.replace("ms", ""));
-    }
-    if (value.endsWith("s")) {
-      return Long.parseLong(value.replace("s", "")) * 1000L;
-    }
-    if (value.endsWith("m")) {
-      return Long.parseLong(value.replace("m", "")) * 60_000L;
-    }
-    if (value.endsWith("h")) {
-      return Long.parseLong(value.replace("h", "")) * 3_600_000L;
-    }
-    return 0L;
   }
 
   private boolean isHumanTaskNode(ExecutionNode node) {

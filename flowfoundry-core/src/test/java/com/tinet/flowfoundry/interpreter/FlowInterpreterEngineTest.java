@@ -353,6 +353,14 @@ class FlowInterpreterEngineTest {
   }
 
   private static FlowNode timerEvent(String id, String duration) {
+    Map<String, Object> config = new java.util.LinkedHashMap<>();
+    config.put("eventSubtype", "timer");
+    if (duration.startsWith("${")) {
+      config.put(
+          "timerDefinition", Map.of("type", "duration", "value", duration));
+    } else {
+      config.put("duration", duration);
+    }
     return new FlowNode(
         id,
         "INTERMEDIATE_EVENT",
@@ -369,7 +377,7 @@ class FlowInterpreterEngineTest {
         null,
         null,
         null,
-        Map.of("eventSubtype", "timer", "duration", duration));
+        config);
   }
 
   @Test
@@ -486,6 +494,28 @@ class FlowInterpreterEngineTest {
         null,
         null,
         config);
+  }
+
+  @Test
+  void runsTimerWithResolvedDurationVariable() throws Exception {
+    ExecutionPlan plan =
+        compiler.compile(
+            new FlowDefinition(
+                "1.0",
+                new FlowMetadata("VarTimer", "Variable Timer", "1.0.0"),
+                Map.of(),
+                Map.of(),
+                List.of(
+                    node("Start", "START"),
+                    timerEvent("Wait", "${waitMs}"),
+                    node("End", "END")),
+                List.of(edge("Start", "Wait"), edge("Wait", "End"))));
+
+    SyncEnginePort port = new SyncEnginePort();
+    VariableStore variables = new VariableStore(Map.of("waitMs", "100ms"));
+    new FlowInterpreterEngine().runUntilEnd(plan, variables, port);
+
+    assertThat(port.visitedNodes()).containsExactly("Start", "Wait", "End");
   }
 
   private static FlowEdge edge(String from, String to) {

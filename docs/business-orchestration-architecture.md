@@ -81,6 +81,7 @@ Activity / External Worker
 - **版本治理**：Flow DSL / Execution Plan 发布后不可变，运行中实例引用固定版本。
 - **规则治理**：复杂判断不在 Gateway 出边上直接写脚本，而是前置 **Script Task**（`script-runtime`）用 Node.js 计算并写入变量，再由出边 **Safe FEEL** 根据变量选路，便于业务评审和测试。
 - **循环策略**：多轮业务编排（如外呼多轮）优先 **Gateway 回边 + 变量**；同一 Task 按条件或集合重复时使用 Activity **`flowFoundryLoop`**（Standard / Multi-Instance），详见 [loop-design.md](./loop-design.md)。
+- **定时等待**：按 slot 固定时刻触发下一轮使用 Intermediate Event **`timerDefinition.type=date`** + `${slot.fixedTime}` / `${slot.timezone}`，详见 [timer-design.md](./timer-design.md)。
 - **技术复杂度下沉**：HTTP 调用、重试、分页、限流、错误码转换、幂等等逻辑封装进 Activity。
 - **业务画布简洁**：画布保留高层业务节点、少量业务判断、人工任务、等待和子流程。
 

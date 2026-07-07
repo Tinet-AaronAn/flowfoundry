@@ -1289,9 +1289,19 @@
       function timerSection(n) {
         if (!['timerEvent','intermediateEvent','intermediateCatchEvent','boundaryEvent'].includes(n.kind)) return '';
         const def = n.config?.timerDefinition || {};
+        const isDate = def.type === 'date';
         return `<div class="prop-section"><h3>Timer Definition</h3>
-          <label>Type</label><select onchange="updateTimer('type', this.value)"><option ${def.type === 'duration' ? 'selected' : ''}>duration</option><option ${def.type === 'date' ? 'selected' : ''}>date</option><option ${def.type === 'cycle' ? 'selected' : ''}>cycle</option></select>
-          <label>Value</label><input value="${escapeAttr(def.value || n.config?.duration || '1m')}" placeholder="1m / PT1M / \${roundIntervalMinutes}M" oninput="updateTimer('value', this.value)" />
+          <label>Type</label><select onchange="updateTimer('type', this.value)"><option ${def.type === 'duration' || !def.type ? 'selected' : ''}>duration</option><option ${def.type === 'date' ? 'selected' : ''}>date</option><option ${def.type === 'cycle' ? 'selected' : ''}>cycle</option></select>
+          <label>Value</label><input value="${escapeAttr(def.value || n.config?.duration || '1m')}" placeholder="${isDate ? '2026-07-08T10:00:00 / ${slot.fixedTime}' : '1m / PT1M / ${roundIntervalMinutes}m'}" oninput="updateTimer('value', this.value)" />
+          ${isDate ? `
+          <label>Timezone</label><input value="${escapeAttr(def.timezone || '')}" placeholder="Asia/Shanghai / \${slot.timezone}" oninput="updateTimer('timezone', this.value)" />
+          <label>Past Target Strategy</label><select onchange="updateTimer('pastTargetStrategy', this.value)">
+            <option value="fireImmediately" ${(def.pastTargetStrategy || 'fireImmediately') === 'fireImmediately' ? 'selected' : ''}>fireImmediately</option>
+            <option value="skip" ${def.pastTargetStrategy === 'skip' ? 'selected' : ''}>skip</option>
+            <option value="fail" ${def.pastTargetStrategy === 'fail' ? 'selected' : ''}>fail</option>
+          </select>
+          <div class="help">When the resolved target time is already past: fire immediately, skip wait, or fail the workflow.</div>
+          ` : ''}
         </div>`;
       }
 

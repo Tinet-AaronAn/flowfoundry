@@ -106,7 +106,7 @@ Split 时 FEEL 为 true 而出 fork 的路径；未激活的路径 Join **不等
 | 元素 | 职责 |
 |------|------|
 | **Event-based Gateway** | 分叉 + **事件竞态**（谁先发生走谁） |
-| **Intermediate Event** | 单路径上的 **等待点**（timer / signal） |
+| **Intermediate Event** | 单路径上的 **等待点**（timer / signal）；timer 支持 `duration` / `date` + 变量 — 见 [timer-design.md](./timer-design.md) |
 
 标准结构：Gateway 出边 **直连** Intermediate Catch Event，再连后续 Task。
 
@@ -164,6 +164,7 @@ FlowInterpreterWorkflowImpl（Temporal）
 ## 10. 相关文档
 
 - [loop-design.md](./loop-design.md) — Activity Standard / Multi-Instance Loop
+- [timer-design.md](./timer-design.md) — Timer Definition（duration / date / 变量）
 
 ---
 
