@@ -3,8 +3,10 @@
       function isDialogInputMode() {
         const inputEl = $('appDialogInput');
         const textareaEl = $('appDialogTextarea');
+        const formEl = $('appDialogForm');
         return (inputEl && !inputEl.classList.contains('hidden'))
-          || (textareaEl && !textareaEl.classList.contains('hidden'));
+          || (textareaEl && !textareaEl.classList.contains('hidden'))
+          || (formEl && !formEl.classList.contains('hidden'));
       }
 
       function closeAppDialog(result) {
@@ -12,12 +14,15 @@
         if (!backdrop) return;
         backdrop.classList.remove('open');
         backdrop.setAttribute('aria-hidden', 'true');
-        backdrop.querySelector('.app-dialog')?.classList.remove('has-choices');
+        backdrop.querySelector('.app-dialog')?.classList.remove('has-choices', 'has-form');
         $('appDialogInput')?.classList.add('hidden');
         $('appDialogTextarea')?.classList.add('hidden');
         $('appDialogChoices')?.classList.add('hidden');
+        $('appDialogForm')?.classList.add('hidden');
         const choicesHost = $('appDialogChoices');
         if (choicesHost) choicesHost.innerHTML = '';
+        const formHost = $('appDialogForm');
+        if (formHost) formHost.innerHTML = '';
         if (dialogResolver) {
           const resolve = dialogResolver;
           dialogResolver = null;
@@ -89,7 +94,37 @@
         });
       }
 
+      function readAppFormDialogValues(formEl) {
+        const data = {};
+        if (!formEl) return data;
+        formEl.querySelectorAll('input[name], textarea[name], select[name]').forEach(el => {
+          if (el.type === 'radio') {
+            if (el.checked) data[el.name] = el.value;
+            return;
+          }
+          data[el.name] = el.value;
+        });
+        return data;
+      }
+
+      function syncAppFormDialogDependencies(formEl) {
+        if (!formEl) return;
+        formEl.querySelectorAll('[data-depends-on]').forEach(group => {
+          const dependsField = group.getAttribute('data-depends-on');
+          const dependsValue = group.getAttribute('data-depends-value') ?? '';
+          const current = formEl.querySelector(`input[name="${dependsField}"]:checked`)?.value
+            ?? formEl.querySelector(`[name="${dependsField}"]`)?.value
+            ?? '';
+          group.classList.toggle('hidden', current !== dependsValue);
+        });
+      }
+
       function confirmAppDialog() {
+        const formEl = $('appDialogForm');
+        if (formEl && !formEl.classList.contains('hidden')) {
+          closeAppDialog(readAppFormDialogValues(formEl));
+          return;
+        }
         const choicesEl = $('appDialogChoices');
         if (choicesEl && !choicesEl.classList.contains('hidden')) {
           const selected = choicesEl.querySelector('input[name="appDialogChoice"]:checked:not(:disabled)');
@@ -126,6 +161,111 @@
         choicesEl.querySelectorAll('.app-dialog-choice').forEach(item => item.classList.remove('selected'));
         choiceEl.classList.add('selected');
         if (confirmBtn) confirmBtn.disabled = false;
+      }
+
+      function renderAppFormDialogField(field) {
+        const hint = field.hint ? `<p class="app-dialog-form-hint">${escapeHtml(field.hint)}</p>` : '';
+        const dependsAttrs = field.dependsOn
+          ? ` data-depends-on="${escapeAttr(field.dependsOn.field)}" data-depends-value="${escapeAttr(field.dependsOn.value)}"`
+          : '';
+        const hiddenClass = field.dependsOn ? ' hidden' : '';
+        if (field.type === 'radio') {
+          const options = (field.options || []).map(option => `
+            <label class="app-dialog-form-radio">
+              <input type="radio" name="${escapeAttr(field.name)}" value="${escapeAttr(option.value)}"${option.value === field.value ? ' checked' : ''} />
+              <div class="app-dialog-form-radio-body">
+                <span class="app-dialog-form-radio-label">${escapeHtml(option.label || option.value)}</span>
+                ${option.hint ? `<span class="app-dialog-form-radio-hint">${escapeHtml(option.hint)}</span>` : ''}
+              </div>
+            </label>
+          `).join('');
+          return `
+            <fieldset class="app-dialog-form-group${hiddenClass}"${dependsAttrs}>
+              <legend class="app-dialog-form-label">${escapeHtml(field.label || field.name)}</legend>
+              ${hint}
+              <div class="app-dialog-form-radios">${options}</div>
+            </fieldset>
+          `;
+        }
+        const value = field.value ?? '';
+        if (field.type === 'textarea') {
+          return `
+            <label class="app-dialog-form-group${hiddenClass}"${dependsAttrs}>
+              <span class="app-dialog-form-label">${escapeHtml(field.label || field.name)}</span>
+              ${hint}
+              <textarea class="app-dialog-field textarea" name="${escapeAttr(field.name)}" rows="${field.rows || 3}" spellcheck="false">${escapeHtml(value)}</textarea>
+            </label>
+          `;
+        }
+        return `
+          <label class="app-dialog-form-group${hiddenClass}"${dependsAttrs}>
+            <span class="app-dialog-form-label">${escapeHtml(field.label || field.name)}</span>
+            ${hint}
+            <input type="text" class="app-dialog-field" name="${escapeAttr(field.name)}" value="${escapeAttr(value)}" autocomplete="off" />
+          </label>
+        `;
+      }
+
+      function showAppFormDialog({
+        title,
+        message = '',
+        fields = [],
+        confirmLabel,
+        cancelLabel
+      } = {}) {
+        const backdrop = $('appDialogBackdrop');
+        const dialogEl = backdrop?.querySelector('.app-dialog');
+        const titleEl = $('appDialogTitle');
+        const messageEl = $('appDialogMessage');
+        const inputEl = $('appDialogInput');
+        const textareaEl = $('appDialogTextarea');
+        const choicesEl = $('appDialogChoices');
+        const formEl = $('appDialogForm');
+        const confirmBtn = $('appDialogConfirm');
+        const cancelBtn = $('appDialogCancel');
+        if (!backdrop || !titleEl || !confirmBtn || !cancelBtn || !formEl) {
+          return Promise.resolve(null);
+        }
+
+        titleEl.textContent = title || '';
+        if (messageEl) {
+          messageEl.textContent = message || '';
+          messageEl.hidden = !message;
+        }
+
+        inputEl?.classList.add('hidden');
+        textareaEl?.classList.add('hidden');
+        choicesEl?.classList.add('hidden');
+        dialogEl?.classList.add('has-form');
+        formEl.classList.remove('hidden');
+        formEl.innerHTML = fields.map(renderAppFormDialogField).join('');
+
+        const syncDependencies = () => syncAppFormDialogDependencies(formEl);
+        formEl.querySelectorAll('input[type="radio"]').forEach(radio => {
+          radio.addEventListener('change', syncDependencies);
+        });
+        syncDependencies();
+
+        confirmBtn.textContent = confirmLabel || t('dialog.confirm');
+        cancelBtn.textContent = cancelLabel || t('dialog.cancel');
+        confirmBtn.classList.remove('danger');
+        confirmBtn.disabled = false;
+
+        backdrop.classList.add('open');
+        backdrop.setAttribute('aria-hidden', 'false');
+
+        return new Promise(resolve => {
+          dialogResolver = resolve;
+          const firstField = formEl.querySelector('.app-dialog-form-group:not(.hidden) input, .app-dialog-form-group:not(.hidden) textarea');
+          requestAnimationFrame(() => {
+            if (firstField) {
+              firstField.focus();
+              firstField.select?.();
+            } else {
+              confirmBtn.focus();
+            }
+          });
+        });
       }
 
       function showAppChoiceDialog({
@@ -210,9 +350,6 @@
 
         confirmBtn?.addEventListener('click', confirmAppDialog);
         cancelBtn?.addEventListener('click', cancelAppDialog);
-        backdrop.addEventListener('click', event => {
-          if (event.target === backdrop) cancelAppDialog();
-        });
         inputEl?.addEventListener('keydown', event => {
           if (event.key === 'Enter') {
             event.preventDefault();

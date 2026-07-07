@@ -23,7 +23,7 @@ flowfoundry-app/modules/ai-collection-strategy  ──depends──►  flowfoun
 flowfoundry-app                               ← 仅聚合 modules，无代码
 ```
 
-本地联调入口：**http://127.0.0.1:8081/**（场景 JAR：`ai-collection-strategy-demo`）
+本地联调入口：**http://127.0.0.1:8081/**（平台）；业务 Worker **http://127.0.0.1:8082/**（仅 Worker + iframe 壳）
 
 **服务地址权威表**：[service-urls.md](service-urls.md)
 
@@ -44,7 +44,8 @@ flowfoundry-app                               ← 仅聚合 modules，无代码
 | `workflow/` | 流程定义 PostgreSQL 持久化 |
 | `temporal/` | Temporal Worker 启动、`TemporalWorkerExtension` 扩展点 |
 | `config/` | Spring 配置 |
-| `boot/` | `FlowFoundryCoreApplication`（平台独立启动入口） |
+| `boot/` | `FlowFoundryCoreApplication`（平台独立启动，`run-mode=platform`） |
+| `sdk/` | `@EnableFlowFoundry`（平台）、`@EnableFlowFoundryWorker`（业务 Worker） |
 | `src/main/resources/application-flowfoundry-platform.yml` | 平台共享 Spring 配置（数据源、Redis、Temporal 默认等） |
 | `src/main/resources/static/` | **建模器** HTML/JS/CSS（通用空画布） |
 
@@ -66,7 +67,7 @@ flowfoundry-app                               ← 仅聚合 modules，无代码
 
 | 内容 | 作用 |
 |------|------|
-| `AiCollectionStrategyApplication.java` | 场景启动类（`main`） |
+| `AiCollectionStrategyApplication.java` | Worker 启动类（`@EnableFlowFoundryWorker`） |
 | `src/main/resources/application.yml` | 场景配置（`spring.config.import` 引入平台配置 + Temporal/注册表覆盖） |
 | `config/activities-registry.yaml` | 本业务 Activity 注册表 |
 | `*Activities*` | 催收相关 Activity 实现（`CallCampaignActivitiesImpl` 真实 + `CallCampaignActivitiesStub` 桩） |
@@ -99,4 +100,4 @@ flowfoundry-app                               ← 仅聚合 modules，无代码
 | 新增 Activity 类型定义 | `flowfoundry-app/modules/<场景>/config/activities-registry.yaml` |
 | Activity 业务实现 | `flowfoundry-app/modules/<场景>/src/...` |
 | 新增一套业务 | 新建 `flowfoundry-app/modules/xxx/`（含 `main` + `pom.xml`），注册到 `flowfoundry-app/pom.xml` |
-| 本地联调 | `./scripts/redeploy-worker.sh`（默认场景 `ai-collection-strategy`） |
+| 本地联调 | `./scripts/redeploy-worker.sh`（平台 :8081）+ `./scripts/redeploy-app.sh`（Worker :8082） |

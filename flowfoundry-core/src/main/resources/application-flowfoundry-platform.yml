@@ -1,4 +1,13 @@
 spring:
+  web:
+    resources:
+      # 本地开发：静态资源不缓存，避免 redeploy 后浏览器仍用旧 CSS/JS
+      cache:
+        period: 0
+        cachecontrol:
+          max-age: 0
+          no-cache: true
+          must-revalidate: true
   datasource:
     url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/flowfoundry}
     username: ${DB_USER:flowfoundry}
@@ -45,6 +54,26 @@ activity:
 platform:
   activity-registry:
     path: ${ACTIVITY_REGISTRY_PATH:classpath:activities-registry.yaml}
+
+flowfoundry:
+  run-mode: platform
+  activity-registry:
+    path: ${ACTIVITY_REGISTRY_PATH:classpath:activities-registry.yaml}
+  modeler:
+    embed-enabled: ${FLOWFOUNDRY_MODELER_EMBED_ENABLED:true}
+    api-base: ${FLOWFOUNDRY_MODELER_API_BASE:/api}
+    embed-path: ${FLOWFOUNDRY_MODELER_EMBED_PATH:/modeler/embed.html}
+    sdk-script-path: ${FLOWFOUNDRY_MODELER_SDK_SCRIPT:/assets/js/flowfoundry-modeler-sdk.js}
+    allow-frame-embedding: ${FLOWFOUNDRY_MODELER_ALLOW_FRAME:true}
+    allowed-embed-origins:
+      - http://127.0.0.1:8082
+      - http://localhost:8082
+  security:
+    enabled: ${FLOWFOUNDRY_SECURITY_ENABLED:false}
+    dev-namespace: ${FLOWFOUNDRY_DEV_NAMESPACE:default}
+    bootstrap-admin-key: ${FLOWFOUNDRY_BOOTSTRAP_ADMIN_KEY:}
+    admin-localhost-only: ${FLOWFOUNDRY_ADMIN_LOCALHOST_ONLY:true}
+    api-keys: []
 
 management:
   endpoints:

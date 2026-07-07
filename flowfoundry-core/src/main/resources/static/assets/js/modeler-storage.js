@@ -1,9 +1,12 @@
-      const WORKFLOW_API_BASE = '/api/workflows';
+      function workflowApiBase() {
+        return platformApiUrl('/workflows');
+      }
+
       let workflowApiAvailable = null;
 
       async function workflowApi(path = '', options = {}) {
-        const response = await fetch(`${WORKFLOW_API_BASE}${path}`, {
-          headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+        const response = await fetch(`${workflowApiBase()}${path}`, {
+          headers: { 'Content-Type': 'application/json', ...platformApiHeaders(), ...(options.headers || {}) },
           ...options
         });
         if (!response.ok) {
@@ -189,6 +192,7 @@
             });
             replaceWorkflowRecord(saved);
             message(t('workflow.message.saved', { name: saved.name, version: saved.version }));
+            if (typeof notifyWorkflowSaved === 'function') notifyWorkflowSaved(saved);
             renderWorkflowList();
             return;
           } catch (err) {
@@ -199,6 +203,9 @@
         await persistWorkflowStore();
         renderWorkflowList();
         message(t('workflow.message.saved', { name: workflow.name, version: version.version }));
+        if (typeof notifyWorkflowSaved === 'function') {
+          notifyWorkflowSaved({ id: workflow.id, version: version.version, name: workflow.name });
+        }
       }
 
       function replaceWorkflowRecord(record) {

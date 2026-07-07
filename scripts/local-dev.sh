@@ -9,6 +9,7 @@ COMPOSE_FILE="$ROOT/deploy/docker-compose.local.yml"
 INFRA_SERVICES=(postgres redis temporal temporal-init temporal-ui)
 
 WORKER_PORT="${WORKER_PORT:-8081}"
+APP_PORT="${APP_PORT:-8082}"
 RUN_DIR="$ROOT/.local/run"
 
 mkdir -p "$RUN_DIR"
@@ -113,12 +114,14 @@ start_infra() {
 }
 
 start_worker() {
-  if curl -sf --noproxy '*' "http://127.0.0.1:$WORKER_PORT/actuator/health" >/dev/null 2>&1; then
-    echo "[flowfoundry] already healthy on :$WORKER_PORT"
-    echo "[flowfoundry] after code changes run: ./scripts/redeploy-worker.sh"
+  if curl -sf --noproxy '*' "http://127.0.0.1:$WORKER_PORT/actuator/health" >/dev/null 2>&1 \
+    && curl -sf --noproxy '*' "http://127.0.0.1:$APP_PORT/actuator/health" >/dev/null 2>&1; then
+    echo "[flowfoundry] platform :$WORKER_PORT and app :$APP_PORT already healthy"
+    echo "[flowfoundry] after code changes run: ./scripts/redeploy-worker.sh && ./scripts/redeploy-app.sh"
     return 0
   fi
-  exec "$ROOT/scripts/redeploy-worker.sh"
+  "$ROOT/scripts/redeploy-worker.sh"
+  "$ROOT/scripts/redeploy-app.sh"
 }
 
 stop_all() {
@@ -137,13 +140,14 @@ case "${1:-up}" in
     start_worker
     echo ""
     echo "Local debug stack is up:"
-    echo "  Modeler     : http://127.0.0.1:$WORKER_PORT/"
+    echo "  Platform    : http://127.0.0.1:$WORKER_PORT/  (flowfoundry-core 建模器 + API Keys)"
+    echo "  App shell   : http://127.0.0.1:$APP_PORT/app/workflow-admin.html  (iframe 业务壳)"
     echo "  Temporal UI : http://127.0.0.1:8080/"
     echo "  Health      : http://127.0.0.1:$WORKER_PORT/actuator/health"
     echo "  Postgres    : 127.0.0.1:5432 (flowfoundry)"
     echo "  Redis       : 127.0.0.1:${REDIS_PORT:-6379}"
     echo ""
-    echo "After code changes: ./scripts/redeploy-worker.sh"
+    echo "After code changes: ./scripts/redeploy-worker.sh && ./scripts/redeploy-app.sh"
     ;;
   infra)
     start_infra

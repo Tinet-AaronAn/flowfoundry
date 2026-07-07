@@ -83,6 +83,8 @@
         panY: 0,
         history: [],
         future: [],
+        embedMode: false,
+        embedConfig: {},
         model: {
           id: 'Definitions_UntitledWorkflow',
           name: 'Untitled Workflow',
@@ -140,6 +142,10 @@
 
       function isHumanTaskKind(kind) {
         return kind === 'humanTask';
+      }
+
+      function isScriptRuntimeNode(node) {
+        return !!node && (node.kind === 'scriptTask' || node.activityType === 'script-runtime');
       }
 
       function configureDefaultMappings() {}

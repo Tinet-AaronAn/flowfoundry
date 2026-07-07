@@ -65,7 +65,16 @@
         pushHistory();
         n.activityType = value;
         n.config = { ...(n.config || {}), flowFoundryTaskDefinition: { ...(n.config?.flowFoundryTaskDefinition || {}), type: value, retries: String(n.maxAttempts || 3) } };
+        if (value === 'script-runtime') {
+          n.scriptCodeId = n.scriptCodeId || 'demo-script';
+          n.scriptVersion = n.scriptVersion || '1';
+        } else {
+          delete n.scriptCodeId;
+          delete n.scriptVersion;
+          delete n.scriptName;
+        }
         refreshNodePreview(n);
+        renderProperties();
       }
 
       function updateConfig(key, value) {
@@ -92,7 +101,7 @@
 
       async function updateScriptTaskRef(scriptCodeId) {
         const n = selectedNode();
-        if (!n || n.kind !== 'scriptTask') return;
+        if (!n || !isScriptRuntimeNode(n)) return;
         pushHistory();
         const entry = scriptCatalogEntry(scriptCodeId);
         n.scriptCodeId = scriptCodeId || '';

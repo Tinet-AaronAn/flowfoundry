@@ -10,6 +10,7 @@ import com.tinet.flowfoundry.api.RunStatusResponse;
 import com.tinet.flowfoundry.interpreter.runtime.RunSource;
 import com.tinet.flowfoundry.interpreter.runtime.RunSourceResolver;
 import com.tinet.flowfoundry.registry.ActivityRegistry;
+import com.tinet.flowfoundry.security.NamespaceAccessService;
 import com.tinet.flowfoundry.workflow.WorkflowRunId;
 import io.temporal.api.common.v1.WorkflowExecution;
 import io.temporal.client.WorkflowClient;
@@ -34,27 +35,32 @@ public class FlowController {
   private final ActivityRegistry activityRegistry;
 
   private final FlowRunStatusService runStatusService;
+  private final NamespaceAccessService namespaceAccess;
 
   public FlowController(
       FlowCompiler compiler,
       WorkflowClient workflowClient,
       TemporalProperties temporalProperties,
       ActivityRegistry activityRegistry,
-      FlowRunStatusService runStatusService) {
+      FlowRunStatusService runStatusService,
+      NamespaceAccessService namespaceAccess) {
     this.compiler = compiler;
     this.workflowClient = workflowClient;
     this.temporalProperties = temporalProperties;
     this.activityRegistry = activityRegistry;
     this.runStatusService = runStatusService;
+    this.namespaceAccess = namespaceAccess;
   }
 
   @GetMapping("/activities")
   public ActivityRegistry activities() {
+    namespaceAccess.requireAccess(activityRegistry.namespace());
     return activityRegistry;
   }
 
   @PostMapping("/flows/compile")
   public ExecutionPlan compile(@RequestBody FlowDefinition definition) {
+    namespaceAccess.requireAuthenticatedNamespace();
     return compiler.compile(definition);
   }
 
@@ -63,6 +69,7 @@ public class FlowController {
       @RequestBody RunRequest request,
       @RequestHeader(value = RunSourceResolver.WEB_MODELER_CLIENT_HEADER, required = false)
           String clientHeader) {
+    namespaceAccess.requireAuthenticatedNamespace();
     ExecutionPlan plan = compiler.compile(request.flow());
     RunSource runSource = RunSourceResolver.resolve(request.runSource(), clientHeader);
     String businessKey =
@@ -96,6 +103,7 @@ public class FlowController {
 
   @GetMapping("/flows/runs/{workflowId}")
   public RunStatusResponse state(@PathVariable String workflowId) {
+    namespaceAccess.requireAuthenticatedNamespace();
     requireRunWorkflowId(workflowId);
     return runStatusService.getRunStatus(workflowId);
   }
@@ -103,6 +111,7 @@ public class FlowController {
   @PostMapping("/flows/runs/{workflowId}/human-task")
   public void completeHumanTask(
       @PathVariable String workflowId, @RequestBody HumanTaskCompletion completion) {
+    namespaceAccess.requireAuthenticatedNamespace();
     requireRunWorkflowId(workflowId);
     workflowClient
         .newWorkflowStub(FlowInterpreterWorkflow.class, workflowId)

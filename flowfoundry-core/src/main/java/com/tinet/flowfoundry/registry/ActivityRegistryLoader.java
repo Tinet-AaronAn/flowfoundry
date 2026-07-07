@@ -1,6 +1,7 @@
 package com.tinet.flowfoundry.registry;
 
 import com.tinet.flowfoundry.config.ActivityRegistryProperties;
+import com.tinet.flowfoundry.config.FlowFoundryProperties;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -22,20 +23,25 @@ public class ActivityRegistryLoader {
   private static final Logger log = LoggerFactory.getLogger(ActivityRegistryLoader.class);
   private static final String CORE_REGISTRY = "classpath:core-activities-registry.yaml";
 
-  private final ActivityRegistryProperties properties;
+  private final FlowFoundryProperties flowFoundryProperties;
+  private final ActivityRegistryProperties legacyProperties;
   private final ResourceLoader resourceLoader;
   private final ObjectMapper yamlMapper;
 
   public ActivityRegistryLoader(
-      ActivityRegistryProperties properties, ResourceLoader resourceLoader) {
-    this.properties = properties;
+      FlowFoundryProperties flowFoundryProperties,
+      ActivityRegistryProperties legacyProperties,
+      ResourceLoader resourceLoader) {
+    this.flowFoundryProperties = flowFoundryProperties;
+    this.legacyProperties = legacyProperties;
     this.resourceLoader = resourceLoader;
     this.yamlMapper = new ObjectMapper(new YAMLFactory()).registerModule(new JavaTimeModule());
   }
 
   public ActivityRegistry load() {
+    String businessPath = resolveRegistryPath();
     ActivityRegistry core = loadOptional(CORE_REGISTRY);
-    ActivityRegistry business = loadRequired(properties.path());
+    ActivityRegistry business = loadRequired(businessPath);
     ActivityRegistry merged = merge(core, business);
     log.info(
         "Loaded activity registry v{} namespace={} activities={} (core={} business={})",
@@ -45,6 +51,14 @@ public class ActivityRegistryLoader {
         core == null ? 0 : core.activities().size(),
         business.activities().size());
     return merged;
+  }
+
+  private String resolveRegistryPath() {
+    String configured = flowFoundryProperties.getActivityRegistry().getPath();
+    if (configured != null && !configured.isBlank()) {
+      return configured;
+    }
+    return legacyProperties.path();
   }
 
   private ActivityRegistry merge(ActivityRegistry core, ActivityRegistry business) {

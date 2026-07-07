@@ -3,8 +3,9 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="Cache-Control" content="no-cache" />
     <title>FlowFoundry Modeler - Temporal Runtime</title>
-    <link rel="stylesheet" href="assets/css/modeler.css" />
+    <link rel="stylesheet" href="assets/css/modeler.css?v=@flowfoundry.static.version@" />
   </head>
   <body>
     <div class="shell">
@@ -23,15 +24,22 @@
       <div class="app" id="app">
         <aside class="nav" id="navPanel">
           <div class="nav-header">
-            <div class="nav-title">Workflow</div>
+            <div class="nav-title">FlowFoundry</div>
             <button type="button" class="panel-toggle" id="navToggleBtn" onclick="toggleNav()" data-i18n-title="nav.collapse" title="Collapse menu" aria-expanded="true">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
           </div>
           <div class="nav-body">
-            <button class="nav-link active" id="navWorkflows" onclick="switchView('workflows')" data-i18n="nav.workflows">Workflows</button>
-            <button class="nav-link" id="navModeler" onclick="switchView('modeler')" data-i18n="nav.modeler">Modeler</button>
-            <button class="nav-link" id="navRuns" onclick="switchView('runs')" data-i18n="nav.runs">Run Logs</button>
+            <div class="nav-group">
+              <div class="nav-group-title">WORKFLOW</div>
+              <button class="nav-link active" id="navWorkflows" onclick="switchView('workflows')" data-i18n="nav.workflows">Workflows</button>
+              <button class="nav-link" id="navModeler" onclick="switchView('modeler')" data-i18n="nav.modeler">Modeler</button>
+              <button class="nav-link" id="navRuns" onclick="switchView('runs')" data-i18n="nav.runs">Run Logs</button>
+            </div>
+            <div class="nav-group hidden" id="navSystemGroup">
+              <div class="nav-group-title">SYSTEM</div>
+              <button class="nav-link" id="navAdminApiKeys" onclick="switchView('admin')">API Keys</button>
+            </div>
           </div>
         </aside>
         <button type="button" class="nav-expand-tab" id="navExpandTab" onclick="toggleNav()" data-i18n-title="nav.expand" data-i18n-aria-label="nav.expand" title="Expand menu" aria-label="Expand menu">
@@ -75,6 +83,71 @@
               <input id="runsSearch" class="workflow-search" data-i18n-placeholder="runs.searchPlaceholder" placeholder="Search by execution ID or workflow..." oninput="renderRunsList()" />
             </div>
             <div class="table" id="runsTable"></div>
+          </section>
+          <section class="admin-list view" id="adminView">
+            <div class="page-header">
+              <h1 data-i18n="admin.title">API Key Management</h1>
+              <div class="spacer"></div>
+              <button onclick="createAdminClient()" data-i18n="admin.create">New API Key</button>
+            </div>
+            <div id="adminAccessDenied" class="app-notice app-notice-warning hidden">
+              <div class="app-notice-text" data-i18n="admin.accessDenied">Admin API is only available from 127.0.0.1 on this machine.</div>
+            </div>
+            <div id="adminPanels">
+              <p class="admin-profile" id="adminProfileText"></p>
+              <h2 class="admin-section-title" data-i18n="admin.clientsTitle">API Key</h2>
+              <div class="workflow-filters">
+                <input id="adminClientSearch" class="workflow-search" data-i18n-placeholder="admin.searchPlaceholder" placeholder="Search by name..." oninput="renderAdminClientsTable()" />
+                <button class="secondary" onclick="refreshAdminClients()" data-i18n="admin.refresh">Refresh</button>
+              </div>
+              <div class="table admin-table-wrap">
+                <table class="admin-table">
+                  <thead>
+                    <tr>
+                      <th data-i18n="admin.col.name">Name</th>
+                      <th data-i18n="admin.col.namespaces">Namespaces</th>
+                      <th data-i18n="admin.col.keyPrefix">Key prefix</th>
+                      <th data-i18n="admin.col.status">Status</th>
+                      <th data-i18n="admin.col.lastUsed">Last used</th>
+                      <th data-i18n="admin.col.actions">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="adminClientsTable">
+                    <tr><td colspan="6" class="admin-empty">Loading...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <h2 class="admin-section-title" data-i18n="admin.auditTitle">Audit Logs</h2>
+              <div class="workflow-filters admin-audit-filters">
+                <input id="adminAuditFromFilter" class="workflow-search" type="datetime-local" data-i18n-title="admin.auditFrom" title="Access from" />
+                <input id="adminAuditToFilter" class="workflow-search" type="datetime-local" data-i18n-title="admin.auditTo" title="Access to" />
+                <input id="adminAuditClientFilter" class="workflow-search" data-i18n-placeholder="admin.auditClientPlaceholder" placeholder="Filter by client..." />
+                <input id="adminAuditActionFilter" class="workflow-search" data-i18n-placeholder="admin.auditActionPlaceholder" placeholder="Filter by action..." />
+                <label class="admin-audit-option">
+                  <input id="adminAuditIncludeApiCalls" type="checkbox" />
+                  <span data-i18n="admin.auditIncludeApiCalls">Include API request logs</span>
+                </label>
+                <button class="secondary" onclick="searchAdminAuditLogs(0)" data-i18n="admin.auditSearch">Search</button>
+              </div>
+              <div class="admin-audit-pagination" id="adminAuditPagination"></div>
+              <div class="table admin-table-wrap">
+                <table class="admin-table">
+                  <thead>
+                    <tr>
+                      <th data-i18n="admin.auditCol.time">Time</th>
+                      <th data-i18n="admin.auditCol.action">Action</th>
+                      <th data-i18n="admin.auditCol.client">Client</th>
+                      <th data-i18n="admin.auditCol.request">Request</th>
+                      <th data-i18n="admin.auditCol.status">Status</th>
+                      <th data-i18n="admin.auditCol.detail">Detail</th>
+                    </tr>
+                  </thead>
+                  <tbody id="adminAuditTable">
+                    <tr><td colspan="6" class="admin-empty" data-i18n="admin.auditPrompt">Set filters and click Search to query audit logs.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </section>
           <section class="modeler view" id="modelerView">
           <div class="model-header">
@@ -246,6 +319,7 @@
         <input id="appDialogInput" class="app-dialog-field hidden" type="text" autocomplete="off" />
         <textarea id="appDialogTextarea" class="app-dialog-field textarea hidden" spellcheck="false"></textarea>
         <div id="appDialogChoices" class="app-dialog-choices hidden"></div>
+        <div id="appDialogForm" class="app-dialog-form hidden"></div>
         <div class="app-dialog-actions">
           <button type="button" class="secondary" id="appDialogCancel" data-i18n="dialog.cancel">Cancel</button>
           <button type="button" id="appDialogConfirm" data-i18n="dialog.confirm">OK</button>
@@ -253,22 +327,29 @@
       </div>
     </div>
 
-    <script src="assets/js/i18n.js"></script>
-    <script src="assets/js/locales/en.js"></script>
-    <script src="assets/js/locales/zh.js"></script>
-    <script src="assets/js/modeler-state.js"></script>
-    <script src="assets/js/modeler-dialog.js"></script>
-    <script src="assets/js/modeler-run-ui.js"></script>
-    <script src="assets/js/modeler-simulation.js"></script>
-    <script src="assets/js/modeler-runtime-sync.js"></script>
-    <script src="assets/js/modeler-render.js"></script>
-    <script src="assets/js/modeler-actions.js"></script>
-    <script src="assets/js/modeler-canvas.js"></script>
-    <script src="assets/js/modeler-viewport.js"></script>
-    <script src="assets/js/modeler-storage.js"></script>
-    <script src="assets/js/modeler-dsl-runtime.js"></script>
-    <script src="assets/js/modeler-runs.js"></script>
-    <script src="assets/js/modeler-bootstrap.js"></script>
-    <script>initI18n();</script>
+    <script src="assets/js/i18n.js?v=@flowfoundry.static.version@"></script>
+    <script src="/api/platform/auth.js?v=@flowfoundry.static.version@"></script>
+    <script src="assets/js/modeler-api.js?v=@flowfoundry.static.version@"></script>
+    <script src="assets/js/locales/en.js?v=@flowfoundry.static.version@"></script>
+    <script src="assets/js/locales/zh.js?v=@flowfoundry.static.version@"></script>
+    <script src="assets/js/modeler-state.js?v=@flowfoundry.static.version@"></script>
+    <script src="assets/js/modeler-dialog.js?v=@flowfoundry.static.version@"></script>
+    <script src="assets/js/modeler-run-ui.js?v=@flowfoundry.static.version@"></script>
+    <script src="assets/js/modeler-simulation.js?v=@flowfoundry.static.version@"></script>
+    <script src="assets/js/modeler-runtime-sync.js?v=@flowfoundry.static.version@"></script>
+    <script src="assets/js/modeler-render.js?v=@flowfoundry.static.version@"></script>
+    <script src="assets/js/modeler-actions.js?v=@flowfoundry.static.version@"></script>
+    <script src="assets/js/modeler-canvas.js?v=@flowfoundry.static.version@"></script>
+    <script src="assets/js/modeler-viewport.js?v=@flowfoundry.static.version@"></script>
+    <script src="assets/js/modeler-storage.js?v=@flowfoundry.static.version@"></script>
+    <script src="assets/js/modeler-dsl-runtime.js?v=@flowfoundry.static.version@"></script>
+    <script src="assets/js/modeler-runs.js?v=@flowfoundry.static.version@"></script>
+    <script src="assets/js/modeler-bootstrap.js?v=@flowfoundry.static.version@"></script>
+    <script src="assets/js/modeler-admin.js?v=@flowfoundry.static.version@"></script>
+    <script>
+      initI18n();
+      loadActivities();
+      loadAdminProfile();
+    </script>
   </body>
 </html>

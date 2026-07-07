@@ -297,7 +297,9 @@
         if (n.config?.taskHeaders && Object.keys(n.config.taskHeaders).length) {
           result.flowFoundryTaskHeaders = n.config.taskHeaders;
         }
-        if (n.scriptCodeId) result.flowFoundryScriptDefinition = { scriptCodeId: n.scriptCodeId, scriptVersion: n.scriptVersion, scriptName: n.scriptName };
+        if (isScriptRuntimeNode(n) && n.scriptCodeId) {
+          result.flowFoundryScriptDefinition = { scriptCodeId: n.scriptCodeId, scriptVersion: n.scriptVersion, scriptName: n.scriptName };
+        }
         if (n.kind === 'workflow') {
           result.flowFoundryChildWorkflow = {
             childWorkflowId: n.config?.childWorkflowId || '',
@@ -319,7 +321,7 @@
 
       async function compileFlow() {
         try {
-          const res = await post('/api/flows/compile', buildDsl());
+          const res = await post('/flows/compile', buildDsl());
           state.lastCompiledPlan = res;
           updateCompiledPlanButton();
           if (isRunStatusDialogOpen()) updateRunStatusCompiledPlan();
@@ -382,7 +384,7 @@
         });
         if (!nodeId) return;
         try {
-          await post(`/api/flows/runs/${encodeURIComponent(id)}/human-task`, {
+          await post(`/flows/runs/${encodeURIComponent(id)}/human-task`, {
             nodeId,
             outcome: 'approved',
             variables: { approved: true }

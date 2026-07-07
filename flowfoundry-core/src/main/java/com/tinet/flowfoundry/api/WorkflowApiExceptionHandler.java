@@ -1,5 +1,8 @@
 package com.tinet.flowfoundry.api;
 
+import com.tinet.flowfoundry.security.AdminAccessDeniedException;
+import com.tinet.flowfoundry.security.ApiClientNotFoundException;
+import com.tinet.flowfoundry.security.NamespaceAccessDeniedException;
 import com.tinet.flowfoundry.workflow.WorkflowConflictException;
 import com.tinet.flowfoundry.workflow.WorkflowNotFoundException;
 import com.tinet.flowfoundry.workflow.WorkflowRunId;
@@ -47,6 +50,21 @@ public class WorkflowApiExceptionHandler {
   @ExceptionHandler(WorkflowConflictException.class)
   public ResponseEntity<Map<String, String>> conflict(WorkflowConflictException ex) {
     return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("message", ex.getMessage()));
+  }
+
+  @ExceptionHandler(NamespaceAccessDeniedException.class)
+  public ResponseEntity<Map<String, String>> namespaceDenied(NamespaceAccessDeniedException ex) {
+    return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", ex.getMessage()));
+  }
+
+  @ExceptionHandler(AdminAccessDeniedException.class)
+  public ResponseEntity<Map<String, String>> adminDenied(AdminAccessDeniedException ex) {
+    return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", ex.getMessage()));
+  }
+
+  @ExceptionHandler(ApiClientNotFoundException.class)
+  public ResponseEntity<Map<String, String>> apiClientNotFound(ApiClientNotFoundException ex) {
+    return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", ex.getMessage()));
   }
 
   @ExceptionHandler(IllegalArgumentException.class)

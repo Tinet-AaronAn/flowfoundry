@@ -1,6 +1,8 @@
 spring:
   config:
-    import: classpath:application-flowfoundry-platform.yml
+    import:
+      - classpath:application-flowfoundry-platform.yml
+      - classpath:application-flowfoundry-worker.yml
   application:
     name: ai-collection-strategy
 
@@ -9,5 +11,9 @@ temporal:
   task-queue: ${TEMPORAL_TASK_QUEUE:ai-collection-strategy}
 
 platform:
+  activity-registry:
+    path: ${ACTIVITY_REGISTRY_PATH:classpath:activities-registry.yaml}
+
+flowfoundry:
   activity-registry:
     path: ${ACTIVITY_REGISTRY_PATH:classpath:activities-registry.yaml}

@@ -14,8 +14,23 @@ public interface WorkflowDefinitionRepository extends JpaRepository<WorkflowDefi
         OR LOWER(w.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
         OR LOWER(w.id) LIKE LOWER(CONCAT('%', :keyword, '%')))
       AND (:status IS NULL OR :status = '' OR w.status = :status)
+      AND w.namespace IN :namespaces
       ORDER BY w.updatedAt DESC
       """)
   List<WorkflowDefinitionEntity> search(
+      @Param("keyword") String keyword,
+      @Param("status") String status,
+      @Param("namespaces") List<String> namespaces);
+
+  @Query(
+      """
+      SELECT w FROM WorkflowDefinitionEntity w
+      WHERE (:keyword IS NULL OR :keyword = ''
+        OR LOWER(w.name) LIKE LOWER(CONCAT('%', :keyword, '%'))
+        OR LOWER(w.id) LIKE LOWER(CONCAT('%', :keyword, '%')))
+      AND (:status IS NULL OR :status = '' OR w.status = :status)
+      ORDER BY w.updatedAt DESC
+      """)
+  List<WorkflowDefinitionEntity> searchAll(
       @Param("keyword") String keyword, @Param("status") String status);
 }

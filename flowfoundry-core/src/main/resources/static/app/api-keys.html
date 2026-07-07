@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>API Keys - FlowFoundry</title>
+    <link rel="stylesheet" href="/assets/css/modeler.css?v=@flowfoundry.static.version@" />
+    <style>
+      body.api-keys-standalone {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        background: var(--bg);
+        color: var(--text);
+      }
+      .api-keys-standalone .api-keys-shell {
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 auto;
+        min-height: 0;
+        padding: 16px 20px 24px;
+        gap: 12px;
+        overflow: auto;
+      }
+    </style>
+  </head>
+  <body class="api-keys-standalone">
+    <div id="appNotice" class="app-notice hidden" role="status" aria-live="polite">
+      <div class="app-notice-icon" id="appNoticeIcon" aria-hidden="true"></div>
+      <div class="app-notice-content">
+        <div class="app-notice-title" id="appNoticeTitle" hidden></div>
+        <div class="app-notice-text" id="appNoticeText"></div>
+      </div>
+      <button type="button" class="app-notice-close" id="appNoticeClose" onclick="dismissNotice()" title="Close" aria-label="Close">×</button>
+    </div>
+
+    <div class="api-keys-shell" id="adminView">
+      <div class="page-header">
+        <h1 data-i18n="admin.title">API Key Management</h1>
+        <div class="spacer"></div>
+        <button onclick="createAdminClient()" data-i18n="admin.create">New API Key</button>
+      </div>
+      <div id="adminAccessDenied" class="app-notice app-notice-warning hidden">
+        <div class="app-notice-text" data-i18n="admin.accessDenied">Admin API is only available from 127.0.0.1 on this machine.</div>
+      </div>
+      <div id="adminPanels">
+        <p class="admin-profile" id="adminProfileText"></p>
+        <h2 class="admin-section-title" data-i18n="admin.clientsTitle">API Key</h2>
+        <div class="workflow-filters">
+          <input id="adminClientSearch" class="workflow-search" data-i18n-placeholder="admin.searchPlaceholder" placeholder="Search by name..." oninput="renderAdminClientsTable()" />
+          <button class="secondary" onclick="refreshAdminClients()" data-i18n="admin.refresh">Refresh</button>
+        </div>
+        <div class="table admin-table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th data-i18n="admin.col.name">Name</th>
+                <th data-i18n="admin.col.namespaces">Namespaces</th>
+                <th data-i18n="admin.col.keyPrefix">Key prefix</th>
+                <th data-i18n="admin.col.status">Status</th>
+                <th data-i18n="admin.col.lastUsed">Last used</th>
+                <th data-i18n="admin.col.actions">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="adminClientsTable">
+              <tr><td colspan="6" class="admin-empty">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <h2 class="admin-section-title" data-i18n="admin.auditTitle">Audit Logs</h2>
+        <div class="workflow-filters admin-audit-filters">
+          <input id="adminAuditFromFilter" class="workflow-search" type="datetime-local" data-i18n-title="admin.auditFrom" title="Access from" />
+          <input id="adminAuditToFilter" class="workflow-search" type="datetime-local" data-i18n-title="admin.auditTo" title="Access to" />
+          <input id="adminAuditClientFilter" class="workflow-search" data-i18n-placeholder="admin.auditClientPlaceholder" placeholder="Filter by client..." />
+          <input id="adminAuditActionFilter" class="workflow-search" data-i18n-placeholder="admin.auditActionPlaceholder" placeholder="Filter by action..." />
+          <label class="admin-audit-option">
+            <input id="adminAuditIncludeApiCalls" type="checkbox" />
+            <span data-i18n="admin.auditIncludeApiCalls">Include API request logs</span>
+          </label>
+          <button class="secondary" onclick="searchAdminAuditLogs(0)" data-i18n="admin.auditSearch">Search</button>
+        </div>
+        <div class="admin-audit-pagination" id="adminAuditPagination"></div>
+        <div class="table admin-table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th data-i18n="admin.auditCol.time">Time</th>
+                <th data-i18n="admin.auditCol.action">Action</th>
+                <th data-i18n="admin.auditCol.client">Client</th>
+                <th data-i18n="admin.auditCol.request">Request</th>
+                <th data-i18n="admin.auditCol.status">Status</th>
+                <th data-i18n="admin.auditCol.detail">Detail</th>
+              </tr>
+            </thead>
+            <tbody id="adminAuditTable">
+              <tr><td colspan="6" class="admin-empty" data-i18n="admin.auditPrompt">Set filters and click Search to query audit logs.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="app-dialog-backdrop" id="appDialogBackdrop" aria-hidden="true">
+      <div class="app-dialog" role="dialog" aria-modal="true" aria-labelledby="appDialogTitle">
+        <h3 id="appDialogTitle"></h3>
+        <p class="app-dialog-message" id="appDialogMessage" hidden></p>
+        <input id="appDialogInput" class="app-dialog-field hidden" type="text" autocomplete="off" />
+        <textarea id="appDialogTextarea" class="app-dialog-field textarea hidden" spellcheck="false"></textarea>
+        <div id="appDialogChoices" class="app-dialog-choices hidden"></div>
+        <div id="appDialogForm" class="app-dialog-form hidden"></div>
+        <div class="app-dialog-actions">
+          <button type="button" class="secondary" id="appDialogCancel">Cancel</button>
+          <button type="button" id="appDialogConfirm">OK</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="/assets/js/i18n.js?v=@flowfoundry.static.version@"></script>
+    <script src="/assets/js/locales/en.js?v=@flowfoundry.static.version@"></script>
+    <script src="/assets/js/locales/zh.js?v=@flowfoundry.static.version@"></script>
+    <script src="/api/platform/auth.js?v=@flowfoundry.static.version@"></script>
+    <script src="/assets/js/modeler-api.js?v=@flowfoundry.static.version@"></script>
+    <script src="/assets/js/modeler-state.js?v=@flowfoundry.static.version@"></script>
+    <script src="/assets/js/modeler-dialog.js?v=@flowfoundry.static.version@"></script>
+    <script src="/assets/js/modeler-bootstrap.js?v=@flowfoundry.static.version@"></script>
+    <script src="/assets/js/modeler-admin.js?v=@flowfoundry.static.version@"></script>
+    <script>
+      initI18n();
+      renderAdminView();
+    </script>
+  </body>
+</html>

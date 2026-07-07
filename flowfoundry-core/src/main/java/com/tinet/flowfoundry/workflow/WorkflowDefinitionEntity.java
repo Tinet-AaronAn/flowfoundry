@@ -21,6 +21,9 @@ public class WorkflowDefinitionEntity {
   @Column(nullable = false)
   private String name;
 
+  @Column(nullable = false, length = 64)
+  private String namespace;
+
   @Column(nullable = false, length = 32)
   private String status;
 
@@ -50,6 +53,14 @@ public class WorkflowDefinitionEntity {
 
   public void setName(String name) {
     this.name = name;
+  }
+
+  public String getNamespace() {
+    return namespace;
+  }
+
+  public void setNamespace(String namespace) {
+    this.namespace = namespace;
   }
 
   public String getStatus() {

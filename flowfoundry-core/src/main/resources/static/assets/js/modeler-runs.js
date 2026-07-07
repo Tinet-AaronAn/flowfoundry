@@ -103,7 +103,7 @@
         const id = runId || activeWorkflowRunId();
         if (!id) return silent ? null : message(t('message.queryWorkflowRequired'));
         try {
-          const res = await fetch(`/api/flows/runs/${encodeURIComponent(id)}`);
+          const res = await fetch(platformApiUrl(`/flows/runs/${encodeURIComponent(id)}`), { headers: platformApiHeaders() });
           const data = await res.json();
           if (!res.ok) {
             const errMsg = data.message || data.error || res.statusText;

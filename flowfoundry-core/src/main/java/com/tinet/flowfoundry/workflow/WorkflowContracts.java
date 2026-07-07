@@ -11,6 +11,7 @@ public final class WorkflowContracts {
   public record WorkflowRecordDto(
       String id,
       String name,
+      String namespace,
       String version,
       String status,
       Instant updatedAt,

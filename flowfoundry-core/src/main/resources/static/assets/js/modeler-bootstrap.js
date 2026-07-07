@@ -1,7 +1,7 @@
       async function post(url, body, headers = {}) {
-        const res = await fetch(url, {
+        const res = await fetch(platformApiUrl(url), {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', ...headers },
+          headers: { 'Content-Type': 'application/json', ...platformApiHeaders(), ...headers },
           body: JSON.stringify(body)
         });
         const text = await res.text();
@@ -11,7 +11,7 @@
       }
 
       async function postFlowRun(body) {
-        return post('/api/flows/run', { ...body, runSource: 'web-modeler' }, {
+        return post('/flows/run', { ...body, runSource: 'web-modeler' }, {
           'X-FlowFoundry-Client': 'web-modeler'
         });
       }
@@ -109,4 +109,3 @@
       });
 
       configureDefaultMappings();
-      loadActivities();

@@ -1,6 +1,6 @@
       async function loadActivities() {
         try {
-          const res = await fetch('/api/activities');
+          const res = await fetch(platformApiUrl('/activities'), { headers: platformApiHeaders() });
           const data = await res.json();
           state.activities = data.activities || [];
         } catch (err) {
@@ -13,7 +13,7 @@
 
       async function loadScriptCatalog() {
         try {
-          const res = await fetch('/api/script-catalog/scripts');
+          const res = await fetch(platformApiUrl('/script-catalog/scripts'), { headers: platformApiHeaders() });
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const data = await res.json();
           state.scriptCatalog = data.scripts || [];
@@ -32,7 +32,9 @@
           return state.scriptVersionsByCodeId[scriptCodeId];
         }
         try {
-          const res = await fetch(`/api/script-catalog/scripts/${encodeURIComponent(scriptCodeId)}/versions`);
+          const res = await fetch(platformApiUrl(`/script-catalog/scripts/${encodeURIComponent(scriptCodeId)}/versions`), {
+            headers: platformApiHeaders()
+          });
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const data = await res.json();
           state.scriptVersionsByCodeId[scriptCodeId] = data.versions || [];
@@ -90,9 +92,10 @@
       }
 
       function renderNavigation() {
-        $('navWorkflows').classList.toggle('active', state.currentView === 'workflows');
-        $('navModeler').classList.toggle('active', state.currentView === 'modeler');
-        $('navRuns').classList.toggle('active', state.currentView === 'runs');
+        $('navWorkflows')?.classList.toggle('active', state.currentView === 'workflows');
+        $('navModeler')?.classList.toggle('active', state.currentView === 'modeler');
+        $('navRuns')?.classList.toggle('active', state.currentView === 'runs');
+        $('navAdminApiKeys')?.classList.toggle('active', state.currentView === 'admin');
       }
 
       function applyViewLayout() {
@@ -103,12 +106,17 @@
       function switchView(view) {
         state.currentView = view;
         applyViewLayout();
-        $('workflowListView').classList.toggle('active', view === 'workflows');
-        $('modelerView').classList.toggle('active', view === 'modeler');
-        $('runsView').classList.toggle('active', view === 'runs');
+        $('workflowListView')?.classList.toggle('active', view === 'workflows');
+        $('modelerView')?.classList.toggle('active', view === 'modeler');
+        $('runsView')?.classList.toggle('active', view === 'runs');
+        $('adminView')?.classList.toggle('active', view === 'admin');
         renderNavigation();
         if (view === 'workflows') renderWorkflowList();
         if (view === 'runs') renderRunsList();
+        if (view === 'admin') {
+          dismissNotice();
+          renderAdminView();
+        }
         if (view === 'modeler') {
           syncModelHeader();
           ensureBrowserMemoryNotice();
@@ -1109,13 +1117,18 @@
       }
 
       function scriptSection(n) {
-        if (n.kind !== 'scriptTask') return '';
+        if (!isScriptRuntimeNode(n)) return '';
         if (n.scriptCodeId && !state.scriptVersionsByCodeId[n.scriptCodeId]) {
-          ensureScriptVersions(n.scriptCodeId);
+          ensureScriptVersions(n.scriptCodeId).then(() => renderProperties());
         }
         const catalogHelp = state.scriptCatalog.length
           ? `<div class="help">${escapeHtml(t('prop.scriptCatalogHelp', { source: state.scriptCatalogSource || 'stub' }))}</div>`
           : `<div class="help">${escapeHtml(t('prop.scriptCatalogEmptyHelp'))}</div>`;
+        const manualFields = state.scriptCatalog.length
+          ? ''
+          : `<label>Script Code ID</label><input value="${escapeAttr(n.scriptCodeId || '')}" oninput="updateNode('scriptCodeId', this.value)" placeholder="tinetJsCodeId" />
+          <label>Script Version</label><input value="${escapeAttr(n.scriptVersion || '1')}" oninput="updateNode('scriptVersion', this.value)" placeholder="tinetJsCodeVersion" />
+          <label>Script Name</label><input value="${escapeAttr(n.scriptName || '')}" oninput="updateNode('scriptName', this.value)" placeholder="tinetScriptName (optional)" />`;
         return `<div class="prop-section"><h3>Script (Node.js)</h3>
           <label>${escapeHtml(t('prop.scriptSelect'))}</label>
           <select onchange="updateScriptTaskRef(this.value)" ${state.scriptCatalog.length ? '' : 'disabled'}>
@@ -1126,9 +1139,7 @@
           <select onchange="updateNode('scriptVersion', this.value)" ${n.scriptCodeId ? '' : 'disabled'}>
             ${scriptVersionOptions(n.scriptCodeId, n.scriptVersion)}
           </select>
-          <label>Script Code ID</label><input value="${escapeAttr(n.scriptCodeId || '')}" oninput="updateNode('scriptCodeId', this.value)" placeholder="tinetJsCodeId" />
-          <label>Script Version</label><input value="${escapeAttr(n.scriptVersion || '1')}" oninput="updateNode('scriptVersion', this.value)" placeholder="tinetJsCodeVersion" />
-          <label>Script Name</label><input value="${escapeAttr(n.scriptName || '')}" oninput="updateNode('scriptName', this.value)" placeholder="tinetScriptName (optional)" />
+          ${manualFields}
           ${catalogHelp}
           <div class="help">${escapeHtml(t('prop.scriptTaskHelp'))}</div>
         </div>`;

@@ -29,6 +29,7 @@ public class WorkflowMapper {
     return new WorkflowRecordDto(
         entity.getId(),
         entity.getName(),
+        entity.getNamespace(),
         currentVersion,
         entity.getStatus(),
         entity.getUpdatedAt(),

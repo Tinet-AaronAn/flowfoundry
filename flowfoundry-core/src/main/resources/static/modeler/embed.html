@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FlowFoundry Modeler Embed</title>
+    <link rel="stylesheet" href="../assets/css/modeler.css?v=@flowfoundry.static.version@" />
+  </head>
+  <body class="embed-mode">
+    <div class="shell embed-shell">
+      <div class="app modeler-view embed-mode embed-app" id="app">
+        <main class="workspace">
+          <div id="appNotice" class="app-notice hidden" role="status" aria-live="polite">
+            <div class="app-notice-icon" id="appNoticeIcon" aria-hidden="true"></div>
+            <div class="app-notice-content">
+              <div class="app-notice-title" id="appNoticeTitle" hidden></div>
+              <div class="app-notice-text" id="appNoticeText"></div>
+            </div>
+            <button type="button" class="app-notice-close" id="appNoticeClose" onclick="dismissNotice()" title="Close" aria-label="Close">×</button>
+          </div>
+          <section class="modeler view active" id="modelerView">
+            <div class="model-header">
+              <span class="badge">Workflow</span>
+              <div style="width:220px">
+                <label>Name</label>
+                <input id="flowName" value="Untitled Workflow" oninput="updateFlowMeta()" />
+              </div>
+              <div class="model-header-field model-header-field-wide">
+                <label>ID</label>
+                <div id="flowId" class="model-meta-value" aria-live="polite">Definitions_UntitledWorkflow</div>
+              </div>
+              <div class="model-header-field">
+                <label>VersionId</label>
+                <div id="flowVersionId" class="model-meta-value" aria-live="polite">1.0.0</div>
+              </div>
+              <div class="spacer"></div>
+              <button onclick="saveToMemory()" data-i18n="modeler.save">Save</button>
+            </div>
+            <div class="visually-hidden" aria-hidden="true">
+              <textarea id="runInput">{}</textarea>
+              <input id="workflowId" type="text" tabindex="-1" />
+              <div id="runtimeStatusPanel"></div>
+            </div>
+            <div class="modeler-main" id="modelerMain">
+              <div class="workbench" id="workbench">
+                <aside class="palette" id="palettePanel">
+                  <div class="palette-header">
+                    <h2 data-i18n="palette.title">Palette</h2>
+                    <button type="button" class="palette-toggle" id="paletteToggleBtn" onclick="togglePalette()" title="Collapse palette" aria-expanded="true">
+                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </button>
+                  </div>
+                  <div class="palette-body" id="paletteBody">
+                    <input class="search" id="paletteSearch" placeholder="Search elements..." oninput="renderPalette()" />
+                    <div id="paletteItems"></div>
+                  </div>
+                </aside>
+                <button type="button" class="palette-expand-tab" id="paletteExpandTab" onclick="togglePalette()" title="Expand palette" aria-label="Expand palette">
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+                <section class="canvas-area">
+                  <div class="toolbar">
+                    <button class="secondary" onclick="autoLayout()" data-i18n="toolbar.autoLayout">Auto Layout</button>
+                    <button class="secondary" onclick="undo()" id="undoBtn" data-i18n="toolbar.undo">Undo</button>
+                    <button class="secondary" onclick="redo()" id="redoBtn" data-i18n="toolbar.redo">Redo</button>
+                    <button class="danger" onclick="deleteSelected()" id="deleteBtn" data-i18n="toolbar.delete">Delete</button>
+                    <button class="secondary" onclick="showJson('dsl')" data-i18n="toolbar.viewDsl">View DSL</button>
+                  </div>
+                  <div class="toolbar right">
+                    <button onclick="importJson()" data-i18n="toolbar.import">Import</button>
+                    <button onclick="exportJson()" data-i18n="toolbar.export">Export</button>
+                    <button onclick="compileFlow()" data-i18n="toolbar.compile">Compile</button>
+                    <button class="secondary" id="viewCompiledPlanBtn" onclick="showCompiledPlan()" disabled data-i18n="toolbar.viewCompiledPlan">View Compiled Plan</button>
+                  </div>
+                  <div class="canvas" id="canvas" ondragover="allowCanvasDrop(event)" ondragenter="setCanvasDragOver(true)" ondragleave="setCanvasDragOver(false)" ondrop="dropPaletteNode(event)">
+                    <div class="canvas-content" id="canvasContent">
+                      <svg class="edges" id="edges"></svg>
+                    </div>
+                  </div>
+                  <div class="canvas-chrome">
+                    <div class="viewport-controls" id="viewportControls">
+                      <button type="button" class="viewport-btn" id="zoomInBtn" onclick="zoomIn()" title="Zoom in">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                      </button>
+                      <button type="button" class="viewport-btn" id="zoomOutBtn" onclick="zoomOut()" title="Zoom out">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                      </button>
+                      <button type="button" class="viewport-btn" id="fitViewBtn" onclick="fitView()" title="Fit view">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                      </button>
+                      <button type="button" class="viewport-btn" id="viewportLockBtn" onclick="toggleViewportLock()" title="Lock view">
+                        <svg class="icon-unlocked" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 11V8a5 5 0 0 1 9.9-1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><rect x="5" y="11" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+                        <svg class="icon-locked" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                      </button>
+                      <div class="viewport-zoom-label" id="zoomLevel">100%</div>
+                    </div>
+                    <div class="minimap" id="minimap" title="Minimap navigation">
+                      <canvas class="minimap-canvas" id="minimapCanvas"></canvas>
+                      <div class="minimap-viewport" id="minimapViewport"></div>
+                    </div>
+                  </div>
+                </section>
+              </div>
+            </div>
+          </section>
+        </main>
+        <aside class="properties" id="propertiesPanel">
+          <div class="properties-header">
+            <h2 id="propTitle">Process</h2>
+            <button type="button" class="panel-toggle" id="propertiesToggleBtn" onclick="togglePropertiesPanel()" title="Collapse properties" aria-expanded="true">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+          <div class="properties-body">
+            <div id="propType" class="type"></div>
+            <div id="properties"></div>
+          </div>
+        </aside>
+        <button type="button" class="properties-expand-tab" id="propertiesExpandTab" onclick="togglePropertiesPanel()" title="Expand properties" aria-label="Expand properties">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="json-panel" id="jsonPanel">
+      <header>
+        <strong id="jsonTitle">JSON</strong>
+        <div class="spacer"></div>
+        <button class="secondary" onclick="copyJsonPanel()" data-i18n="json.copy">Copy</button>
+        <button class="secondary" onclick="closeJson()" data-i18n="json.close">Close</button>
+      </header>
+      <pre id="jsonContent"></pre>
+    </div>
+
+    <div class="app-dialog-backdrop" id="appDialogBackdrop" aria-hidden="true">
+      <div class="app-dialog" role="dialog" aria-modal="true" aria-labelledby="appDialogTitle">
+        <h3 id="appDialogTitle"></h3>
+        <p class="app-dialog-message" id="appDialogMessage" hidden></p>
+        <input id="appDialogInput" class="app-dialog-field hidden" type="text" autocomplete="off" />
+        <textarea id="appDialogTextarea" class="app-dialog-field textarea hidden" spellcheck="false"></textarea>
+        <div id="appDialogChoices" class="app-dialog-choices hidden"></div>
+        <div id="appDialogForm" class="app-dialog-form hidden"></div>
+        <div class="app-dialog-actions">
+          <button type="button" class="secondary" id="appDialogCancel" data-i18n="dialog.cancel">Cancel</button>
+          <button type="button" id="appDialogConfirm" data-i18n="dialog.confirm">OK</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="../assets/js/i18n.js?v=@flowfoundry.static.version@"></script>
+    <script src="/api/platform/auth.js?v=@flowfoundry.static.version@"></script>
+    <script src="../assets/js/modeler-api.js?v=@flowfoundry.static.version@"></script>
+    <script src="../assets/js/locales/en.js?v=@flowfoundry.static.version@"></script>
+    <script src="../assets/js/locales/zh.js?v=@flowfoundry.static.version@"></script>
+    <script src="../assets/js/modeler-state.js?v=@flowfoundry.static.version@"></script>
+    <script src="../assets/js/modeler-dialog.js?v=@flowfoundry.static.version@"></script>
+    <script src="../assets/js/modeler-run-ui.js?v=@flowfoundry.static.version@"></script>
+    <script src="../assets/js/modeler-simulation.js?v=@flowfoundry.static.version@"></script>
+    <script src="../assets/js/modeler-runtime-sync.js?v=@flowfoundry.static.version@"></script>
+    <script src="../assets/js/modeler-render.js?v=@flowfoundry.static.version@"></script>
+    <script src="../assets/js/modeler-actions.js?v=@flowfoundry.static.version@"></script>
+    <script src="../assets/js/modeler-canvas.js?v=@flowfoundry.static.version@"></script>
+    <script src="../assets/js/modeler-viewport.js?v=@flowfoundry.static.version@"></script>
+    <script src="../assets/js/modeler-storage.js?v=@flowfoundry.static.version@"></script>
+    <script src="../assets/js/modeler-dsl-runtime.js?v=@flowfoundry.static.version@"></script>
+    <script src="../assets/js/modeler-runs.js?v=@flowfoundry.static.version@"></script>
+    <script src="../assets/js/modeler-bootstrap.js?v=@flowfoundry.static.version@"></script>
+    <script src="../assets/js/modeler-embed.js?v=@flowfoundry.static.version@"></script>
+    <script>
+      initI18n();
+      initEmbedModeler();
+    </script>
+  </body>
+</html>

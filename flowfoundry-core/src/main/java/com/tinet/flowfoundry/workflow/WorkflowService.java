@@ -1,5 +1,6 @@
 package com.tinet.flowfoundry.workflow;
 
+import com.tinet.flowfoundry.security.NamespaceAccessService;
 import com.tinet.flowfoundry.workflow.WorkflowContracts.AllocateIdResponse;
 import com.tinet.flowfoundry.workflow.WorkflowContracts.CreateWorkflowRequest;
 import com.tinet.flowfoundry.workflow.WorkflowContracts.CreateWorkflowVersionRequest;
@@ -24,24 +25,35 @@ public class WorkflowService {
   private final PlatformIdGenerator idGenerator;
   private final WorkflowModelFactory modelFactory;
   private final WorkflowMapper mapper;
+  private final NamespaceAccessService namespaceAccess;
 
   public WorkflowService(
       WorkflowDefinitionRepository definitionRepository,
       WorkflowVersionRepository versionRepository,
       PlatformIdGenerator idGenerator,
       WorkflowModelFactory modelFactory,
-      WorkflowMapper mapper) {
+      WorkflowMapper mapper,
+      NamespaceAccessService namespaceAccess) {
     this.definitionRepository = definitionRepository;
     this.versionRepository = versionRepository;
     this.idGenerator = idGenerator;
     this.modelFactory = modelFactory;
     this.mapper = mapper;
+    this.namespaceAccess = namespaceAccess;
   }
 
   @Transactional(readOnly = true)
   public List<WorkflowRecordDto> list(String keyword, String status) {
     String normalizedStatus = status == null || status.isBlank() ? "" : WorkflowStatus.fromValue(status).value();
-    return definitionRepository.search(normalizeKeyword(keyword), normalizedStatus).stream()
+    String normalizedKeyword = normalizeKeyword(keyword);
+    List<WorkflowDefinitionEntity> definitions;
+    if (namespaceAccess.isAdmin() && namespaceAccess.allowedNamespaces().isEmpty()) {
+      definitions = definitionRepository.searchAll(normalizedKeyword, normalizedStatus);
+    } else {
+      List<String> namespaces = namespaceAccess.allowedNamespaces().stream().sorted().toList();
+      definitions = definitionRepository.search(normalizedKeyword, normalizedStatus, namespaces);
+    }
+    return definitions.stream()
         .map(this::loadWithVersions)
         .map(mapper::toRecord)
         .toList();
@@ -60,6 +72,7 @@ public class WorkflowService {
   @Transactional
   public WorkflowRecordDto create(CreateWorkflowRequest request) {
     String name = requireName(request.name());
+    String namespace = namespaceAccess.resolveActiveNamespace();
     String workflowId = idGenerator.allocateWorkflowId();
     String version = VersionNumbering.INITIAL_VERSION;
     Instant now = Instant.now();
@@ -71,6 +84,7 @@ public class WorkflowService {
     WorkflowDefinitionEntity definition = new WorkflowDefinitionEntity();
     definition.setId(workflowId);
     definition.setName(name);
+    definition.setNamespace(namespace);
     definition.setStatus(WorkflowStatus.DRAFT.value());
     definition.setCurrentVersion(version);
     definition.setCreatedAt(now);
@@ -170,13 +184,12 @@ public class WorkflowService {
 
   @Transactional
   public void delete(String workflowId) {
-    if (!definitionRepository.existsById(workflowId)) {
-      throw new WorkflowNotFoundException(workflowId);
-    }
+    requireDefinition(workflowId);
     definitionRepository.deleteById(workflowId);
   }
 
   public AllocateIdResponse allocateId(String kind) {
+    namespaceAccess.resolveActiveNamespace();
     if (kind == null || kind.isBlank()) {
       throw new IllegalArgumentException("kind is required");
     }
@@ -188,9 +201,14 @@ public class WorkflowService {
   }
 
   private WorkflowDefinitionEntity requireDefinition(String workflowId) {
-    return definitionRepository
-        .findById(workflowId)
-        .orElseThrow(() -> new WorkflowNotFoundException(workflowId));
+    WorkflowDefinitionEntity definition =
+        definitionRepository
+            .findById(workflowId)
+            .orElseThrow(() -> new WorkflowNotFoundException(workflowId));
+    if (!namespaceAccess.canAccess(definition.getNamespace())) {
+      throw new WorkflowNotFoundException(workflowId);
+    }
+    return definition;
   }
 
   private WorkflowDefinitionEntity loadWithVersions(WorkflowDefinitionEntity definition) {
