@@ -165,6 +165,14 @@
         return ['serviceTask', 'scriptTask', 'humanTask', 'userTask', 'activity'].includes(kind);
       }
 
+      function isStartEventKind(kind) {
+        return kind === 'startEvent' || String(kind || '').endsWith('StartEvent');
+      }
+
+      function requiresSingleOutgoingKind(kind) {
+        return isActivityKind(kind) || isStartEventKind(kind);
+      }
+
       function isDefaultEdgeCondition(condition) {
         return condition == null || condition === '' || condition === 'default';
       }

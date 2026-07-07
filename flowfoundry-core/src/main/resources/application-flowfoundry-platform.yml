@@ -36,6 +36,7 @@ temporal:
   host: ${TEMPORAL_HOST:localhost:7233}
   namespace: ${TEMPORAL_NAMESPACE:default}
   task-queue: ${TEMPORAL_TASK_QUEUE:flowfoundry-platform}
+  ui-base-url: ${TEMPORAL_UI_BASE_URL:http://127.0.0.1:8080}
   max-concurrent-activities: ${TEMPORAL_MAX_CONCURRENT_ACTIVITIES:50}
   max-concurrent-workflows: ${TEMPORAL_MAX_CONCURRENT_WORKFLOWS:100}
 

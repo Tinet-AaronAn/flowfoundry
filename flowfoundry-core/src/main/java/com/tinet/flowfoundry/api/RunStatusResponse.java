@@ -22,4 +22,7 @@ public record RunStatusResponse(
     Map<String, Object> variables,
     Object lastResult,
     List<HumanTaskNodeState> humanTasks,
-    List<Map<String, Object>> temporalHistory) {}
+    List<Map<String, Object>> temporalHistory,
+    String temporalNamespace,
+    String temporalUiBaseUrl,
+    String temporalHistoryUrl) {}

@@ -82,10 +82,10 @@ Temporal 层命名**固定不动**；上层命名以本文为准。
 | | Human Task | `humanTask` | ✅ | 人工任务 |
 | | Script Task | `scriptTask` | ✅ | 脚本/决策，编译为 `ACTIVITY` + `script-runtime` |
 | **Child Workflows** | Child Workflow | `workflow` | ✅ | 调用已发布子流程 |
-| **Gateways** | Exclusive Gateway | `exclusiveGateway` | ✅ | 排他分支 |
-| | Parallel Gateway | `parallelGateway` | ✅ | 并行分支 |
-| | Inclusive Gateway | `inclusiveGateway` | ✅ | 包容分支 |
-| | Event-based Gateway | `eventBasedGateway` | ✅ | 事件竞争 |
+| **Gateways** | Exclusive Gateway | `exclusiveGateway` | ✅ | 排他分支（v1 仅 split，无 join） |
+| | Parallel Gateway | `parallelGateway` | ✅ | 并行分支；split 须配合同类型 join |
+| | Inclusive Gateway | `inclusiveGateway` | ✅ | 包容分支；split 须配合同类型 join |
+| | Event-based Gateway | `eventBasedGateway` | ✅ | 事件竞争（v1 仅 split，无 join） |
 | **Structural** | Sub-process | `subProcess` | ❌ | 纯结构容器，内部节点展开编译 |
 | | Participant | `participant` | ❌ | 泳道/参与方边界 |
 | **Annotations** | Text Annotation | `textAnnotation` | ❌ | 文档注释 |
@@ -196,7 +196,7 @@ START | END | ACTIVITY | GATEWAY | INTERMEDIATE_EVENT | CHILD_WORKFLOW
 
 | NodeKind | Interpreter 行为 |
 |----------|------------------|
-| `START` | 无操作，选下一边 |
+| `START` | 无操作，选下一边；**仅允许 1 条出边**（分支经 Gateway） |
 | `END` | 标记 COMPLETED |
 | `ACTIVITY` | `executeActivity` → router（含 `script-runtime`、`human-task` 与业务 Registry 类型） |
 | `GATEWAY` | 按 `gatewayKind` 选边 |

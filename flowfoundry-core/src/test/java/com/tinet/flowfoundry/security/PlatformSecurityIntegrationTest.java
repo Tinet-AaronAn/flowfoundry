@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.tinet.flowfoundry.api.PlatformBootstrapController;
 import com.tinet.flowfoundry.config.FlowFoundryProperties;
 import com.tinet.flowfoundry.config.StaticAssetVersion;
+import com.tinet.flowfoundry.config.TemporalProperties;
 import java.util.Optional;
 import com.tinet.flowfoundry.security.AdminContracts.CreateApiClientRequest;
 import jakarta.servlet.ServletException;
@@ -110,7 +111,11 @@ class PlatformSecurityIntegrationTest {
     MockMvc mockMvc =
         MockMvcBuilders.standaloneSetup(
                 new PlatformBootstrapController(
-                    properties, new FlowFoundryProperties(), new StaticAssetVersion(Optional.empty())))
+                    properties,
+                    new FlowFoundryProperties(),
+                    new TemporalProperties(
+                        "127.0.0.1:7233", "default", "flowfoundry-platform", 50, 100, null),
+                    new StaticAssetVersion(Optional.empty())))
             .build();
 
     mockMvc.perform(get("/api/platform/public-config")).andExpect(status().isOk());

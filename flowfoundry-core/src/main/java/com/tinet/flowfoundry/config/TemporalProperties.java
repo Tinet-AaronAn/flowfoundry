@@ -8,4 +8,13 @@ public record TemporalProperties(
     String namespace,
     String taskQueue,
     int maxConcurrentActivities,
-    int maxConcurrentWorkflows) {}
+    int maxConcurrentWorkflows,
+    String uiBaseUrl) {
+
+  public String resolvedUiBaseUrl() {
+    if (uiBaseUrl == null || uiBaseUrl.isBlank()) {
+      return "http://127.0.0.1:8080";
+    }
+    return uiBaseUrl.trim().replaceAll("/+$", "");
+  }
+}

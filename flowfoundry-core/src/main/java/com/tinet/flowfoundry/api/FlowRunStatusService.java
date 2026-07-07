@@ -16,9 +16,11 @@ import io.temporal.api.workflowservice.v1.GetWorkflowExecutionHistoryResponse;
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowNotFoundException;
 import io.temporal.serviceclient.WorkflowServiceStubs;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Service;
+import org.springframework.web.util.UriUtils;
 
 @Service
 public class FlowRunStatusService {
@@ -61,6 +63,9 @@ public class FlowRunStatusService {
     }
 
     String status = resolveStatus(interpreter, temporalStatus);
+    String namespace = temporalProperties.namespace();
+    String uiBaseUrl = temporalProperties.resolvedUiBaseUrl();
+    String historyUrl = buildTemporalHistoryUrl(namespace, uiBaseUrl, workflowId, execution.getRunId());
     return new RunStatusResponse(
         workflowId,
         execution.getRunId(),
@@ -79,7 +84,38 @@ public class FlowRunStatusService {
         interpreter == null ? null : interpreter.variables(),
         interpreter == null ? null : interpreter.lastResult(),
         humanTasks,
-        temporalHistory);
+        temporalHistory,
+        namespace,
+        uiBaseUrl,
+        historyUrl);
+  }
+
+  static String buildTemporalHistoryUrl(
+      String namespace, String uiBaseUrl, String workflowId, String runId) {
+    if (workflowId == null || workflowId.isBlank()) {
+      return null;
+    }
+    String ns = encodePathSegment(namespace == null || namespace.isBlank() ? "default" : namespace);
+    String wf = encodePathSegment(workflowId);
+    String base =
+        uiBaseUrl == null || uiBaseUrl.isBlank()
+            ? "http://127.0.0.1:8080"
+            : uiBaseUrl.trim().replaceAll("/+$", "");
+    if (runId == null || runId.isBlank()) {
+      return base + "/namespaces/" + ns + "/workflows/" + wf + "/history";
+    }
+    return base
+        + "/namespaces/"
+        + ns
+        + "/workflows/"
+        + wf
+        + "/"
+        + encodePathSegment(runId)
+        + "/history";
+  }
+
+  private static String encodePathSegment(String value) {
+    return UriUtils.encodePathSegment(value, StandardCharsets.UTF_8);
   }
 
   private List<HistoryEvent> fetchHistoryEvents(WorkflowExecution execution) {

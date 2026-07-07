@@ -4,6 +4,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 export PATH="/opt/homebrew/bin:/opt/homebrew/opt/openjdk@17/bin:$PATH"
+# shellcheck source=lib/java-daemon.sh
+source "$ROOT/scripts/lib/java-daemon.sh"
 
 SCENARIO="${SCENARIO:-ai-collection-strategy}"
 APP_PORT="${APP_PORT:-8082}"
@@ -30,20 +32,7 @@ require_infra() {
 }
 
 verify_listener() {
-  local port="$1"
-  local label="$2"
-  local pid
-  pid="$(tr -d '\n' < "$PIDFILE" 2>/dev/null || true)"
-  if [[ -z "${pid:-}" ]] || ! kill -0 "$pid" 2>/dev/null; then
-    echo "[flowfoundry] $label process exited (pid=${pid:-none}) — see $LOG"
-    tail -40 "$LOG" || true
-    exit 1
-  fi
-  if ! lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
-    echo "[flowfoundry] $label is not listening on :$port — see $LOG"
-    tail -40 "$LOG" || true
-    exit 1
-  fi
+  verify_daemon_listener "$PIDFILE" "$APP_PORT" "Worker" "$LOG"
 }
 
 stop_port_listener() {
@@ -89,7 +78,7 @@ start_app() {
     echo "[flowfoundry] warning: platform ${PLATFORM_URL} is not healthy — run ./scripts/redeploy-worker.sh first"
   fi
   echo "[flowfoundry] starting scenario=${SCENARIO} on :$APP_PORT (platform=${PLATFORM_URL})..."
-  nohup java -jar "$JAR" \
+  start_java_daemon "$PIDFILE" "$LOG" java -jar "$JAR" \
     --server.port="$APP_PORT" \
     --flowfoundry.run-mode=worker \
     --platform.activity-registry.path="file:$REGISTRY" \
@@ -98,15 +87,12 @@ start_app() {
     --temporal.namespace="${TEMPORAL_NAMESPACE:-call-campaign}" \
     --temporal.task-queue="${TEMPORAL_TASK_QUEUE:-ai-collection-strategy}" \
     --spring.data.redis.host="${REDIS_HOST:-127.0.0.1}" \
-    --spring.data.redis.port="${REDIS_PORT:-6379}" \
-    > "$LOG" 2>&1 < /dev/null &
-  echo $! > "$PIDFILE"
-  disown -h 2>/dev/null || disown
+    --spring.data.redis.port="${REDIS_PORT:-6379}"
 
   for _ in $(seq 1 45); do
     if curl -sf --noproxy '*' "http://127.0.0.1:$APP_PORT/actuator/health" >/dev/null 2>&1; then
       echo "[flowfoundry] ready http://127.0.0.1:$APP_PORT/actuator/health"
-      verify_listener "$APP_PORT" "Worker"
+      verify_listener
       return 0
     fi
     sleep 1

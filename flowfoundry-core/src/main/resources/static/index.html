@@ -304,7 +304,10 @@
           <section class="run-status-section run-status-section-grow">
             <div class="run-status-section-heading">
               <h4 class="run-status-section-title" data-i18n="modeler.runStatusTemporalLogs">Temporal Run Logs</h4>
-              <button type="button" class="secondary run-status-copy-btn" id="runStatusLogCopyBtn" data-i18n="json.copy">Copy</button>
+              <div class="run-status-section-actions">
+                <a class="secondary run-status-action-btn" id="runStatusTemporalUiLink" href="#" target="_blank" rel="noopener noreferrer" hidden data-i18n="modeler.openTemporalUi">Open in Temporal UI</a>
+                <button type="button" class="secondary run-status-action-btn" id="runStatusLogCopyBtn" data-i18n="json.copy">Copy</button>
+              </div>
             </div>
             <pre class="run-status-log" id="runStatusLogJson"></pre>
           </section>

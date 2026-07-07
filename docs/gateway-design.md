@@ -16,6 +16,8 @@
 
 **Activity 约束**（已实现）：`ACTIVITY` 节点仅允许 **1 条出边**，且出边 **不得带 FEEL**；分支必须经 Gateway。
 
+**Start 约束**（已实现）：`START` 节点仅允许 **1 条出边**；入口分支须 `Start → Gateway`。
+
 ---
 
 ## 2. 拓扑：Split / Join 分离
@@ -31,6 +33,49 @@ Parallel、Inclusive **禁止**「多入且多出」。通过入/出边数量推
 Exclusive / Event-based **仅使用 split 形态**（1 入 ≥ 2 出）。Exclusive 的 join 形态（多入 1 出）第一版不单独建模。
 
 Event-based Split：每条出边 **首节点必须是 `INTERMEDIATE_EVENT`**（timer 或 signal）。
+
+### 2.1 Split / Join 配对规则（v1）
+
+**汇合网关必须与分叉网关同类型，禁止混用。** Compiler 从 split 的每条出边向下遍历，要求所有分支在**同一个**、**同 `gatewayKind`** 的 join 节点汇合；否则报错（如 `parallel split gateway is not closed by a matching join: <splitId>`，规则 G3）。
+
+| 分叉（split） | 允许的汇合（join） | 是否支持 join |
+|---------------|-------------------|---------------|
+| **Parallel Gateway** | **Parallel Gateway**（同 `gatewayKind=parallel`） | ✅ 必须配对 |
+| **Inclusive Gateway** | **Inclusive Gateway**（同 `gatewayKind=inclusive`） | ✅ 必须配对 |
+| **Exclusive Gateway** | — | ❌ v1 无 join；仅条件选**一条**路径 |
+| **Event-based Gateway** | — | ❌ v1 无 join；多事件**竞态**，胜出路径继续 |
+
+要点：
+
+- **join 不是另一种节点类型**：仍是同一种 Gateway（如 `parallelGateway`），由拓扑（≥2 入、1 出）自动识别为 `gatewayRole=join`。
+- **Parallel split → Parallel join**：join 等待 split 的**全部**出边对应分支到齐；join 入边数应等于 split 出边数（规则 G5）。
+- **Inclusive split → Inclusive join**：join 只等待 split 时 **FEEL 实际激活**的分支，未激活出边对应的路径不等待。
+- **不能用 Exclusive / Event-based 充当汇合**：多入 1 出的 Exclusive 在 v1 未建模；Event-based 语义是「谁先触发走谁」，不是 barrier 汇合。
+- **Start Event** 仅允许 **1 条出边**；要在入口处分支，须 `Start → Gateway (split) → …`（规则 G9，与 Activity 单出边一致）。
+
+推荐拓扑示例：
+
+```text
+# 并行：split 与 join 均为 Parallel Gateway
+Start → Parallel (split) ─┬→ Task A ─┐
+                          └→ Task B ─┴→ Parallel (join) → End
+
+# 包容：split 与 join 均为 Inclusive Gateway
+… → Inclusive (split) ─┬→ Task A ─┐
+                     └→ Task B ─┴→ Inclusive (join) → …
+
+# 排他：仅 split，各分支可各自到达 End，无需 join
+… → Exclusive (split) ─┬→ 路径 A → End
+                     └→ 路径 B → End
+```
+
+常见编译失败与含义：
+
+| 报错关键词 | 含义 | 处理 |
+|-----------|------|------|
+| `not closed by a matching join` | Parallel/Inclusive split 后各分支未汇合到**同一**同类型 join | 在分支末端添加配对 join，并保证每条分支都连到该节点 |
+| `Ambiguous … join for split` | 多条分支可达多个候选 join，Compiler 无法唯一配对 | 简化拓扑，保证只有一个汇合点 |
+| `Nested parallel gateway` | split 与 join 之间又出现 Parallel split | 第一版禁止嵌套 Parallel，合并或改串行 |
 
 ---
 
@@ -131,12 +176,15 @@ Split 时 FEEL 为 true 而出 fork 的路径；未激活的路径 Join **不等
 |----|------|------|
 | G1 | Parallel/Inclusive 多入多出 | error |
 | G2 | Parallel split 出边非 default | error |
-| G3 | Parallel split 无配对 join / 未闭合区域 | error |
+| G3 | Parallel/Inclusive split 无配对 join / 未闭合区域 | error |
 | G4 | 嵌套 Parallel（split 至 join 间再遇 parallel split） | error |
 | G5 | Join 入边数 ≠ 配对 split 出边数（Parallel） | error |
 | G6 | 并行区域内 Activity outputMapping 键重叠 | error |
 | G7 | Event-based 出边首节点非 INTERMEDIATE_EVENT | error |
 | G8 | Activity 多出边 / 出边带 FEEL | error |
+| G9 | Start 节点多出边 | error |
+
+Split / Join 配对详见 [§2.1](./gateway-design.md#21-split--join-配对规则v1)。
 
 编译产物写入 Gateway `config`：`gatewayRole`, `pairedSplitId`, `pairedJoinId`, `expectedBranchCount`（Parallel join）。
 

@@ -246,7 +246,17 @@ public class FlowCompiler {
     }
     for (Map.Entry<String, List<FlowEdge>> entry : byFrom.entrySet()) {
       ExecutionNode node = nodes.get(entry.getKey());
-      if (node == null || node.requiredKind() != NodeKind.ACTIVITY) {
+      if (node == null) {
+        continue;
+      }
+      if (node.requiredKind() == NodeKind.START) {
+        if (entry.getValue().size() > 1) {
+          throw new IllegalArgumentException(
+              "Start node allows at most one outgoing edge: " + entry.getKey());
+        }
+        continue;
+      }
+      if (node.requiredKind() != NodeKind.ACTIVITY) {
         continue;
       }
       if (entry.getValue().size() > 1) {

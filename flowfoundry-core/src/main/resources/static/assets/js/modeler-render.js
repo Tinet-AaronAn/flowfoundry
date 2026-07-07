@@ -444,10 +444,6 @@
         return current.kind === 'subProcess';
       }
 
-      function isStartEventKind(kind) {
-        return kind === 'startEvent' || String(kind || '').endsWith('StartEvent');
-      }
-
       function runtimeStartNodes(model = state.model) {
         return (model.nodes || []).filter(n => isStartEventKind(n.kind));
       }
@@ -1850,6 +1846,11 @@
           message(t('message.edgeExists', { edgeId: duplicate.id }));
           return;
         }
+        if (rejectSingleOutgoingViolation(nextFrom, edge.id)) {
+          state.edgeReconnect = null;
+          renderCanvas();
+          return;
+        }
         pushHistory();
         if (reconnect.endpoint === 'from') {
           edge.from = target.nodeId;
@@ -1870,18 +1871,24 @@
         document.querySelectorAll('.connection-handle.drop-target').forEach(el => el.classList.remove('drop-target'));
       }
 
+      function rejectSingleOutgoingViolation(from, excludeEdgeId) {
+        const sourceNode = state.model.nodes.find(n => n.id === from);
+        if (!sourceNode || !requiresSingleOutgoingKind(sourceNode.kind)) return false;
+        const existing = state.model.edges.filter(e => e.from === from && e.id !== excludeEdgeId);
+        if (existing.length < 1) return false;
+        state.connectionSource = null;
+        state.connectionSourceHandle = null;
+        const messageKey = isStartEventKind(sourceNode.kind)
+          ? 'message.startSingleOutgoing'
+          : 'message.activitySingleOutgoing';
+        message(t(messageKey, { nodeId: from }), 'error');
+        return true;
+      }
+
       function createSequenceFlow(from, to, fromHandle = 'right', toHandle = 'left', options = {}) {
         if (!from || !to || from === to) return;
+        if (rejectSingleOutgoingViolation(from)) return;
         const sourceNode = state.model.nodes.find(n => n.id === from);
-        if (sourceNode && isActivityKind(sourceNode.kind)) {
-          const existing = state.model.edges.filter(e => e.from === from);
-          if (existing.length >= 1) {
-            state.connectionSource = null;
-            state.connectionSourceHandle = null;
-            message(t('message.activitySingleOutgoing', { nodeId: from }), 'error');
-            return;
-          }
-        }
         const duplicate = state.model.edges.find(e => e.from === from && e.to === to);
         if (duplicate) {
           state.connectionSource = null;

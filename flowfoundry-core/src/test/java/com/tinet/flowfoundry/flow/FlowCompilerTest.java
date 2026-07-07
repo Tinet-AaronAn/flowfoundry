@@ -372,6 +372,30 @@ class FlowCompilerTest {
   }
 
   @Test
+  void rejectsStartWithMultipleOutgoingEdges() {
+    FlowDefinition definition =
+        new FlowDefinition(
+            "1.0",
+            new FlowMetadata("StartMultiOutFlow", "Start Multi Out Flow", "1.0.0"),
+            Map.of(),
+            Map.of(),
+            List.of(
+                node("Start", "START", Map.of()),
+                activityNode("TaskA", ActivityTypes.SCRIPT_RUNTIME),
+                activityNode("TaskB", ActivityTypes.SCRIPT_RUNTIME),
+                node("End", "END", Map.of())),
+            List.of(
+                new FlowEdge("Start", "TaskA", "default"),
+                new FlowEdge("Start", "TaskB", "default"),
+                new FlowEdge("TaskA", "End", "default"),
+                new FlowEdge("TaskB", "End", "default")));
+
+    assertThatThrownBy(() -> compiler.compile(definition))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Start node allows at most one outgoing edge");
+  }
+
+  @Test
   void rejectsActivityOutgoingEdgeWithCondition() {
     FlowDefinition definition =
         new FlowDefinition(

@@ -2071,6 +2071,22 @@
         flex: 1;
         min-width: 0;
       }
+      .run-status-section-actions {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex: 0 0 auto;
+      }
+      .run-status-action-btn {
+        flex: 0 0 auto;
+        min-width: auto;
+        padding: 4px 10px;
+        font-size: 12px;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
       .run-status-copy-btn {
         flex: 0 0 auto;
         min-width: auto;

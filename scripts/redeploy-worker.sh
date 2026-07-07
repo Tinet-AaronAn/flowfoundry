@@ -4,6 +4,8 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 export PATH="/opt/homebrew/bin:/opt/homebrew/opt/openjdk@17/bin:$PATH"
+# shellcheck source=lib/java-daemon.sh
+source "$ROOT/scripts/lib/java-daemon.sh"
 
 SCENARIO="${SCENARIO:-ai-collection-strategy}"
 PLATFORM_PORT="${PLATFORM_PORT:-8081}"
@@ -56,7 +58,7 @@ build_app() {
 
 start_app() {
   echo "[flowfoundry] starting platform (flowfoundry-core) on :$PLATFORM_PORT..."
-  nohup java -jar "$JAR" \
+  start_java_daemon "$PIDFILE" "$LOG" java -jar "$JAR" \
     --server.port="$PLATFORM_PORT" \
     --flowfoundry.run-mode=platform \
     --flowfoundry.activity-registry.path="file:$REGISTRY" \
@@ -69,14 +71,12 @@ start_app() {
     --temporal.namespace="${TEMPORAL_NAMESPACE:-call-campaign}" \
     --temporal.task-queue="${TEMPORAL_TASK_QUEUE:-flowfoundry-platform}" \
     --spring.data.redis.host="${REDIS_HOST:-127.0.0.1}" \
-    --spring.data.redis.port="${REDIS_PORT:-6379}" \
-    > "$LOG" 2>&1 < /dev/null &
-  echo $! > "$PIDFILE"
-  disown -h 2>/dev/null || disown
+    --spring.data.redis.port="${REDIS_PORT:-6379}"
 
   for _ in $(seq 1 45); do
     if curl -sf --noproxy '*' "http://127.0.0.1:$PLATFORM_PORT/actuator/health" >/dev/null 2>&1; then
       echo "[flowfoundry] ready http://127.0.0.1:$PLATFORM_PORT/actuator/health"
+      verify_daemon_listener "$PIDFILE" "$PLATFORM_PORT" "platform" "$LOG"
       return 0
     fi
     sleep 1

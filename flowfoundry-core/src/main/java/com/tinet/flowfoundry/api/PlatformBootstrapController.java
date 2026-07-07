@@ -2,6 +2,7 @@ package com.tinet.flowfoundry.api;
 
 import com.tinet.flowfoundry.config.FlowFoundryProperties;
 import com.tinet.flowfoundry.config.StaticAssetVersion;
+import com.tinet.flowfoundry.config.TemporalProperties;
 import com.tinet.flowfoundry.security.PlatformSecurityHeaders;
 import com.tinet.flowfoundry.security.ApiClientBootstrapRunner;
 import com.tinet.flowfoundry.security.PlatformSecurityProperties;
@@ -20,14 +21,17 @@ public class PlatformBootstrapController {
 
   private final PlatformSecurityProperties securityProperties;
   private final FlowFoundryProperties flowFoundryProperties;
+  private final TemporalProperties temporalProperties;
   private final StaticAssetVersion staticAssetVersion;
 
   public PlatformBootstrapController(
       PlatformSecurityProperties securityProperties,
       FlowFoundryProperties flowFoundryProperties,
+      TemporalProperties temporalProperties,
       StaticAssetVersion staticAssetVersion) {
     this.securityProperties = securityProperties;
     this.flowFoundryProperties = flowFoundryProperties;
+    this.temporalProperties = temporalProperties;
     this.staticAssetVersion = staticAssetVersion;
   }
 
@@ -49,6 +53,10 @@ public class PlatformBootstrapController {
     config.put("namespaceHeader", PlatformSecurityHeaders.PLATFORM_NAMESPACE);
     config.put("staticAssetVersion", staticAssetVersion.value());
     config.put("modeler", modelerConfig);
+    Map<String, Object> temporal = new LinkedHashMap<>();
+    temporal.put("namespace", temporalProperties.namespace());
+    temporal.put("uiBaseUrl", temporalProperties.resolvedUiBaseUrl());
+    config.put("temporal", temporal);
     return ResponseEntity.ok()
         .cacheControl(CacheControl.noStore())
         .body(config);

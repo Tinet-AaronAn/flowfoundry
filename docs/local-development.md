@@ -84,6 +84,8 @@ chmod +x scripts/local-dev.sh scripts/check-progress.sh scripts/redeploy-worker.
 ./scripts/redeploy-app.sh       # Worker :8082（仅当改了业务 Activity / Worker 代码）
 ```
 
+`redeploy-*.sh` 通过 `scripts/java-daemon.py` 双 fork 启动 Java，进程会挂到 launchd（PPID=1），**不会**随 Cursor Agent 临时 shell 退出而消失。若端口仍不可用，在本机终端执行 `./scripts/redeploy-all.sh` 或 `./scripts/check-progress.sh` 排查。
+
 脚本会 `mvn package`、释放对应端口、重启 JAR，并等待 `/actuator/health` 为 UP。
 
 完成后在浏览器**强制刷新**：**http://127.0.0.1:8081/**（建模器与 Registry 以平台为准）

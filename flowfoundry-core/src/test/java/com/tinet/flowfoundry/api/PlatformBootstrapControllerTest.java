@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.tinet.flowfoundry.config.FlowFoundryProperties;
 import com.tinet.flowfoundry.config.StaticAssetVersion;
+import com.tinet.flowfoundry.config.TemporalProperties;
 import com.tinet.flowfoundry.security.PlatformSecurityProperties;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -29,10 +30,13 @@ class PlatformBootstrapControllerTest {
     modeler.setEmbedPath("/modeler/embed.html");
     flowFoundry.setModeler(modeler);
 
+    TemporalProperties temporal = new TemporalProperties(
+        "127.0.0.1:7233", "call-campaign", "flowfoundry-platform", 50, 100, "http://127.0.0.1:8080");
+
     mockMvc =
         MockMvcBuilders.standaloneSetup(
                 new PlatformBootstrapController(
-                    security, flowFoundry, new StaticAssetVersion(Optional.empty())))
+                    security, flowFoundry, temporal, new StaticAssetVersion(Optional.empty())))
             .build();
   }
 
@@ -47,7 +51,9 @@ class PlatformBootstrapControllerTest {
         .andExpect(jsonPath("$.modeler.apiBase").value("/api"))
         .andExpect(jsonPath("$.modeler.sdkScriptPath").value("/assets/js/flowfoundry-modeler-sdk.js"))
         .andExpect(jsonPath("$.defaultTenantId").value("default"))
-        .andExpect(jsonPath("$.tenantHeader").value("X-Tenant-Id"));
+        .andExpect(jsonPath("$.tenantHeader").value("X-Tenant-Id"))
+        .andExpect(jsonPath("$.temporal.namespace").value("call-campaign"))
+        .andExpect(jsonPath("$.temporal.uiBaseUrl").value("http://127.0.0.1:8080"));
   }
 
   @Test
@@ -62,6 +68,8 @@ class PlatformBootstrapControllerTest {
                 new PlatformBootstrapController(
                     security,
                     new FlowFoundryProperties(),
+                    new TemporalProperties(
+                        "127.0.0.1:7233", "default", "flowfoundry-platform", 50, 100, null),
                     new StaticAssetVersion(Optional.empty())))
             .build();
 

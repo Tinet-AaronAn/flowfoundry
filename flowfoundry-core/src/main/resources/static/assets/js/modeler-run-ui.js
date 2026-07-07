@@ -84,6 +84,35 @@
         if (empty) empty.hidden = true;
       }
 
+      function resolveTemporalHistoryUrl() {
+        const snapshot = state.runtimeSnapshot;
+        if (snapshot?.temporalHistoryUrl) return snapshot.temporalHistoryUrl;
+        const workflowId = snapshot?.workflowId || activeWorkflowRunId();
+        if (!workflowId) return null;
+        const temporal = window.FLOWFOUNDRY_PUBLIC_CONFIG?.temporal || {};
+        const base = String(temporal.uiBaseUrl || 'http://127.0.0.1:8080').replace(/\/+$/, '');
+        const namespace = encodeURIComponent(temporal.namespace || snapshot?.temporalNamespace || 'default');
+        const wf = encodeURIComponent(workflowId);
+        const runId = snapshot?.runId;
+        if (runId) {
+          return `${base}/namespaces/${namespace}/workflows/${wf}/${encodeURIComponent(runId)}/history`;
+        }
+        return `${base}/namespaces/${namespace}/workflows/${wf}/history`;
+      }
+
+      function updateRunStatusTemporalUiLink() {
+        const link = $('runStatusTemporalUiLink');
+        if (!link) return;
+        const url = resolveTemporalHistoryUrl();
+        if (!url) {
+          link.hidden = true;
+          link.removeAttribute('href');
+          return;
+        }
+        link.href = url;
+        link.hidden = false;
+      }
+
       function updateRunStatusTemporalLogs() {
         const pre = $('runStatusLogJson');
         if (!pre) return;
@@ -115,6 +144,7 @@
         if ($('runStatusWorkflowId')) $('runStatusWorkflowId').value = id || '';
         updateRunStatusCompiledPlan();
         updateRunStatusTemporalLogs();
+        updateRunStatusTemporalUiLink();
       }
 
       async function refreshRunStatusDialog() {
