@@ -9,6 +9,7 @@ import io.grpc.StatusRuntimeException;
 import io.temporal.api.common.v1.WorkflowExecution;
 import io.temporal.api.enums.v1.WorkflowExecutionStatus;
 import io.temporal.api.history.v1.HistoryEvent;
+import io.temporal.api.workflow.v1.PendingChildExecutionInfo;
 import io.temporal.api.workflowservice.v1.DescribeWorkflowExecutionRequest;
 import io.temporal.api.workflowservice.v1.DescribeWorkflowExecutionResponse;
 import io.temporal.api.workflowservice.v1.GetWorkflowExecutionHistoryRequest;
@@ -17,6 +18,7 @@ import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowNotFoundException;
 import io.temporal.serviceclient.WorkflowServiceStubs;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Service;
@@ -66,6 +68,8 @@ public class FlowRunStatusService {
     String namespace = temporalProperties.namespace();
     String uiBaseUrl = temporalProperties.resolvedUiBaseUrl();
     String historyUrl = buildTemporalHistoryUrl(namespace, uiBaseUrl, workflowId, execution.getRunId());
+    List<ChildWorkflowRunSummary> pendingChildWorkflows =
+        summarizePendingChildWorkflows(describe, namespace, uiBaseUrl);
     return new RunStatusResponse(
         workflowId,
         execution.getRunId(),
@@ -87,7 +91,87 @@ public class FlowRunStatusService {
         temporalHistory,
         namespace,
         uiBaseUrl,
-        historyUrl);
+        historyUrl,
+        pendingChildWorkflows);
+  }
+
+  private List<ChildWorkflowRunSummary> summarizePendingChildWorkflows(
+      DescribeWorkflowExecutionResponse describe, String namespace, String uiBaseUrl) {
+    List<ChildWorkflowRunSummary> summaries = new ArrayList<>();
+    for (PendingChildExecutionInfo pending : describe.getPendingChildrenList()) {
+      summaries.add(
+          summarizeChildWorkflow(
+              pending.getWorkflowId(), pending.getRunId(), namespace, uiBaseUrl));
+    }
+    return summaries;
+  }
+
+  private ChildWorkflowRunSummary summarizeChildWorkflow(
+      String workflowId, String runId, String namespace, String uiBaseUrl) {
+    try {
+      DescribeWorkflowExecutionResponse describe =
+          describeExecution(
+              workflowId,
+              runId == null || runId.isBlank()
+                  ? null
+                  : WorkflowExecution.newBuilder()
+                      .setWorkflowId(workflowId)
+                      .setRunId(runId)
+                      .build());
+      WorkflowExecution execution = describe.getWorkflowExecutionInfo().getExecution();
+      WorkflowExecutionStatus temporalStatus = describe.getWorkflowExecutionInfo().getStatus();
+      InterpreterState interpreter = null;
+      List<HumanTaskNodeState> humanTasks = List.of();
+      try {
+        FlowInterpreterWorkflow stub =
+            workflowClient.newWorkflowStub(FlowInterpreterWorkflow.class, workflowId);
+        interpreter = stub.getState();
+        humanTasks = safeHumanTasks(stub.getHumanTasks());
+      } catch (RuntimeException ignored) {
+        // Child may be starting — fall back to Temporal metadata only.
+      }
+      String businessKey = interpreter == null ? null : interpreter.businessKey();
+      return new ChildWorkflowRunSummary(
+          workflowId,
+          execution.getRunId(),
+          temporalStatus.name(),
+          resolveStatus(interpreter, temporalStatus),
+          interpreter == null ? null : interpreter.flowId(),
+          businessKey,
+          parentNodeIdFromBusinessKey(businessKey),
+          interpreter == null ? null : interpreter.currentNodeId(),
+          interpreter == null ? null : interpreter.currentNodeName(),
+          interpreter == null ? null : interpreter.currentActivityType(),
+          interpreter == null ? null : interpreter.waitingHumanTaskNodeId(),
+          humanTasks,
+          buildTemporalHistoryUrl(namespace, uiBaseUrl, workflowId, execution.getRunId()));
+    } catch (RuntimeException e) {
+      return new ChildWorkflowRunSummary(
+          workflowId,
+          runId,
+          null,
+          InterpreterStatus.RUNNING.name(),
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          List.of(),
+          buildTemporalHistoryUrl(namespace, uiBaseUrl, workflowId, runId));
+    }
+  }
+
+  static String parentNodeIdFromBusinessKey(String businessKey) {
+    if (businessKey == null || businessKey.isBlank()) {
+      return null;
+    }
+    int slash = businessKey.lastIndexOf('/');
+    if (slash < 0 || slash >= businessKey.length() - 1) {
+      return null;
+    }
+    return businessKey.substring(slash + 1);
   }
 
   static String buildTemporalHistoryUrl(
@@ -132,14 +216,23 @@ public class FlowRunStatusService {
   }
 
   private DescribeWorkflowExecutionResponse describeExecution(String workflowId) {
+    return describeExecution(workflowId, null);
+  }
+
+  private DescribeWorkflowExecutionResponse describeExecution(
+      String workflowId, WorkflowExecution executionHint) {
     WorkflowServiceStubs stubs = workflowClient.getWorkflowServiceStubs();
+    WorkflowExecution execution =
+        executionHint != null
+            ? executionHint
+            : WorkflowExecution.newBuilder().setWorkflowId(workflowId).build();
     try {
       return stubs
           .blockingStub()
           .describeWorkflowExecution(
               DescribeWorkflowExecutionRequest.newBuilder()
                   .setNamespace(temporalProperties.namespace())
-                  .setExecution(WorkflowExecution.newBuilder().setWorkflowId(workflowId).build())
+                  .setExecution(execution)
                   .build());
     } catch (StatusRuntimeException e) {
       if (e.getStatus().getCode() == io.grpc.Status.Code.NOT_FOUND) {

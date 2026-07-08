@@ -390,38 +390,42 @@
           snapshot = await queryRunState(id, { silent: true, skipJsonPanel: true });
         }
         snapshot = snapshot || state.runtimeSnapshot;
-        const humanTasks = resolveHumanTaskOptions(snapshot);
-        if (!humanTasks.length) {
-          return message(t('message.noHumanTasks'), 'warning');
-        }
-        const isWaiting = String(snapshot?.status || '').toUpperCase() === 'WAITING_HUMAN_TASK';
-        const waitingId = snapshot?.waitingHumanTaskNodeId || humanTasks.find(task => task.waiting)?.nodeId || null;
-        if (!isWaiting || !waitingId) {
+        const waitingTargets = resolveAllWaitingHumanTaskTargets(snapshot);
+        if (!waitingTargets.length) {
+          const hasChildren = pendingChildWorkflows(snapshot).length > 0;
+          if (hasChildren) {
+            return message(t('message.noWaitingHumanTask'), 'warning');
+          }
+          const humanTasks = resolveHumanTaskOptions(snapshot);
+          if (!humanTasks.length) {
+            return message(t('message.noHumanTasks'), 'warning');
+          }
           return message(t('message.noWaitingHumanTask'), 'warning');
         }
-        const nodeId = await showAppChoiceDialog({
-          title: t('prompt.selectHumanTask'),
-          message: t('prompt.selectHumanTaskHelp'),
-          options: humanTasks.map(task => ({
-            value: task.nodeId,
-            label: task.name || task.nodeId,
-            hint: task.nodeId,
-            badge: task.waiting ? t('runtime.waiting') : '',
-            disabled: task.nodeId !== waitingId,
-            selected: task.nodeId === waitingId
-          }))
-        });
-        if (!nodeId) return;
-        try {
-          await post(`/flows/runs/${encodeURIComponent(id)}/human-task`, {
-            nodeId,
-            outcome: 'approved',
-            variables: { approved: true }
+        let selected = waitingTargets[0];
+        if (waitingTargets.length > 1) {
+          const choice = await showAppChoiceDialog({
+            title: t('prompt.selectHumanTask'),
+            message: t('prompt.selectHumanTaskHelp'),
+            options: waitingTargets.map(task => ({
+              value: `${task.workflowId}::${task.nodeId}`,
+              label: `${task.scopeLabel}: ${task.name}`,
+              hint: task.nodeId,
+              badge: t('runtime.waiting'),
+              selected: task === selected
+            }))
           });
-          message(t('message.humanTaskSignalSent', { nodeId }));
+          if (!choice) return;
+          const [workflowId, nodeId] = choice.split('::');
+          selected = waitingTargets.find(task => task.workflowId === workflowId && task.nodeId === nodeId);
+          if (!selected) return;
+        }
+        try {
+          await submitHumanTaskCompletion(selected.workflowId, selected.nodeId);
+          message(t('message.humanTaskSignalSent', { nodeId: selected.nodeId }));
           await queryRunState(id, { silent: true, skipJsonPanel: true });
           startRuntimePolling();
         } catch (err) {
-          message(t('message.humanTaskFailed', { error: err.message }), 'error');
+          message(t('message.queryFailed', { error: err.message }), 'error');
         }
       }
