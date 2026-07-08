@@ -103,6 +103,17 @@ class TimerEvaluatorTest {
   }
 
   @Test
+  void rejectsCycleOnIntermediateEvent() {
+    ExecutionNode node =
+        timerNode(Map.of("timerDefinition", Map.of("type", "cycle", "value", "R/PT1H")));
+
+    assertThatThrownBy(
+            () -> TimerEvaluator.evaluate(node, new VariableStore(Map.of()), System.currentTimeMillis()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("only supported on Timer Start Event");
+  }
+
+  @Test
   void resolvesTemplateExpressionInValue() {
     Object resolved = TimerEvaluator.resolveValue("${prefix}m", new VariableStore(Map.of("prefix", "3")));
     assertThat(resolved).isEqualTo("3m");

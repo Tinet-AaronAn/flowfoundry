@@ -231,6 +231,8 @@
         'message.compileSuccess': '编译成功：Flow DSL 已转换为 Execution Plan',
         'message.compileFirst': '请先编译流程，再查看 Execution Plan JSON',
         'message.compileFailed': '编译失败：{error}',
+        'message.compileNoRuntimeNodesEmpty': '流程「{flowName}」画布为空，请先添加 Start Event、Task、Gateway 或 End Event 再编译。',
+        'message.compileNoRuntimeNodesExcluded': '流程「{flowName}」上有 {count} 个画布元素（{kinds}），但没有可编译的运行节点。Participant、Sub-process、Text Annotation 不参与编译，请添加 Start Event、Task、Gateway 或 End Event。',
         'message.copiedToClipboard': '已复制到剪贴板',
         'message.copyEmpty': '暂无可复制内容',
         'message.copyFailed': '复制失败',

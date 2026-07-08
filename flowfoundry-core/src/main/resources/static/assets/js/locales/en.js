@@ -230,6 +230,8 @@
         'message.compileSuccess': 'Compilation succeeded: Flow DSL converted to Execution Plan',
         'message.compileFirst': 'Compile the flow first to view the Execution Plan JSON',
         'message.compileFailed': 'Compilation failed: {error}',
+        'message.compileNoRuntimeNodesEmpty': 'Flow "{flowName}" has no nodes on the canvas. Add a Start Event, Task, Gateway, or End Event before compiling.',
+        'message.compileNoRuntimeNodesExcluded': 'Flow "{flowName}" has {count} canvas element(s) ({kinds}), but none are executable. Participant, Sub-process, and Text Annotation are not compiled — add Start Event, Task, Gateway, or End Event.',
         'message.copiedToClipboard': 'Copied to clipboard',
         'message.copyEmpty': 'Nothing to copy yet',
         'message.copyFailed': 'Copy failed',

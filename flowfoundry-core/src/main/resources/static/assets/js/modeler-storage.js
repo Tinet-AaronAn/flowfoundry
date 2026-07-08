@@ -398,9 +398,36 @@
         renderWorkflowList();
       }
 
+      async function syncTimerStartSchedule(workflowId, model, version) {
+        if (!(await detectWorkflowApi())) return;
+        const startNode = model?.nodes?.find(n => n.kind === 'startEvent');
+        if (!startNode || startEventSubtype(startNode.config) !== 'timer') return;
+        try {
+          const dsl = buildDslForModel(model, version || '1.0.0', new Set([model.id]));
+          await workflowApi(`/${encodeURIComponent(workflowId)}/timer-schedule/sync`, {
+            method: 'POST',
+            body: JSON.stringify(dsl)
+          });
+        } catch (err) {
+          message(err.message, 'error');
+        }
+      }
+
+      async function pauseTimerStartSchedule(workflowId) {
+        if (!(await detectWorkflowApi())) return;
+        try {
+          await workflowApi(`/${encodeURIComponent(workflowId)}/timer-schedule/pause`, { method: 'POST' });
+        } catch (err) {
+          // Backend also pauses on workflow retire.
+        }
+      }
+
       async function setWorkflowStatus(id, status) {
         const workflow = state.workflows.find(w => w.id === id);
         if (!workflow) return;
+        const versionRecord =
+          workflow.versions?.find(v => v.version === workflow.version) ||
+          workflow.versions?.[workflow.versions.length - 1];
         if (await detectWorkflowApi()) {
           try {
             const updated = await workflowApi(`/${encodeURIComponent(id)}`, {
@@ -408,6 +435,11 @@
               body: JSON.stringify({ status, activeVersion: workflow.version })
             });
             replaceWorkflowRecord(updated);
+            if (status === 'active') {
+              await syncTimerStartSchedule(id, versionRecord?.model, workflow.version);
+            } else if (status === 'retired') {
+              await pauseTimerStartSchedule(id);
+            }
             renderWorkflowList();
             return;
           } catch (err) {

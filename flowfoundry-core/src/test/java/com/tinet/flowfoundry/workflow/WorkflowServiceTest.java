@@ -10,11 +10,20 @@ import com.tinet.flowfoundry.security.AdminAccessService;
 import com.tinet.flowfoundry.security.ApiClientService;
 import com.tinet.flowfoundry.security.AuditLogService;
 import com.tinet.flowfoundry.security.NamespaceAccessService;
+import com.tinet.flowfoundry.config.TemporalProperties;
+import com.tinet.flowfoundry.flow.FlowCompiler;
 import com.tinet.flowfoundry.security.PlatformSecurityProperties;
+import com.tinet.flowfoundry.registry.ActivityRegistry;
+import com.tinet.flowfoundry.temporal.StartTimerScheduleService;
+import io.temporal.client.schedules.ScheduleClient;
+import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
@@ -37,11 +46,23 @@ import org.springframework.test.context.TestPropertySource;
   AdminAccessService.class,
   ApiClientService.class,
   AuditLogService.class,
-  PlatformSecurityProperties.class
+  PlatformSecurityProperties.class,
+  WorkflowServiceTest.ScheduleTestConfig.class
 })
 class WorkflowServiceTest {
 
   @Autowired private WorkflowService workflowService;
+
+  @TestConfiguration
+  static class ScheduleTestConfig {
+    @Bean
+    StartTimerScheduleService startTimerScheduleService() {
+      return new StartTimerScheduleService(
+          new FlowCompiler(new ActivityRegistry("1.0", "test", "test-queue", List.of())),
+          Mockito.mock(ScheduleClient.class),
+          new TemporalProperties("localhost:7233", "default", "test-queue", 10, 10, null));
+    }
+  }
 
   @Test
   void createSaveAndVersionWorkflow() {

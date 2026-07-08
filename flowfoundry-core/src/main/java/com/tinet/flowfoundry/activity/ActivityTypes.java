@@ -5,6 +5,8 @@ import java.util.Set;
 /** Core activity types implemented in flowfoundry-core (not business modules). */
 public final class ActivityTypes {
 
+  public static final String PLATFORM_TASK_QUEUE = "flowfoundry-platform";
+
   public static final String SCRIPT_RUNTIME = "script-runtime";
 
   public static final String HUMAN_TASK = "human-task";

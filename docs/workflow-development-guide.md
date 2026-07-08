@@ -215,7 +215,7 @@ SCENARIO=your-scenario ./scripts/redeploy-app.sh      # Worker
    - **Script Task**：平台 `script-runtime`，用于复杂业务规则计算；结果写入变量后，由 Gateway 出边上的 FEEL 条件选路。
    - **Gateway**：边上写 Safe FEEL 条件。
    - **Intermediate Event**：定时等待（Timer）。
-   - **Child Workflow**：引用已发布的子流程。
+   - **Child Workflow**：引用已发布子流程，运行为 Temporal Child Workflow — 见 [child-workflow-design.md](./child-workflow-design.md)。
 3. **保存 / 发布**版本（`model_json` 不可变；改动画布应升 patch 版本）。
 4. 在 **Runtime** 视图点击 **Run** 做联调。
 
@@ -334,9 +334,9 @@ Registry → 建模器编排 → 编译 ExecutionPlan → FlowInterpreterWorkflo
 | Script Task | `ACTIVITY` + `script-runtime` |
 | Gateway | 解释器按 Safe FEEL 选边 |
 | Intermediate Event (timer) | `TimerEvaluator` + `Workflow.newTimer`（`duration` / `date`；web-modeler 联调可跳过 Timer）— 见 [timer-design.md](./timer-design.md) |
-| Child Workflow | Temporal Child Workflow |
+| Child Workflow | Temporal Child Workflow（同步子 `FlowInterpreterWorkflow`）— 见 [child-workflow-design.md](./child-workflow-design.md) |
 
-完整对照表见 [entity-naming.md](./entity-naming.md)、[timer-design.md](./timer-design.md) 与 [detailed-design.md](./detailed-design.md) §4.7。
+完整对照表见 [entity-naming.md](./entity-naming.md)、[timer-design.md](./timer-design.md)、[child-workflow-design.md](./child-workflow-design.md) 与 [detailed-design.md](./detailed-design.md) §4.7。
 
 ---
 

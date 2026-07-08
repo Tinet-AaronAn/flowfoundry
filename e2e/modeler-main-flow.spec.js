@@ -84,7 +84,12 @@ test.describe('FlowFoundry modeler main flow', () => {
 
     await clickCanvasToolbarButton(page, 'View DSL');
     const dsl = await jsonPanelValue(page);
-    expect(dsl.flow.edgeRouting).toBe('curved');
+    expect(dsl.flow.edgeRouting).toBeUndefined();
+
+    await page.locator('#jsonPanel').getByRole('button', { name: 'Close' }).click();
+    await clickRightToolbarButton(page, 'Export');
+    const exported = await jsonPanelValue(page);
+    expect(exported.model.process.edgeRouting).toBe('curved');
   });
 
   test('shows edge name instead of FEEL condition when a name is set', async ({ page }) => {

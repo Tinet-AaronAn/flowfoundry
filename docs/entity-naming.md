@@ -62,6 +62,13 @@ Temporal 层命名**固定不动**；上层命名以本文为准。
 | `activityType` | string? | Service/Script Task 绑定的 Registry 类型 |
 | `x`, `y`, `width`, `height` | number | 布局（DSL 不包含） |
 
+流程级 `process` 元数据（仅存于画布 `model_json`，**不进入 Flow DSL**）：
+
+| 字段 | 说明 |
+|------|------|
+| `edgeRouting` | 连线画法：`orthogonal`（圆角正交，默认）\| `curved`（曲线） |
+| `isExecutable` | BPMN 兼容标记，画布编辑用 |
+
 边（Sequence Flow）：
 
 | 字段 | 说明 |
@@ -98,11 +105,13 @@ Temporal 层命名**固定不动**；上层命名以本文为准。
 | `flowFoundryAssignmentDefinition` | `humanTask` | `{ candidateGroups, assignee }` |
 | `flowFoundryTaskDefinition` | `serviceTask` | 设计期元数据（type/retries），非运行时必需 |
 | `taskHeaders` | `serviceTask`、`scriptTask`、`humanTask` 等 Activity 节点 | 静态键值元数据；编译进 `ExecutionNode.config`，运行时经 `_config.taskHeaders` 传给 Activity |
-| `flowFoundryChildWorkflow` | `workflow` | DSL 编译时写入；引用 `{ childWorkflowId, childWorkflowVersion, name }` |
+| `flowFoundryChildWorkflow` | `workflow` | DSL 编译时写入；引用 `{ childWorkflowId, childWorkflowVersion, name }` — 见 [child-workflow-design.md](./child-workflow-design.md) |
 | `flowFoundryParticipant` | `participant` | `{ participantRef }` |
 | `flowFoundryParticipant`（DSL） | 任意运行节点 | 编译时从 `participantId` 注入泳道元数据 |
 | `subtype` | `intermediateEvent` | 事件子类型：`timer`（MVP）、未来 `message` / `signal` |
-| `timerDefinition` | `intermediateEvent`（subtype=timer） | `{ type, value, timezone?, pastTargetStrategy? }` — 见 [timer-design.md](./timer-design.md) |
+| `startEventSubtype` | `startEvent` | `none`（默认）\| `timer`（Temporal Schedule）— 见 [timer-design.md](./timer-design.md) |
+| `timerDefinition` | `intermediateEvent`（subtype=timer） | `{ type: duration\|date, value, timezone?, pastTargetStrategy? }` |
+| `timerDefinition` | `startEvent`（startEventSubtype=timer） | `{ type: cycle\|date, value, timezone? }` — Schedule 用字面量 |
 | `childWorkflowId` / `childWorkflowVersion` / `childWorkflowName` | `workflow` | 画布编辑期字段，编译进 `flowFoundryChildWorkflow` |
 | `decisionRef` / `decisionVersion` | `scriptTask` | 脚本引用（节点级字段也会出现在 DSL 顶层） |
 | `flowFoundryLoop` | `ACTIVITY` | `{ mode, condition?, collection?, elementVar?, indexVar?, iterationVar?, maxIterations?, sequential? }` — 见 [loop-design.md](./loop-design.md) |
@@ -122,8 +131,7 @@ Temporal 层命名**固定不动**；上层命名以本文为准。
   "flow": {
     "id": "workflow_k3m9x2p1",
     "name": "外呼主流程",
-    "version": "1.0.0",
-    "edgeRouting": "orthogonal"
+    "version": "1.0.0"
   },
   "inputs": { },
   "variables": { },
@@ -134,6 +142,7 @@ Temporal 层命名**固定不动**；上层命名以本文为准。
 
 | 字段 | 说明 |
 |------|------|
+| `flow.id` / `flow.name` / `flow.version` | 流程标识；**不含**画布 UI 字段（如 `edgeRouting`） |
 | 节点类型字段名 | **`kind`**（UPPER_SNAKE 枚举字符串） |
 | 边端点 | **`from` / `to`** |
 
@@ -141,12 +150,12 @@ Temporal 层命名**固定不动**；上层命名以本文为准。
 
 | DSL `kind` | 来源画布 `kind` | 运行时行为摘要 |
 |------------|-----------------|----------------|
-| `START` | `startEvent` | 入口，不执行副作用 |
+| `START` | `startEvent` | 入口；`startEventSubtype=timer` 时由 Temporal Schedule 触发，节点本身不 sleep |
 | `END` | `endEvent` | 到达后结束当前路径 |
 | `ACTIVITY` | `serviceTask`, `scriptTask`, `humanTask` | 经 `dynamic-activity-router` 调 Activity；Human Task 使用 `activityType: human-task` |
 | `INTERMEDIATE_EVENT` | `intermediateEvent` | 按 `config.eventSubtype` 等待（timer → `TimerEvaluator` + Temporal Timer） |
 | `GATEWAY` | 四种 `*Gateway` | 按 `config.gatewayKind` 路由（MVP 仅 `exclusive` 完整支持） |
-| `CHILD_WORKFLOW` | `workflow` | 启动子 `FlowInterpreterWorkflow` |
+| `CHILD_WORKFLOW` | `workflow` | 启动子 `FlowInterpreterWorkflow`（Temporal Child Workflow）— 见 [child-workflow-design.md](./child-workflow-design.md) |
 
 ### 3.3 DSL 节点 `config` 扩展
 
@@ -154,12 +163,14 @@ Temporal 层命名**固定不动**；上层命名以本文为准。
 |----|-----------------|------|
 | `gatewayKind` | `GATEWAY` | `exclusive` \| `parallel` \| `inclusive` \| `eventBased` |
 | `eventSubtype` | `INTERMEDIATE_EVENT` | `timer`（MVP）、未来 `message` / `signal` |
-| `timerDefinition` | `INTERMEDIATE_EVENT`（timer） | 完整 Timer 配置；`duration` 类型可额外归一化 `duration` 字段 — 见 [timer-design.md](./timer-design.md) |
+| `startEventSubtype` | `START` | `none` \| `timer` |
+| `timerDefinition` | `INTERMEDIATE_EVENT`（timer） | `duration` / `date`；`duration` 类型可额外归一化 `duration` 字段 |
+| `timerDefinition` | `START`（timer） | `cycle` / `date` — 见 [timer-design.md](./timer-design.md) |
 | `duration` | `INTERMEDIATE_EVENT`（timer） | 遗留 / 归一化后的相对等待时长（`type=duration`） |
 | `flowFoundryHumanTask` | `ACTIVITY`（`activityType: human-task`） | 人工任务模式 |
 | `taskHeaders` | `ACTIVITY` | 静态 Task Headers；Activity 从 `_config.taskHeaders` 读取 |
-| `flowFoundryChildWorkflow` | `CHILD_WORKFLOW` | 子流程引用 |
-| `childWorkflowDefinition` / `childExecutionPlan` | `CHILD_WORKFLOW` | 嵌套定义 / 编译产物 |
+| `flowFoundryChildWorkflow` | `CHILD_WORKFLOW` | 子流程引用元数据 |
+| `childWorkflowDefinition` / `childExecutionPlan` | `CHILD_WORKFLOW` | 内嵌子 DSL / 编译产物 — 见 [child-workflow-design.md](./child-workflow-design.md) |
 
 ### 3.4 Service Task vs Script Task（画布细分，DSL 合并）
 
@@ -201,7 +212,7 @@ START | END | ACTIVITY | GATEWAY | INTERMEDIATE_EVENT | CHILD_WORKFLOW
 | `ACTIVITY` | `executeActivity` → router（含 `script-runtime`、`human-task` 与业务 Registry 类型） |
 | `GATEWAY` | 按 `gatewayKind` 选边 |
 | `INTERMEDIATE_EVENT` | 按 `eventSubtype` 等待（timer → `TimerEvaluator` + Temporal Timer） |
-| `CHILD_WORKFLOW` | Child Workflow stub |
+| `CHILD_WORKFLOW` | Child Workflow stub（同步等待子 `FlowInterpreterWorkflow` 完成）— 见 [child-workflow-design.md](./child-workflow-design.md) |
 
 Human Task 编译为 `ACTIVITY` + `activityType: human-task`；managed 模式下 Interpreter 在 Activity 后 `Workflow.await` 等待 `completeHumanTask` Signal。
 
@@ -233,7 +244,7 @@ Human Task 编译为 `ACTIVITY` + `activityType: human-task`；managed 模式下
 | 并行网关 | Parallel Gateway | `parallelGateway` | `GATEWAY` | `GATEWAY` | 按 `gatewayKind=parallel` 路由 |
 | 包容网关 | Inclusive Gateway | `inclusiveGateway` | `GATEWAY` | `GATEWAY` | 按 `gatewayKind=inclusive` 路由 |
 | 事件网关 | Event-based Gateway | `eventBasedGateway` | `GATEWAY` | `GATEWAY` | 按 `gatewayKind=eventBased` 路由 |
-| 子流程 | Child Workflow | `workflow` | `CHILD_WORKFLOW` | `CHILD_WORKFLOW` | Child Workflow |
+| 子流程 | Child Workflow | `workflow` | `CHILD_WORKFLOW` | `CHILD_WORKFLOW` | Temporal Child Workflow（见 [child-workflow-design.md](./child-workflow-design.md)） |
 | 子图容器 | Sub-process | `subProcess` | — | — | 内部节点展开 |
 | 泳道 | Participant | `participant` | — | — | 元数据 |
 | 注释 | Text Annotation | `textAnnotation` | — | — | — |
@@ -241,7 +252,7 @@ Human Task 编译为 `ACTIVITY` + `activityType: human-task`；managed 模式下
 
 Gateway 子类型通过 `config.gatewayKind` 保留：`exclusive` / `parallel` / `inclusive` / `eventBased`。
 
-Intermediate Event 子类型通过 `config.eventSubtype` 保留：`timer`（MVP）/ 未来 `message` / `signal`。Timer 的 `duration` / `date` / `cycle` 配置见 [timer-design.md](./timer-design.md)。
+Intermediate Event 子类型通过 `config.eventSubtype` 保留：`timer`（MVP）/ 未来 `message` / `signal`。Intermediate Timer 支持 `duration` / `date`；周期调度使用 Start Event `startEventSubtype=timer` + `cycle`，见 [timer-design.md](./timer-design.md)。
 
 ---
 

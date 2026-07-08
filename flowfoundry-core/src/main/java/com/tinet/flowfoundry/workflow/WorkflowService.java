@@ -8,6 +8,7 @@ import com.tinet.flowfoundry.workflow.WorkflowContracts.SaveWorkflowVersionReque
 import com.tinet.flowfoundry.workflow.WorkflowContracts.UpdateWorkflowRequest;
 import com.tinet.flowfoundry.workflow.WorkflowContracts.WorkflowRecordDto;
 import com.tinet.flowfoundry.workflow.WorkflowContracts.WorkflowVersionDto;
+import com.tinet.flowfoundry.temporal.StartTimerScheduleService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.time.Instant;
@@ -26,6 +27,7 @@ public class WorkflowService {
   private final WorkflowModelFactory modelFactory;
   private final WorkflowMapper mapper;
   private final NamespaceAccessService namespaceAccess;
+  private final StartTimerScheduleService startTimerScheduleService;
 
   public WorkflowService(
       WorkflowDefinitionRepository definitionRepository,
@@ -33,13 +35,15 @@ public class WorkflowService {
       PlatformIdGenerator idGenerator,
       WorkflowModelFactory modelFactory,
       WorkflowMapper mapper,
-      NamespaceAccessService namespaceAccess) {
+      NamespaceAccessService namespaceAccess,
+      StartTimerScheduleService startTimerScheduleService) {
     this.definitionRepository = definitionRepository;
     this.versionRepository = versionRepository;
     this.idGenerator = idGenerator;
     this.modelFactory = modelFactory;
     this.mapper = mapper;
     this.namespaceAccess = namespaceAccess;
+    this.startTimerScheduleService = startTimerScheduleService;
   }
 
   @Transactional(readOnly = true)
@@ -172,6 +176,9 @@ public class WorkflowService {
       WorkflowVersionEntity current = requireVersionEntity(definition, definition.getCurrentVersion());
       current.setStatus(status);
       current.setUpdatedAt(now);
+      if (WorkflowStatus.RETIRED.value().equals(status)) {
+        startTimerScheduleService.pauseSchedule(workflowId);
+      }
     }
     if (request.activeVersion() != null && !request.activeVersion().isBlank()) {
       String activeVersion = VersionNumbering.ensureValid(request.activeVersion());
@@ -185,6 +192,7 @@ public class WorkflowService {
   @Transactional
   public void delete(String workflowId) {
     requireDefinition(workflowId);
+    startTimerScheduleService.deleteSchedule(workflowId);
     definitionRepository.deleteById(workflowId);
   }
 

@@ -87,10 +87,26 @@
         } else {
           delete node.timeout;
         }
-        if (definition?.taskQueue && !node.taskQueue) {
+        if (isPlatformCoreActivity(activityId)) {
+          node.taskQueue = 'flowfoundry-platform';
+        } else if (definition?.taskQueue && !node.taskQueue) {
           node.taskQueue = definition.taskQueue;
         }
         syncTaskDefinitionFromNode(node);
+      }
+
+      function isPlatformCoreActivity(activityId) {
+        return activityId === 'script-runtime' || activityId === 'human-task';
+      }
+
+      function resolveNodeTaskQueue(node) {
+        const activityType = node.activityType
+          || (node.kind === 'scriptTask' ? 'script-runtime' : null)
+          || (node.kind === 'humanTask' || node.kind === 'userTask' ? 'human-task' : null);
+        if (isPlatformCoreActivity(activityType)) {
+          return 'flowfoundry-platform';
+        }
+        return node.taskQueue;
       }
 
       function updateActivityType(value) {
@@ -185,12 +201,77 @@
         refreshNodePreview(n);
       }
 
+      function updateStartEventSubtype(value) {
+        const n = selectedNode();
+        pushHistory();
+        const subtype = value || 'none';
+        n.config = { ...(n.config || {}), startEventSubtype: subtype };
+        if (subtype === 'timer') {
+          const previous = n.config.timerDefinition || {};
+          if (!previous.type || !previous.value) {
+            n.config.timerDefinition = {
+              type: previous.type || 'cycle',
+              value: previous.value || startTimerDefaultValue(previous.type || 'cycle')
+            };
+          }
+        } else {
+          delete n.config.timerDefinition;
+        }
+        refreshNodePreview(n);
+        updateButtons();
+        renderProperties();
+      }
+
+      function updateStartTimer(key, value) {
+        const n = selectedNode();
+        pushHistory();
+        const previous = n.config?.timerDefinition || {};
+        const timerDefinition = { ...previous, [key]: value };
+        if (key === 'type') {
+          const previousType = timerDefinitionType(previous);
+          const nextType = value || 'cycle';
+          const currentValue = previous.value;
+          if (shouldResetStartTimerValueOnTypeChange(currentValue, previousType, nextType)) {
+            timerDefinition.value = startTimerDefaultValue(nextType);
+          }
+          if (previousType === 'date' && nextType !== 'date') {
+            delete timerDefinition.timezone;
+          }
+          if (nextType === 'date' && !timerDefinition.timezone) {
+            timerDefinition.timezone = 'Asia/Shanghai';
+          }
+        }
+        n.config = { ...(n.config || {}), startEventSubtype: 'timer', timerDefinition };
+        refreshNodePreview(n);
+        updateButtons();
+        if (key === 'type' && state.selected.id === n.id) renderProperties();
+      }
+
       function updateTimer(key, value) {
         const n = selectedNode();
         pushHistory();
-        n.config = { ...(n.config || {}), timerDefinition: { ...(n.config?.timerDefinition || {}), [key]: value } };
+        const previous = n.config?.timerDefinition || {};
+        const timerDefinition = { ...previous, [key]: value };
+        if (key === 'type') {
+          const previousType = timerDefinitionType(previous);
+          const nextType = value || 'duration';
+          const currentValue = previous.value ?? (previousType === 'duration' ? n.config?.duration : undefined);
+          if (shouldResetTimerValueOnTypeChange(currentValue, previousType, nextType)) {
+            timerDefinition.value = timerDefaultValue(nextType);
+          }
+          if (previousType === 'date' && nextType !== 'date') {
+            delete timerDefinition.timezone;
+            delete timerDefinition.pastTargetStrategy;
+          }
+          if (nextType === 'date') {
+            if (!timerDefinition.timezone) timerDefinition.timezone = '${slot.timezone}';
+            if (!timerDefinition.pastTargetStrategy) timerDefinition.pastTargetStrategy = 'fireImmediately';
+          }
+        }
+        n.config = { ...(n.config || {}), timerDefinition };
         refreshNodePreview(n);
         updateButtons();
+        if (key === 'type' && state.selected.id === n.id) renderProperties();
       }
 
       function updateJsonNode(key, value) {

@@ -213,6 +213,7 @@ FlowInterpreterWorkflowImpl（Temporal）
 
 - [loop-design.md](./loop-design.md) — Activity Standard / Multi-Instance Loop
 - [timer-design.md](./timer-design.md) — Timer Definition（duration / date / 变量）
+- [child-workflow-design.md](./child-workflow-design.md) — Child Workflow 编译与运行
 
 ---
 

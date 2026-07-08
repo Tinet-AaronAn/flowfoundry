@@ -33,8 +33,13 @@ public class FlowCompiler {
     if (definition.flow() == null || blank(definition.flow().id())) {
       throw new IllegalArgumentException("flow.id is required");
     }
+    String flowId = definition.flow().id();
     if (definition.nodes() == null || definition.nodes().isEmpty()) {
-      throw new IllegalArgumentException("At least one node is required");
+      throw new IllegalArgumentException(
+          "Flow '"
+              + flowId
+              + "': DSL has no executable nodes. Add Start Event, Task, Gateway, or End Event."
+              + " Participant, Sub-process, and Text Annotation are canvas-only and are not compiled.");
     }
 
     Map<String, Map<String, Object>> gatewayConfigPatches =
@@ -46,16 +51,25 @@ public class FlowCompiler {
 
     for (FlowNode node : definition.nodes()) {
       if (node == null || blank(node.id())) {
-        throw new IllegalArgumentException("Every node requires id");
+        throw new IllegalArgumentException(
+            "Flow '" + flowId + "': every DSL node requires a non-blank id");
       }
       if (nodes.containsKey(node.id())) {
-        throw new IllegalArgumentException("Duplicate node id: " + node.id());
+        throw new IllegalArgumentException(
+            "Flow '" + flowId + "': duplicate node id '" + node.id() + "'");
       }
       rejectGenericTask(node);
       NodeKind kind = NodeKind.from(node.kind());
       if (kind == NodeKind.START) {
         if (startNodeId != null) {
-          throw new IllegalArgumentException("Only one start node is allowed");
+          throw new IllegalArgumentException(
+              "Flow '"
+                  + flowId
+                  + "': only one Start Event is allowed, but found '"
+                  + startNodeId
+                  + "' and '"
+                  + node.id()
+                  + "'");
         }
         startNodeId = node.id();
       }
@@ -67,10 +81,22 @@ public class FlowCompiler {
     }
 
     if (startNodeId == null) {
-      throw new IllegalArgumentException("A start node is required");
+      throw new IllegalArgumentException(
+          "Flow '"
+              + flowId
+              + "': exactly one Start Event is required, but none was found in DSL."
+              + " Present nodes: "
+              + describeDslNodes(definition.nodes())
+              + ". Add a Start Event on the canvas (not only inside Participant / Sub-process).");
     }
     if (endCount == 0) {
-      throw new IllegalArgumentException("At least one end node is required");
+      throw new IllegalArgumentException(
+          "Flow '"
+              + flowId
+              + "': at least one End Event is required, but none was found in DSL."
+              + " Present nodes: "
+              + describeDslNodes(definition.nodes())
+              + ".");
     }
 
     Map<String, List<ExecutionEdge>> edges = compileEdges(definition.edges(), nodes);
@@ -126,6 +152,9 @@ public class FlowCompiler {
     if (kind == NodeKind.GATEWAY) {
       config = ensureGatewayConfig(node, config, gatewayConfigPatches);
     }
+    if (kind == NodeKind.START) {
+      config = ensureStartEventConfig(node, config);
+    }
     if (kind == NodeKind.INTERMEDIATE_EVENT) {
       config = ensureIntermediateEventConfig(node, config);
     }
@@ -135,13 +164,20 @@ public class FlowCompiler {
         node.id(),
         kind,
         activityType,
-        blank(node.taskQueue()) ? activityRegistry.defaultTaskQueue() : node.taskQueue(),
+        resolveTaskQueue(node, activityType),
         node.timeout(),
         node.maxAttempts(),
         node.inputArgs(),
         node.inputMapping(),
         node.outputMapping(),
         config);
+  }
+
+  private String resolveTaskQueue(FlowNode node, String activityType) {
+    if (ActivityTypes.isCore(activityType)) {
+      return ActivityTypes.PLATFORM_TASK_QUEUE;
+    }
+    return blank(node.taskQueue()) ? activityRegistry.defaultTaskQueue() : node.taskQueue();
   }
 
   private Map<String, Object> ensureLoopConfig(FlowNode node, Map<String, Object> config) {
@@ -347,6 +383,21 @@ public class FlowCompiler {
     if (subtype == null || String.valueOf(subtype).isBlank()) {
       compiled.put("eventSubtype", "timer");
     }
+    TimerDefinitionRules.validateIntermediate(compiled, node.id());
+    return compiled;
+  }
+
+  private Map<String, Object> ensureStartEventConfig(FlowNode node, Map<String, Object> config) {
+    Map<String, Object> compiled = new LinkedHashMap<>(config);
+    Object rawSubtype = compiled.get("startEventSubtype");
+    String subtype =
+        rawSubtype == null || String.valueOf(rawSubtype).isBlank()
+            ? "none"
+            : String.valueOf(rawSubtype).trim().toLowerCase();
+    compiled.put("startEventSubtype", subtype);
+    if ("timer".equals(subtype)) {
+      TimerDefinitionRules.validateStart(compiled, node.id());
+    }
     return compiled;
   }
 
@@ -364,5 +415,30 @@ public class FlowCompiler {
 
   private static boolean blank(String value) {
     return value == null || value.isBlank();
+  }
+
+  private static String describeDslNodes(List<FlowNode> nodes) {
+    if (nodes == null || nodes.isEmpty()) {
+      return "[]";
+    }
+    StringBuilder builder = new StringBuilder("[");
+    for (int i = 0; i < nodes.size(); i++) {
+      FlowNode node = nodes.get(i);
+      if (i > 0) {
+        builder.append(", ");
+      }
+      if (node == null) {
+        builder.append("(null)");
+        continue;
+      }
+      builder.append(node.kind());
+      if (!blank(node.id())) {
+        builder.append(" '").append(node.id()).append("'");
+      }
+      if (!blank(node.canvasKind())) {
+        builder.append(" (canvas=").append(node.canvasKind()).append(")");
+      }
+    }
+    return builder.append(']').toString();
   }
 }

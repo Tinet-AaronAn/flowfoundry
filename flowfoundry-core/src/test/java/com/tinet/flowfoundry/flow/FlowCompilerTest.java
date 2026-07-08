@@ -7,6 +7,7 @@ import com.tinet.flowfoundry.interpreter.model.ExecutionEdge;
 import com.tinet.flowfoundry.interpreter.model.NodeKind;
 import com.tinet.flowfoundry.activity.ActivityTypes;
 import com.tinet.flowfoundry.registry.ActivityRegistry;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -328,6 +329,62 @@ class FlowCompilerTest {
   }
 
   @Test
+  void forcesPlatformTaskQueueForCoreActivities() {
+    FlowDefinition definition =
+        new FlowDefinition(
+            "1.0",
+            new FlowMetadata("CoreQueueFlow", "Core Queue Flow", "1.0.0"),
+            Map.of(),
+            Map.of(),
+            List.of(
+                node("Start", "START", Map.of()),
+                new FlowNode(
+                    "Script",
+                    "ACTIVITY",
+                    "Risk Check",
+                    "scriptTask",
+                    ActivityTypes.SCRIPT_RUNTIME,
+                    "ai-collection-strategy",
+                    null,
+                    null,
+                    "risk-check",
+                    "1",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    Map.of()),
+                new FlowNode(
+                    "Review",
+                    "ACTIVITY",
+                    "Human Review",
+                    "humanTask",
+                    ActivityTypes.HUMAN_TASK,
+                    "ai-collection-strategy",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    Map.of("flowFoundryHumanTask", Map.of("mode", "managed"))),
+                node("End", "END", Map.of())),
+            List.of(
+                new FlowEdge("Start", "Script", "default"),
+                new FlowEdge("Script", "Review", "default"),
+                new FlowEdge("Review", "End", "default")));
+
+    var plan = compiler.compile(definition);
+
+    assertThat(plan.requireNode("Script").taskQueue()).isEqualTo(ActivityTypes.PLATFORM_TASK_QUEUE);
+    assertThat(plan.requireNode("Review").taskQueue()).isEqualTo(ActivityTypes.PLATFORM_TASK_QUEUE);
+  }
+
+  @Test
   void rejectsGenericTaskAtCompileTime() {
     FlowDefinition definition =
         new FlowDefinition(
@@ -557,6 +614,157 @@ class FlowCompilerTest {
     assertThat(taskNode.config()).containsKey("taskHeaders");
     assertThat(taskNode.config().get("taskHeaders"))
         .isEqualTo(Map.of("x-tenant", "demo", "x-priority", "high"));
+  }
+
+  @Test
+  void ignoresLegacyEdgeRoutingInFlowMetadataJson() throws Exception {
+    ObjectMapper mapper = new ObjectMapper();
+    String json =
+        """
+        {
+          "dslVersion": "1.0",
+          "flow": {
+            "id": "LegacyFlow",
+            "name": "Legacy",
+            "version": "1.0.0",
+            "edgeRouting": "curved"
+          },
+          "inputs": {},
+          "variables": {},
+          "nodes": [
+            { "id": "Start", "kind": "START", "name": "Start", "config": {} },
+            { "id": "End", "kind": "END", "name": "End", "config": {} }
+          ],
+          "edges": [
+            { "from": "Start", "to": "End", "condition": "default" }
+          ]
+        }
+        """;
+    FlowDefinition definition = mapper.readValue(json, FlowDefinition.class);
+    assertThat(definition.flow().id()).isEqualTo("LegacyFlow");
+
+    var plan = compiler.compile(definition);
+
+    assertThat(plan.startNodeId()).isEqualTo("Start");
+  }
+
+  @Test
+  void rejectsIntermediateEventWithCycleTimer() {
+    FlowDefinition definition =
+        new FlowDefinition(
+            "1.0",
+            new FlowMetadata("CycleFlow", "Cycle Flow", "1.0.0"),
+            Map.of(),
+            Map.of(),
+            List.of(
+                node("Start", "START", Map.of()),
+                node(
+                    "Wait",
+                    "INTERMEDIATE_EVENT",
+                    Map.of(
+                        "eventSubtype",
+                        "timer",
+                        "timerDefinition",
+                        Map.of("type", "cycle", "value", "R/PT1H"))),
+                node("End", "END", Map.of())),
+            List.of(
+                new FlowEdge("Start", "Wait", "default"),
+                new FlowEdge("Wait", "End", "default")));
+
+    assertThatThrownBy(() -> compiler.compile(definition))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("does not support timer type 'cycle'");
+  }
+
+  @Test
+  void compilesTimerStartWithCycle() {
+    FlowDefinition definition =
+        new FlowDefinition(
+            "1.0",
+            new FlowMetadata("TimerStartFlow", "Timer Start Flow", "1.0.0"),
+            Map.of(),
+            Map.of(),
+            List.of(
+                node(
+                    "Start",
+                    "START",
+                    Map.of(
+                        "startEventSubtype",
+                        "timer",
+                        "timerDefinition",
+                        Map.of("type", "cycle", "value", "R/PT1H"))),
+                node("End", "END", Map.of())),
+            List.of(new FlowEdge("Start", "End", "default")));
+
+    var plan = compiler.compile(definition);
+
+    assertThat(plan.startNode().config()).containsEntry("startEventSubtype", "timer");
+    assertThat(plan.startNode().config().get("timerDefinition"))
+        .isEqualTo(Map.of("type", "cycle", "value", "R/PT1H"));
+  }
+
+  @Test
+  void rejectsTimerStartWithDuration() {
+    FlowDefinition definition =
+        new FlowDefinition(
+            "1.0",
+            new FlowMetadata("BadStart", "Bad Start", "1.0.0"),
+            Map.of(),
+            Map.of(),
+            List.of(
+                node(
+                    "Start",
+                    "START",
+                    Map.of(
+                        "startEventSubtype",
+                        "timer",
+                        "timerDefinition",
+                        Map.of("type", "duration", "value", "1m"))),
+                node("End", "END", Map.of())),
+            List.of(new FlowEdge("Start", "End", "default")));
+
+    assertThatThrownBy(() -> compiler.compile(definition))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("does not support duration");
+  }
+
+  @Test
+  void rejectsEmptyDslNodesWithActionableMessage() {
+    FlowDefinition definition =
+        new FlowDefinition(
+            "1.0",
+            new FlowMetadata("EmptyFlow", "Empty Flow", "1.0.0"),
+            Map.of(),
+            Map.of(),
+            List.of(),
+            List.of());
+
+    assertThatThrownBy(() -> compiler.compile(definition))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("EmptyFlow")
+        .hasMessageContaining("no executable nodes")
+        .hasMessageContaining("Participant");
+  }
+
+  @Test
+  void rejectsDslWithoutStartWithNodeSummary() {
+    FlowDefinition definition =
+        new FlowDefinition(
+            "1.0",
+            new FlowMetadata("NoStartFlow", "No Start Flow", "1.0.0"),
+            Map.of(),
+            Map.of(),
+            List.of(
+                activityNode("Task", ActivityTypes.SCRIPT_RUNTIME),
+                node("End", "END", Map.of())),
+            List.of(
+                new FlowEdge("Task", "End", "default")));
+
+    assertThatThrownBy(() -> compiler.compile(definition))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("NoStartFlow")
+        .hasMessageContaining("Start Event")
+        .hasMessageContaining("ACTIVITY 'Task'");
   }
 
   private FlowNode activityNode(String id, String activityType) {

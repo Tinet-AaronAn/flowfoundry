@@ -173,6 +173,88 @@
         return isActivityKind(kind) || isStartEventKind(kind);
       }
 
+      function startEventSubtype(config = {}) {
+        const raw = config?.startEventSubtype;
+        if (!raw || String(raw).trim() === '') return 'none';
+        return String(raw).trim().toLowerCase();
+      }
+
+      function startTimerDefaultValue(type) {
+        switch (type) {
+          case 'date':
+            return '2026-07-08T10:00:00';
+          case 'cycle':
+          default:
+            return 'R/PT1H';
+        }
+      }
+
+      function startTimerValuePlaceholder(type) {
+        switch (type) {
+          case 'date':
+            return '2026-07-08T10:00:00Z / 2026-07-08T18:00:00';
+          case 'cycle':
+          default:
+            return 'R/PT1H / R3/PT10M';
+        }
+      }
+
+      function shouldResetStartTimerValueOnTypeChange(currentValue, previousType, nextType) {
+        if (currentValue == null || String(currentValue).trim() === '') return true;
+        const trimmed = String(currentValue).trim();
+        if (trimmed === startTimerDefaultValue(previousType) || trimmed === startTimerDefaultValue(nextType)) {
+          return true;
+        }
+        if (previousType === 'date' && (trimmed.includes('T') || trimmed.endsWith('Z'))) return true;
+        if (previousType === 'cycle' && /^R/i.test(trimmed)) return true;
+        return false;
+      }
+
+      function timerDefinitionType(def) {
+        return def?.type || 'duration';
+      }
+
+      function timerDefaultValue(type) {
+        switch (type) {
+          case 'date':
+            return '${slot.fixedTime}';
+          case 'cycle':
+            return 'R/PT1H';
+          default:
+            return '1m';
+        }
+      }
+
+      function timerValuePlaceholder(type) {
+        switch (type) {
+          case 'date':
+            return '2026-07-08T10:00:00 / ${slot.fixedTime}';
+          case 'cycle':
+            return 'R/PT1H / R3/PT10M';
+          default:
+            return '1m / PT1M / ${waitMs}';
+        }
+      }
+
+      function timerDisplayValue(def, legacyDuration) {
+        const type = timerDefinitionType(def);
+        if (def?.value) return def.value;
+        if (type === 'duration' && legacyDuration) return legacyDuration;
+        return timerDefaultValue(type);
+      }
+
+      function shouldResetTimerValueOnTypeChange(currentValue, previousType, nextType) {
+        if (currentValue == null || String(currentValue).trim() === '') return true;
+        const trimmed = String(currentValue).trim();
+        if (trimmed === timerDefaultValue(previousType) || trimmed === timerDefaultValue(nextType)) {
+          return true;
+        }
+        if (previousType === 'duration' && /^(?:\d+[smh]|PT[\dHM]+)$/i.test(trimmed)) return true;
+        if (previousType === 'date' && (trimmed.includes('T') || trimmed.startsWith('${'))) return true;
+        if (previousType === 'cycle' && /^R/i.test(trimmed)) return true;
+        return false;
+      }
+
       function isDefaultEdgeCondition(condition) {
         return condition == null || condition === '' || condition === 'default';
       }

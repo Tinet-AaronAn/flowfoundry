@@ -1,5 +1,6 @@
 package com.tinet.flowfoundry.interpreter.runtime;
 
+import com.tinet.flowfoundry.flow.CycleTimerExpression;
 import com.tinet.flowfoundry.interpreter.model.ExecutionNode;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -55,8 +56,10 @@ public final class TimerEvaluator {
     Object resolvedValue = resolveValue(definition.rawValue(), variables);
     return switch (definition.type()) {
       case "date" -> evaluateDate(definition, resolvedValue, variables, nowEpochMs, node.id());
-      case "cycle" -> throw new UnsupportedOperationException(
-          "Timer type 'cycle' is not yet supported at runtime: " + node.id());
+      case "cycle" ->
+          throw new IllegalArgumentException(
+              "Timer type 'cycle' is only supported on Timer Start Event, not Intermediate Event: "
+                  + node.id());
       default -> new TimerDelay(parseDurationMs(stringify(resolvedValue)));
     };
   }
@@ -118,6 +121,15 @@ public final class TimerEvaluator {
     }
   }
 
+  /** Literal date parsing for Timer Start schedules (no workflow variables). */
+  public static long parseTargetEpochMsForSchedule(String value, String timezone, String nodeId) {
+    CycleTimerExpression.rejectVariables(value, nodeId);
+    if (timezone != null) {
+      CycleTimerExpression.rejectVariables(timezone, nodeId);
+    }
+    return parseTargetEpochMs(value, timezone, new VariableStore(Map.of()), nodeId);
+  }
+
   private static ZoneId resolveZoneId(String timezone, VariableStore variables) {
     String resolved = resolveText(timezone, variables);
     if (resolved == null || resolved.isBlank()) {
@@ -153,7 +165,7 @@ public final class TimerEvaluator {
     return resolved == null ? null : stringify(resolved);
   }
 
-  static long parseDurationMs(String raw) {
+  public static long parseDurationMs(String raw) {
     if (raw == null || raw.isBlank()) {
       return 0L;
     }

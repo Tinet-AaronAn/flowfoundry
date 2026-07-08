@@ -2,6 +2,8 @@ package com.tinet.flowfoundry.config;
 
 import io.temporal.client.WorkflowClient;
 import io.temporal.client.WorkflowClientOptions;
+import io.temporal.client.schedules.ScheduleClient;
+import io.temporal.client.schedules.ScheduleClientOptions;
 import io.temporal.serviceclient.WorkflowServiceStubs;
 import io.temporal.serviceclient.WorkflowServiceStubsOptions;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -28,6 +30,13 @@ public class FlowFoundryPlatformConfiguration {
   WorkflowClient workflowClient(WorkflowServiceStubs service, TemporalProperties properties) {
     return WorkflowClient.newInstance(
         service, WorkflowClientOptions.newBuilder().setNamespace(properties.namespace()).build());
+  }
+
+  @Bean
+  ScheduleClient scheduleClient(WorkflowServiceStubs service, TemporalProperties properties) {
+    return ScheduleClient.newInstance(
+        service,
+        ScheduleClientOptions.newBuilder().setNamespace(properties.namespace()).build());
   }
 
   @Bean

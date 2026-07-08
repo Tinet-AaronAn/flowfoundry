@@ -66,7 +66,7 @@ public class ActivityRegistryLoader {
     Set<String> seen = new LinkedHashSet<>();
     if (core != null) {
       for (ActivityRegistry.ActivityDefinition definition : core.activities()) {
-        merged.add(definition);
+        merged.add(withTaskQueue(definition, core.defaultTaskQueue()));
         seen.add(definition.id());
       }
     }
@@ -101,6 +101,25 @@ public class ActivityRegistryLoader {
       }
     }
     return groups;
+  }
+
+  private ActivityRegistry.ActivityDefinition withTaskQueue(
+      ActivityRegistry.ActivityDefinition definition, String defaultTaskQueue) {
+    if (definition.taskQueue() != null && !definition.taskQueue().isBlank()) {
+      return definition;
+    }
+    return new ActivityRegistry.ActivityDefinition(
+        definition.id(),
+        definition.name(),
+        definition.description(),
+        definition.group(),
+        defaultTaskQueue,
+        definition.timeout(),
+        definition.retry(),
+        definition.idempotency(),
+        definition.input(),
+        definition.output(),
+        definition.cancellable());
   }
 
   private ActivityRegistry loadRequired(String path) {

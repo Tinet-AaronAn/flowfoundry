@@ -44,7 +44,7 @@
 | MF-01 | loads modeler, selects a node from its body, and shows the floating toolbar | 打开建模器，点击节点主体选中，显示浮动工具栏 | `#propType` 为 `serviceTask`；工具栏含 Append task |
 | MF-02 | selects a node when clicking the node body, not only connection handles | 点击节点文字区域可选中；点击空白画布可取消选中 | 选中后 `.node.selected` 存在；点画布后选中清除 |
 | MF-03 | keeps node property inputs focused while typing | 在右侧属性面板连续输入节点名称时，输入框保持焦点 | 输入框 value 与节点标签同步；`toBeFocused()` |
-| MF-04 | switches process edge routing between rounded orthogonal and curved | 在流程属性中切换边路由：圆角正交 ↔ 曲线 | SVG path 含 `Q` / `C`；DSL `edgeRouting` 为 `curved` |
+| MF-04 | switches process edge routing between rounded orthogonal and curved | 在流程属性中切换边路由：圆角正交 ↔ 曲线 | SVG path 含 `Q` / `C`；`model.process.edgeRouting` 为 `curved`；DSL `flow` 不含 `edgeRouting` |
 | MF-05 | shows edge name instead of FEEL condition when a name is set | 边设置了名称时，画布上显示名称而非 FEEL 表达式 | `#edges text` 为 `Approved Path`，不含 `${amount > 1000}` |
 | MF-06 | shows gateway name below the gateway node | 网关名称标签显示在菱形图标下方并水平居中 | `gateway-label` 的 y 坐标大于 `gateway-shape` 底部 |
 | MF-07 | appends a task from the floating toolbar, then supports undo and redo | 从浮动工具栏向后追加 Task，并验证 Undo / Redo | 节点数 +1；Undo 恢复；Redo 再次追加 |

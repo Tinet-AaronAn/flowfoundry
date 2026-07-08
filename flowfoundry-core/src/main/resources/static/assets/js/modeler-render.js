@@ -933,6 +933,7 @@
           ${structuralSection(n)}
           ${annotationSection(n)}
           ${scriptSection(n)}
+          ${startTimerSection(n)}
           ${timerSection(n)}
           ${runtimeSections(n)}
         `;
@@ -1282,15 +1283,50 @@
         if (state.selected.id === nodeId) renderProperties();
       }
 
+      function startTimerSection(n) {
+        if (!isStartEventKind(n.kind)) return '';
+        const subtype = startEventSubtype(n.config);
+        const def = n.config?.timerDefinition || {};
+        const timerType = timerDefinitionType(def);
+        const isTimer = subtype === 'timer';
+        const isDate = timerType === 'date';
+        const displayValue = isTimer ? timerDisplayValue(def, null) : '';
+        return `<div class="prop-section"><h3>Start Event</h3>
+          <label>Subtype</label>
+          <select onchange="updateStartEventSubtype(this.value)">
+            <option value="none" ${subtype === 'none' ? 'selected' : ''}>none (manual trigger)</option>
+            <option value="timer" ${subtype === 'timer' ? 'selected' : ''}>timer (Temporal Schedule)</option>
+          </select>
+          ${isTimer ? `
+          <label>Timer Type</label>
+          <select onchange="updateStartTimer('type', this.value)">
+            <option ${timerType === 'cycle' ? 'selected' : ''}>cycle</option>
+            <option ${timerType === 'date' ? 'selected' : ''}>date</option>
+          </select>
+          <label>Value</label>
+          <input value="${escapeAttr(displayValue)}" placeholder="${escapeAttr(startTimerValuePlaceholder(timerType))}" oninput="updateStartTimer('value', this.value)" />
+          ${isDate ? `
+          <label>Timezone</label><input value="${escapeAttr(def.timezone || 'Asia/Shanghai')}" placeholder="Asia/Shanghai" oninput="updateStartTimer('timezone', this.value)" />
+          <div class="help">One-shot schedule: workflow starts at this absolute time. Must be in the future when activating.</div>
+          ` : `
+          <div class="help">Periodic schedule via Temporal Schedule (e.g. R/PT1H). Variables are not supported on Timer Start.</div>
+          `}
+          ` : `<div class="help">Manual trigger only; no Temporal Schedule is created.</div>`}
+        </div>`;
+      }
+
       function timerSection(n) {
+        if (isStartEventKind(n.kind)) return '';
         if (!['timerEvent','intermediateEvent','intermediateCatchEvent','boundaryEvent'].includes(n.kind)) return '';
         const def = n.config?.timerDefinition || {};
-        const isDate = def.type === 'date';
+        const timerType = timerDefinitionType(def);
+        const isDate = timerType === 'date';
+        const displayValue = timerDisplayValue(def, n.config?.duration);
         return `<div class="prop-section"><h3>Timer Definition</h3>
-          <label>Type</label><select onchange="updateTimer('type', this.value)"><option ${def.type === 'duration' || !def.type ? 'selected' : ''}>duration</option><option ${def.type === 'date' ? 'selected' : ''}>date</option><option ${def.type === 'cycle' ? 'selected' : ''}>cycle</option></select>
-          <label>Value</label><input value="${escapeAttr(def.value || n.config?.duration || '1m')}" placeholder="${isDate ? '2026-07-08T10:00:00 / ${slot.fixedTime}' : '1m / PT1M / ${roundIntervalMinutes}m'}" oninput="updateTimer('value', this.value)" />
+          <label>Type</label><select onchange="updateTimer('type', this.value)"><option ${timerType === 'duration' ? 'selected' : ''}>duration</option><option ${timerType === 'date' ? 'selected' : ''}>date</option></select>
+          <label>Value</label><input value="${escapeAttr(displayValue)}" placeholder="${escapeAttr(timerValuePlaceholder(timerType))}" oninput="updateTimer('value', this.value)" />
           ${isDate ? `
-          <label>Timezone</label><input value="${escapeAttr(def.timezone || '')}" placeholder="Asia/Shanghai / \${slot.timezone}" oninput="updateTimer('timezone', this.value)" />
+          <label>Timezone</label><input value="${escapeAttr(def.timezone || '${slot.timezone}')}" placeholder="Asia/Shanghai / \${slot.timezone}" oninput="updateTimer('timezone', this.value)" />
           <label>Past Target Strategy</label><select onchange="updateTimer('pastTargetStrategy', this.value)">
             <option value="fireImmediately" ${(def.pastTargetStrategy || 'fireImmediately') === 'fireImmediately' ? 'selected' : ''}>fireImmediately</option>
             <option value="skip" ${def.pastTargetStrategy === 'skip' ? 'selected' : ''}>skip</option>

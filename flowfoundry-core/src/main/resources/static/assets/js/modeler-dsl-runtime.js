@@ -37,10 +37,31 @@
         return config;
       }
 
+      function assertCompilableRuntimeNodes(model) {
+        const allNodes = model?.nodes || [];
+        const runtimeNodes = allNodes.filter(isRuntimeNode);
+        if (runtimeNodes.length > 0) return;
+
+        const flowName = model?.name || model?.id || 'workflow';
+        if (allNodes.length === 0) {
+          throw new Error(t('message.compileNoRuntimeNodesEmpty', { flowName }));
+        }
+        const kindCounts = allNodes.reduce((acc, node) => {
+          const kind = node?.kind || 'unknown';
+          acc[kind] = (acc[kind] || 0) + 1;
+          return acc;
+        }, {});
+        const kinds = Object.entries(kindCounts)
+          .map(([kind, count]) => `${kind}×${count}`)
+          .join(', ');
+        throw new Error(t('message.compileNoRuntimeNodesExcluded', { flowName, count: allNodes.length, kinds }));
+      }
+
       function buildDsl() {
         assertParticipantContainment();
         validateStartEventUniqueness(state.model);
         assertNoGenericTaskNodes(state.model);
+        assertCompilableRuntimeNodes(state.model);
         return buildDslForModel(state.model, state.activeVersion || '1.0.0', new Set([state.model.id]));
       }
 
@@ -57,6 +78,7 @@
 
       function buildDslForModel(model, version = '1.0.0', seenWorkflowIds = new Set()) {
         assertNoGenericTaskNodes(model);
+        assertCompilableRuntimeNodes(model);
         const runtimeNodes = model.nodes.filter(isRuntimeNode);
         const runtimeNodeIds = new Set(runtimeNodes.map(n => n.id));
         return {
@@ -64,8 +86,7 @@
           flow: {
             id: model.id,
             name: model.name,
-            version,
-            edgeRouting: model.process?.edgeRouting || 'orthogonal'
+            version
           },
           inputs: { campaignId: { type: 'string', required: true } },
           variables: {},
@@ -75,7 +96,7 @@
               canvasKind: n.kind,
               kind: executionNodeKind(n.kind),
               activityType: resolveActivityType(n),
-              taskQueue: n.taskQueue,
+              taskQueue: resolveNodeTaskQueue(n),
               timeout: n.timeout,
               maxAttempts: n.maxAttempts,
               scriptCodeId: n.scriptCodeId,
@@ -182,6 +203,13 @@
         const gatewayKind = canvasGatewayKind(n.kind);
         if (gatewayKind) {
           config.gatewayKind = gatewayKind;
+        }
+        if (n.kind === 'startEvent') {
+          const subtype = startEventSubtype(config);
+          config.startEventSubtype = subtype;
+          if (subtype !== 'timer') {
+            delete config.timerDefinition;
+          }
         }
         if (isIntermediateEventCanvasKind(n.kind)) {
           config.eventSubtype = resolveEventSubtype(config);

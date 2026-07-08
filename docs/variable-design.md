@@ -195,7 +195,7 @@ while currentNodeId != null:
 | `GATEWAY` | 否 | 仅路由；条件在出边上求值 |
 | `ACTIVITY` / `HUMAN_TASK` | 是 | Activity 返回 → `applyOutput` |
 | `INTERMEDIATE_EVENT` | 读（仅 Timer `value`/`timezone`） | Timer 等待；**不写** vars；`value` 可引用 `${...}`，见 [timer-design.md](./timer-design.md) |
-| `CHILD_WORKFLOW` | 是 | 子流程 input 来自 mapping；结果写回父 vars |
+| `CHILD_WORKFLOW` | 是 | 子流程 input 来自 mapping（默认仅父 `vars`）；`InterpreterState` 经 outputMapping 回写 — 见 [child-workflow-design.md](./child-workflow-design.md) |
 
 ---
 
@@ -360,15 +360,18 @@ sequenceDiagram
 
 ### 8.1 子流程（CHILD_WORKFLOW）
 
+完整运行语义、编译内嵌与 v1 限制见 **[child-workflow-design.md](./child-workflow-design.md)**。
+
 ```text
 childInput = buildInput(父 VariableStore, 节点 inputMapping, inputMappingMode)
-若 childInput 为空 → 使用父流程全部 vars
-启动子 FlowInterpreterWorkflow.run(childPlan, ..., childInput, ...)
+若 childInput 为空 → 使用父流程 vars（不含 $.input）
+启动子 FlowInterpreterWorkflow.run(childExecutionPlan, childBusinessKey, childInput, ...)
 父流程 applyOutput(子 InterpreterState, outputMapping)
 ```
 
 - 子流程拥有**独立** `VariableStore`；其 `input` = 父流程 mapping 结果。
 - 子流程的 `vars` 与父流程隔离；仅通过 `outputMapping` 显式回写。
+- 子 `run()` 返回 **`InterpreterState`**；`outputMapping` 的 source 从该对象解析字段。
 
 ### 8.2 人工任务（HUMAN_TASK）
 

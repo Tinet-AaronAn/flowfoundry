@@ -14,6 +14,7 @@ activities:
     group: platform-core
     name: Script Runtime
     description: Execute Script Task via Function Data Actions Integration (FDAI) Node.js service
+    taskQueue: flowfoundry-platform
     timeout: 60s
     retry:
       maximumAttempts: 3
@@ -29,6 +30,7 @@ activities:
     group: platform-core
     name: Human Task
     description: Human task registration (managed waits for Signal; offline annotates only)
+    taskQueue: flowfoundry-platform
     timeout: 60s
     retry:
       maximumAttempts: 1
