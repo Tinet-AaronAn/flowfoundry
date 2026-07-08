@@ -1,6 +1,8 @@
 package com.tinet.flowfoundry.api;
 
 import com.tinet.flowfoundry.config.TemporalProperties;
+import com.tinet.flowfoundry.temporal.RunNamespaceLocator;
+import com.tinet.flowfoundry.temporal.TemporalClients;
 import com.tinet.flowfoundry.interpreter.FlowInterpreterWorkflow;
 import com.tinet.flowfoundry.interpreter.model.HumanTaskNodeState;
 import com.tinet.flowfoundry.interpreter.model.InterpreterState;
@@ -27,16 +29,23 @@ import org.springframework.web.util.UriUtils;
 @Service
 public class FlowRunStatusService {
 
-  private final WorkflowClient workflowClient;
+  private final TemporalClients temporalClients;
+  private final RunNamespaceLocator runNamespaceLocator;
   private final TemporalProperties temporalProperties;
 
-  public FlowRunStatusService(WorkflowClient workflowClient, TemporalProperties temporalProperties) {
-    this.workflowClient = workflowClient;
+  public FlowRunStatusService(
+      TemporalClients temporalClients,
+      RunNamespaceLocator runNamespaceLocator,
+      TemporalProperties temporalProperties) {
+    this.temporalClients = temporalClients;
+    this.runNamespaceLocator = runNamespaceLocator;
     this.temporalProperties = temporalProperties;
   }
 
   public RunStatusResponse getRunStatus(String workflowId) {
-    DescribeWorkflowExecutionResponse describe = describeExecution(workflowId);
+    String namespace = runNamespaceLocator.locate(workflowId);
+    WorkflowClient workflowClient = temporalClients.workflowClient(namespace);
+    DescribeWorkflowExecutionResponse describe = describeExecution(namespace, workflowId);
     WorkflowExecution execution = describe.getWorkflowExecutionInfo().getExecution();
     WorkflowExecutionStatus temporalStatus = describe.getWorkflowExecutionInfo().getStatus();
     String temporalStatusName = temporalStatus.name();
@@ -55,7 +64,7 @@ public class FlowRunStatusService {
     String failureMessage = null;
     String failureType = null;
     List<Map<String, Object>> temporalHistory = List.of();
-    List<HistoryEvent> historyEvents = fetchHistoryEvents(execution);
+    List<HistoryEvent> historyEvents = fetchHistoryEvents(namespace, execution);
     temporalHistory = TemporalHistoryFormatter.format(historyEvents);
     if (isTerminalFailure(temporalStatus)) {
       TemporalHistoryFormatter.FailureDetails failure =
@@ -65,7 +74,6 @@ public class FlowRunStatusService {
     }
 
     String status = resolveStatus(interpreter, temporalStatus);
-    String namespace = temporalProperties.namespace();
     String uiBaseUrl = temporalProperties.resolvedUiBaseUrl();
     String historyUrl = buildTemporalHistoryUrl(namespace, uiBaseUrl, workflowId, execution.getRunId());
     List<ChildWorkflowRunSummary> pendingChildWorkflows =
@@ -111,6 +119,7 @@ public class FlowRunStatusService {
     try {
       DescribeWorkflowExecutionResponse describe =
           describeExecution(
+              namespace,
               workflowId,
               runId == null || runId.isBlank()
                   ? null
@@ -124,7 +133,9 @@ public class FlowRunStatusService {
       List<HumanTaskNodeState> humanTasks = List.of();
       try {
         FlowInterpreterWorkflow stub =
-            workflowClient.newWorkflowStub(FlowInterpreterWorkflow.class, workflowId);
+            temporalClients
+                .workflowClient(namespace)
+                .newWorkflowStub(FlowInterpreterWorkflow.class, workflowId);
         interpreter = stub.getState();
         humanTasks = safeHumanTasks(stub.getHumanTasks());
       } catch (RuntimeException ignored) {
@@ -202,26 +213,26 @@ public class FlowRunStatusService {
     return UriUtils.encodePathSegment(value, StandardCharsets.UTF_8);
   }
 
-  private List<HistoryEvent> fetchHistoryEvents(WorkflowExecution execution) {
-    WorkflowServiceStubs stubs = workflowClient.getWorkflowServiceStubs();
+  private List<HistoryEvent> fetchHistoryEvents(String namespace, WorkflowExecution execution) {
+    WorkflowServiceStubs stubs = temporalClients.serviceStubs();
     GetWorkflowExecutionHistoryResponse history =
         stubs
             .blockingStub()
             .getWorkflowExecutionHistory(
                 GetWorkflowExecutionHistoryRequest.newBuilder()
-                    .setNamespace(temporalProperties.namespace())
+                    .setNamespace(namespace)
                     .setExecution(execution)
                     .build());
     return history.getHistory().getEventsList();
   }
 
-  private DescribeWorkflowExecutionResponse describeExecution(String workflowId) {
-    return describeExecution(workflowId, null);
+  private DescribeWorkflowExecutionResponse describeExecution(String namespace, String workflowId) {
+    return describeExecution(namespace, workflowId, null);
   }
 
   private DescribeWorkflowExecutionResponse describeExecution(
-      String workflowId, WorkflowExecution executionHint) {
-    WorkflowServiceStubs stubs = workflowClient.getWorkflowServiceStubs();
+      String namespace, String workflowId, WorkflowExecution executionHint) {
+    WorkflowServiceStubs stubs = temporalClients.serviceStubs();
     WorkflowExecution execution =
         executionHint != null
             ? executionHint
@@ -231,7 +242,7 @@ public class FlowRunStatusService {
           .blockingStub()
           .describeWorkflowExecution(
               DescribeWorkflowExecutionRequest.newBuilder()
-                  .setNamespace(temporalProperties.namespace())
+                  .setNamespace(namespace)
                   .setExecution(execution)
                   .build());
     } catch (StatusRuntimeException e) {

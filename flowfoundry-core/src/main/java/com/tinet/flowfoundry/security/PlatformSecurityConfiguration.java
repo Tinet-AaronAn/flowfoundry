@@ -29,12 +29,12 @@ public class PlatformSecurityConfiguration {
       HttpSecurity http,
       PlatformSecurityProperties properties,
       FlowFoundryProperties flowFoundryProperties,
-      ApiClientService apiClientService,
+      ApiKeyService apiKeyService,
       AuditLogService auditLogService,
       ObjectMapper objectMapper)
       throws Exception {
     ApiKeyAuthenticationFilter apiKeyFilter =
-        new ApiKeyAuthenticationFilter(properties, apiClientService, auditLogService);
+        new ApiKeyAuthenticationFilter(properties, apiKeyService, auditLogService);
     AuditLoggingFilter auditFilter = new AuditLoggingFilter(properties, auditLogService);
     LocalhostAdminFilter localhostAdminFilter = new LocalhostAdminFilter(properties);
     http.csrf(csrf -> csrf.disable())

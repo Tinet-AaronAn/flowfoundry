@@ -4,7 +4,7 @@ import com.tinet.flowfoundry.config.FlowFoundryProperties;
 import com.tinet.flowfoundry.config.StaticAssetVersion;
 import com.tinet.flowfoundry.config.TemporalProperties;
 import com.tinet.flowfoundry.security.PlatformSecurityHeaders;
-import com.tinet.flowfoundry.security.ApiClientBootstrapRunner;
+import com.tinet.flowfoundry.security.ApiKeyBootstrapRunner;
 import com.tinet.flowfoundry.security.PlatformSecurityProperties;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -48,8 +48,7 @@ public class PlatformBootstrapController {
     Map<String, Object> config = new LinkedHashMap<>();
     config.put("securityEnabled", securityProperties.enabled());
     config.put("devNamespace", securityProperties.devNamespace());
-    config.put("defaultTenantId", securityProperties.devNamespace());
-    config.put("tenantHeader", PlatformSecurityHeaders.TENANT_ID);
+    config.put("defaultNamespace", securityProperties.devNamespace());
     config.put("namespaceHeader", PlatformSecurityHeaders.PLATFORM_NAMESPACE);
     config.put("staticAssetVersion", staticAssetVersion.value());
     config.put("modeler", modelerConfig);
@@ -75,8 +74,6 @@ public class PlatformBootstrapController {
     return noStoreJs(
         "window.FLOWFOUNDRY_API_KEY="
             + jsonString(apiKey)
-            + ";window.FLOWFOUNDRY_TENANT_ID="
-            + jsonString(namespace)
             + ";window.FLOWFOUNDRY_NAMESPACE="
             + jsonString(namespace)
             + ";");
@@ -96,9 +93,9 @@ public class PlatformBootstrapController {
     }
     return securityProperties.apiKeys().stream()
         .filter(
-            client ->
-                ApiClientBootstrapRunner.ADMIN_CLIENT_ID.equals(client.clientId()) || client.admin())
-        .map(PlatformSecurityProperties.ApiKeyClientProperties::key)
+            apiKey ->
+                ApiKeyBootstrapRunner.ADMIN_API_KEY_ID.equals(apiKey.id()) || apiKey.admin())
+        .map(PlatformSecurityProperties.ApiKeyProperties::key)
         .filter(key -> key != null && !key.isBlank())
         .map(String::trim)
         .findFirst()

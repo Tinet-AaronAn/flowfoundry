@@ -23,8 +23,8 @@ class NamespaceAccessServiceTest {
     namespaceAccess = new NamespaceAccessService(properties);
     SecurityContextHolder.getContext()
         .setAuthentication(
-            CallerAuthentication.forClient(
-                new ApiClientService.AuthenticatedApiClient(
+            CallerAuthentication.forApiKey(
+                new ApiKeyService.AuthenticatedApiKey(
                     "svc-b", java.util.Set.of("alpha", "beta"), false)));
   }
 
@@ -38,8 +38,8 @@ class NamespaceAccessServiceTest {
   void resolvesSingleNamespaceWithoutHeader() {
     SecurityContextHolder.getContext()
         .setAuthentication(
-            CallerAuthentication.forClient(
-                new ApiClientService.AuthenticatedApiClient(
+            CallerAuthentication.forApiKey(
+                new ApiKeyService.AuthenticatedApiKey(
                     "svc-a", java.util.Set.of("alpha"), false)));
     assertThat(namespaceAccess.resolveActiveNamespace()).isEqualTo("alpha");
   }
@@ -54,30 +54,30 @@ class NamespaceAccessServiceTest {
   void adminCanAccessAnyNamespace() {
     SecurityContextHolder.getContext()
         .setAuthentication(
-            CallerAuthentication.forClient(
-                new ApiClientService.AuthenticatedApiClient(
+            CallerAuthentication.forApiKey(
+                new ApiKeyService.AuthenticatedApiKey(
                     "admin", java.util.Set.of(), true)));
     assertThat(namespaceAccess.canAccess("gamma")).isTrue();
   }
 
   @Test
-  void resolvesTenantIdHeader() {
+  void resolvesNamespaceHeader() {
     SecurityContextHolder.getContext()
         .setAuthentication(
-            CallerAuthentication.forClient(
-                new ApiClientService.AuthenticatedApiClient(
-                    "svc-a", java.util.Set.of("tenant-a", "tenant-b"), false)));
+            CallerAuthentication.forApiKey(
+                new ApiKeyService.AuthenticatedApiKey(
+                    "svc-a", java.util.Set.of("ns-a", "ns-b"), false)));
     MockHttpServletRequest request = new MockHttpServletRequest();
-    request.addHeader(PlatformSecurityHeaders.TENANT_ID, "tenant-a");
+    request.addHeader(PlatformSecurityHeaders.PLATFORM_NAMESPACE, "ns-a");
     RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
-    assertThat(namespaceAccess.resolveActiveTenantId()).isEqualTo("tenant-a");
+    assertThat(namespaceAccess.resolveActiveNamespace()).isEqualTo("ns-a");
   }
 
   @Test
-  void tenantContextListsAllowedTenants() {
-    var context = namespaceAccess.tenantContext();
-    assertThat(context.allowedTenantIds()).containsExactlyInAnyOrder("alpha", "beta");
-    assertThat(context.tenantHeader()).isEqualTo(PlatformSecurityHeaders.TENANT_ID);
+  void namespaceContextListsAllowedNamespaces() {
+    var context = namespaceAccess.namespaceContext();
+    assertThat(context.allowedNamespaces()).containsExactlyInAnyOrder("alpha", "beta");
+    assertThat(context.namespaceHeader()).isEqualTo(PlatformSecurityHeaders.PLATFORM_NAMESPACE);
   }
 
   @Test

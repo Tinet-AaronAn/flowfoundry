@@ -58,17 +58,17 @@ public class AuditLoggingFilter extends OncePerRequestFilter {
       return;
     }
     Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-    String clientId =
-        authentication instanceof CallerAuthentication caller ? caller.clientId() : null;
-    if (clientId == null && response.getStatus() != 401) {
+    String apiKeyId =
+        authentication instanceof CallerAuthentication caller ? caller.apiKeyId() : null;
+    if (apiKeyId == null && response.getStatus() != 401) {
       return;
     }
     String namespace = request.getHeader(PlatformSecurityHeaders.PLATFORM_NAMESPACE);
     auditLogService.record(
         new AuditLogService.AuditLogEntry(
             null,
-            clientId,
-            clientId,
+            apiKeyId,
+            apiKeyId,
             AuditActions.API_CALL,
             null,
             null,

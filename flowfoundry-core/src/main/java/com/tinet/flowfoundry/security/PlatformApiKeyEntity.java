@@ -13,8 +13,8 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 
 @Entity
-@Table(name = "platform_api_client")
-public class PlatformApiClientEntity {
+@Table(name = "platform_api_key")
+public class PlatformApiKeyEntity {
 
   @Id
   @Column(length = 64, nullable = false)
@@ -49,8 +49,8 @@ public class PlatformApiClientEntity {
 
   @ElementCollection(fetch = FetchType.EAGER)
   @CollectionTable(
-      name = "platform_api_client_namespace",
-      joinColumns = @JoinColumn(name = "client_id"))
+      name = "platform_api_key_namespace",
+      joinColumns = @JoinColumn(name = "api_key_id"))
   @Column(name = "namespace", nullable = false, length = 64)
   private Set<String> namespaces = new LinkedHashSet<>();
 

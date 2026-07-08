@@ -1,7 +1,7 @@
 package com.tinet.flowfoundry.api;
 
 import com.tinet.flowfoundry.security.NamespaceAccessService;
-import com.tinet.flowfoundry.workflow.TenantContextDto;
+import com.tinet.flowfoundry.workflow.NamespaceContextDto;
 import com.tinet.flowfoundry.workflow.WorkflowContracts.AllocateIdRequest;
 import com.tinet.flowfoundry.workflow.WorkflowContracts.AllocateIdResponse;
 import com.tinet.flowfoundry.workflow.WorkflowContracts.CreateWorkflowRequest;
@@ -40,8 +40,8 @@ public class WorkflowController {
   }
 
   @GetMapping("/context")
-  public TenantContextDto tenantContext() {
-    return namespaceAccess.tenantContext();
+  public NamespaceContextDto namespaceContext() {
+    return namespaceAccess.namespaceContext();
   }
 
   @GetMapping

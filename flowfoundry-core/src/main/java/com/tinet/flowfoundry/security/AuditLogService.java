@@ -26,8 +26,8 @@ public class AuditLogService {
   public void record(AuditLogEntry entry) {
     PlatformAuditLogEntity entity = new PlatformAuditLogEntity();
     entity.setOccurredAt(entry.occurredAt() == null ? Instant.now() : entry.occurredAt());
-    entity.setClientId(entry.clientId());
-    entity.setActorClientId(entry.actorClientId());
+    entity.setApiKeyId(entry.apiKeyId());
+    entity.setActorApiKeyId(entry.actorApiKeyId());
     entity.setAction(entry.action());
     entity.setResourceType(entry.resourceType());
     entity.setResourceId(entry.resourceId());
@@ -42,11 +42,12 @@ public class AuditLogService {
 
   @Transactional(readOnly = true)
   public AuditLogPageDto search(
-      String clientId,
+      String apiKeyId,
       String action,
       Instant fromTime,
       Instant toTime,
       boolean includeApiCalls,
+      String namespace,
       int page,
       int size) {
     int pageIndex = Math.max(page, 0);
@@ -54,11 +55,14 @@ public class AuditLogService {
     Specification<PlatformAuditLogEntity> spec =
         (root, query, cb) -> {
           List<Predicate> predicates = new ArrayList<>();
-          if (clientId != null && !clientId.isBlank()) {
+          if (namespace != null && !namespace.isBlank()) {
+            predicates.add(cb.equal(root.get("namespace"), namespace));
+          }
+          if (apiKeyId != null && !apiKeyId.isBlank()) {
             predicates.add(
                 cb.or(
-                    cb.equal(root.get("clientId"), clientId),
-                    cb.equal(root.get("actorClientId"), clientId)));
+                    cb.equal(root.get("apiKeyId"), apiKeyId),
+                    cb.equal(root.get("actorApiKeyId"), apiKeyId)));
           }
           if (action != null && !action.isBlank()) {
             predicates.add(cb.equal(root.get("action"), action));
@@ -92,8 +96,8 @@ public class AuditLogService {
     return new AuditLogDto(
         entity.getId(),
         entity.getOccurredAt(),
-        entity.getClientId(),
-        entity.getActorClientId(),
+        entity.getApiKeyId(),
+        entity.getActorApiKeyId(),
         entity.getAction(),
         entity.getResourceType(),
         entity.getResourceId(),
@@ -107,8 +111,8 @@ public class AuditLogService {
 
   public record AuditLogEntry(
       Instant occurredAt,
-      String clientId,
-      String actorClientId,
+      String apiKeyId,
+      String actorApiKeyId,
       String action,
       String resourceType,
       String resourceId,

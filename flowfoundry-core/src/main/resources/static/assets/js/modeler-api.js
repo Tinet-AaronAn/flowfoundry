@@ -18,11 +18,9 @@
     return global.FLOWFOUNDRY_API_KEY || readStored('flowfoundry.apiKey') || '';
   }
 
-  function platformTenantId() {
+  function platformNamespace() {
     return (
-      global.FLOWFOUNDRY_TENANT_ID
-      || global.FLOWFOUNDRY_NAMESPACE
-      || readStored('flowfoundry.tenantId')
+      global.FLOWFOUNDRY_NAMESPACE
       || readStored('flowfoundry.namespace')
       || ''
     );
@@ -35,17 +33,14 @@
       global.FLOWFOUNDRY_API_BASE = apiBase;
     }
     if (config.apiKey) global.FLOWFOUNDRY_API_KEY = config.apiKey;
-    if (config.tenantId) global.setPlatformTenantId(config.tenantId);
-    if (config.namespace) global.setPlatformTenantId(config.namespace);
+    if (config.namespace) global.setPlatformNamespace(config.namespace);
   };
 
-  global.setPlatformTenantId = function setPlatformTenantId(tenantId) {
-    const value = tenantId == null ? '' : String(tenantId);
-    global.FLOWFOUNDRY_TENANT_ID = value;
+  global.setPlatformNamespace = function setPlatformNamespace(namespace) {
+    const value = namespace == null ? '' : String(namespace);
     global.FLOWFOUNDRY_NAMESPACE = value;
     try {
       if (global.localStorage) {
-        global.localStorage.setItem('flowfoundry.tenantId', value);
         global.localStorage.setItem('flowfoundry.namespace', value);
       }
     } catch (ignored) {
@@ -71,15 +66,14 @@
     const headers = { ...(extra || {}) };
     const apiKey = platformApiKey();
     if (apiKey) headers['X-Api-Key'] = apiKey;
-    const tenantId = platformTenantId();
-    if (tenantId) {
-      headers['X-Tenant-Id'] = tenantId;
-      headers['X-Platform-Namespace'] = tenantId;
+    const namespace = platformNamespace();
+    if (namespace) {
+      headers['X-Platform-Namespace'] = namespace;
     }
     return headers;
   };
 
-  global.platformTenantId = platformTenantId;
+  global.platformNamespace = platformNamespace;
 
   global.platformFetch = async function platformFetch(path, options) {
     const response = await fetch(platformApiUrl(path), {
@@ -102,8 +96,9 @@
     if (config?.modeler?.apiBase) {
       configurePlatformApi({ apiBase: config.modeler.apiBase });
     }
-    if (!platformTenantId() && config?.defaultTenantId) {
-      setPlatformTenantId(config.defaultTenantId);
+    const defaultNamespace = config?.defaultNamespace;
+    if (!platformNamespace() && defaultNamespace) {
+      setPlatformNamespace(defaultNamespace);
     }
     global.FLOWFOUNDRY_PUBLIC_CONFIG = config;
     return config;

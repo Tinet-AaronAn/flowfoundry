@@ -13,7 +13,7 @@
 
   <groupId>com.tinet.flowfoundry</groupId>
   <artifactId>flowfoundry-parent</artifactId>
-  <version>1.0.0-SNAPSHOT</version>
+  <version>1.0.2</version>
   <packaging>pom</packaging>
   <name>flowfoundry-parent</name>
   <description>FlowFoundry platform — parent aggregator</description>

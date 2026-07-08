@@ -9,7 +9,7 @@ flowfoundry:
     dev-namespace: default
     bootstrap-admin-key: ${FLOWFOUNDRY_BOOTSTRAP_ADMIN_KEY:local-admin-key}
     api-keys:
-      - client-id: platform-admin
+      - id: platform-admin
         key: ${FLOWFOUNDRY_ADMIN_API_KEY:local-admin-key}
         admin: true
         namespaces: []

@@ -1,7 +1,6 @@
 package com.tinet.flowfoundry.temporal;
 
 import com.tinet.flowfoundry.config.ConditionalOnFlowFoundryPlatform;
-import com.tinet.flowfoundry.config.TemporalProperties;
 import com.tinet.flowfoundry.flow.FlowCompiler;
 import com.tinet.flowfoundry.flow.FlowDefinition;
 import com.tinet.flowfoundry.flow.TimerDefinitionRules;
@@ -33,25 +32,29 @@ public class StartTimerScheduleService {
   private static final Logger log = LoggerFactory.getLogger(StartTimerScheduleService.class);
 
   private final FlowCompiler compiler;
-  private final ScheduleClient scheduleClient;
-  private final TemporalProperties temporalProperties;
+  private final TemporalClients temporalClients;
+  private final DeploymentContractRegistry contractRegistry;
 
   public StartTimerScheduleService(
-      FlowCompiler compiler, ScheduleClient scheduleClient, TemporalProperties temporalProperties) {
+      FlowCompiler compiler,
+      TemporalClients temporalClients,
+      DeploymentContractRegistry contractRegistry) {
     this.compiler = compiler;
-    this.scheduleClient = scheduleClient;
-    this.temporalProperties = temporalProperties;
+    this.temporalClients = temporalClients;
+    this.contractRegistry = contractRegistry;
   }
 
-  public void syncFromDefinition(String workflowId, String tenantId, FlowDefinition definition) {
+  public void syncFromDefinition(String workflowId, String namespace, FlowDefinition definition) {
     ExecutionPlan plan = compiler.compile(definition);
     ExecutionNode start = plan.startNode();
     if (!TimerDefinitionRules.isTimerStart(start.config())) {
       pauseSchedule(workflowId);
       return;
     }
+    DeploymentContract contract = contractRegistry.resolveForRun();
+    ScheduleClient scheduleClient = temporalClients.scheduleClient(contract.temporalNamespace());
     ScheduleSpec spec = StartTimerScheduleMapper.toScheduleSpec(start, Instant.now());
-    String businessKeyPrefix = tenantId + ":" + plan.flowId();
+    String businessKeyPrefix = namespace + ":" + plan.flowId();
     ScheduleActionStartWorkflow action =
         ScheduleActionStartWorkflow.newBuilder()
             .setWorkflowType(FlowInterpreterWorkflow.class)
@@ -61,9 +64,7 @@ public class StartTimerScheduleService {
                 Map.of(),
                 RunSource.PRODUCTION.wireValue())
             .setOptions(
-                WorkflowOptions.newBuilder()
-                    .setTaskQueue(temporalProperties.taskQueue())
-                    .build())
+                WorkflowOptions.newBuilder().setTaskQueue(contract.taskQueue()).build())
             .build();
     Schedule schedule =
         Schedule.newBuilder().setAction(action).setSpec(spec).build();
@@ -88,7 +89,7 @@ public class StartTimerScheduleService {
   public void pauseSchedule(String workflowId) {
     String scheduleId = scheduleId(workflowId);
     try {
-      scheduleClient.getHandle(scheduleId).pause("Workflow deactivated or not Timer Start");
+      businessScheduleClient().getHandle(scheduleId).pause("Workflow deactivated or not Timer Start");
       log.info("Paused Timer Start schedule workflowId={} scheduleId={}", workflowId, scheduleId);
     } catch (Exception ignored) {
       // No schedule registered.
@@ -98,11 +99,15 @@ public class StartTimerScheduleService {
   public void deleteSchedule(String workflowId) {
     String scheduleId = scheduleId(workflowId);
     try {
-      scheduleClient.getHandle(scheduleId).delete();
+      businessScheduleClient().getHandle(scheduleId).delete();
       log.info("Deleted Timer Start schedule workflowId={} scheduleId={}", workflowId, scheduleId);
     } catch (Exception ignored) {
       // No schedule registered.
     }
+  }
+
+  private ScheduleClient businessScheduleClient() {
+    return temporalClients.scheduleClient(contractRegistry.resolveForRun().temporalNamespace());
   }
 
   static String scheduleId(String workflowId) {

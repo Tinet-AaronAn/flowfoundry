@@ -20,8 +20,9 @@
 | 用途 | 地址 |
 |------|------|
 | Temporal gRPC | 127.0.0.1:7233 |
-| Temporal namespace（当前业务模块） | `call-campaign` |
-| Task queue（当前业务模块） | `ai-collection-strategy` |
+| Temporal namespace（示例业务模块，物理隔离） | `call-campaign` |
+| Temporal namespace（系统管理，目标设计） | `flowfoundry-system` |
+| Task queue（示例业务模块） | `ai-collection-strategy` |
 | PostgreSQL | 127.0.0.1:5432 / 库 `flowfoundry` / 用户 `flowfoundry` |
 | Redis | 127.0.0.1:6379 |
 | Playwright E2E 静态页 | http://127.0.0.1:4173（**不是**联调入口） |
@@ -33,7 +34,7 @@
 |------|------|
 | 平台内核 | `flowfoundry-core/` |
 | 场景启动类（催收示例） | `flowfoundry-app/modules/ai-collection-strategy/.../AiCollectionStrategyApplication.java` |
-| 场景 JAR 产物 | `flowfoundry-app/modules/ai-collection-strategy/target/ai-collection-strategy-demo-1.0.0-SNAPSHOT.jar` |
+| 场景 JAR 产物 | `flowfoundry-app/modules/ai-collection-strategy/target/ai-collection-strategy-demo-1.0.2.jar` |
 | 平台共享配置 | `flowfoundry-core/src/main/resources/application-flowfoundry-platform.yml` |
 | 建模器静态资源 | `flowfoundry-core/src/main/resources/static/` |
 | 前端 SDK | `flowfoundry-core/.../static/assets/js/flowfoundry-modeler-sdk.js` |
@@ -41,14 +42,26 @@
 | 数据库迁移 | `flowfoundry-core/src/main/resources/db/migration/` |
 | Activity 注册表（催收） | `flowfoundry-app/modules/ai-collection-strategy/config/activities-registry.yaml` |
 
-## 多租户（tenantId = workflow namespace）
+## 两个「namespace」概念（务必区分）
 
-- **租户标识**：`tenantId` 与 `workflow_definition.namespace` 一一对应，用于隔离不同租户的流程定义。
-- **请求头（优先）**：`X-Tenant-Id: <tenantId>`；兼容旧客户端：`X-Platform-Namespace`（同值）。
-- **API Key 授权**：非管理员 Key 在 `platform_api_client.namespaces` 中配置可访问的 tenantId 列表。
-- **建模器**：顶栏 Tenant 下拉切换当前租户；Workflow 列表展示 namespace 列。
-- **Activity 分组**：注册表 `groups` + 每条 activity 的 `group` 字段；建模器 Task Type 按分组 optgroup 展示。
-- **上下文 API**：`GET /api/workflows/context` 返回 `{ tenantId, allowedTenantIds, tenantHeader }`。
+FlowFoundry 有两个都叫 namespace、但语义完全不同的概念，二者**完全解耦**，详见 [detailed-design.md §11](./detailed-design.md#11-namespace-体系设计目标设计)：
+
+| 概念 | 含义 | 取值来源 |
+|------|------|----------|
+| **逻辑 namespace**（用户可见的一等概念） | workflow 定义归属、run logs、API Keys 的统一隔离/RBAC 单位 | `workflow_definition.namespace`，请求头 `X-Platform-Namespace`（右上角 Namespace 选择器） |
+| **Temporal namespace**（物理，内部） | workflow 执行、run history 的物理隔离边界 | 使用方部署契约声明（`temporal.namespace`），值由 app 自定 |
+
+> 「tenant / tenantId」是逻辑 namespace 的旧称，已统一为 **namespace**（后端 `X-Tenant-Id` 仅作弃用读兼容）。
+
+**目标隔离模型**：`flowfoundry-system`（core 管理 + 建模器调试运行的固定 Temporal namespace） + 每个 flowfoundry-app 使用方各自独立的业务 Temporal namespace（互不可见）。
+
+### 逻辑 namespace（一等概念）
+
+- **统一作用域**：workflows、run logs、API Keys 均按右上角选中的**单个 namespace** 过滤（管理员可在 API Keys / 审计日志切换「所有 Namespace」）。
+- **请求头（规范）**：`X-Platform-Namespace: <namespace>`；兼容旧客户端：`X-Tenant-Id`（弃用，同值读兼容）。
+- **API Key 授权**：非管理员 Key 在 `platform_api_key_namespace` 中配置可访问的 namespace 列表。
+- **建模器**：顶栏 Namespace 下拉切换当前 namespace；新建 Workflow 归属当前选中 namespace；Workflow 列表展示 namespace 列。
+- **上下文 API**：`GET /api/workflows/context` 返回 `{ namespace, allowedNamespaces, namespaceHeader }`。
 
 ## 本地调试命令
 

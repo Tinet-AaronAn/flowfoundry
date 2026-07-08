@@ -1,7 +1,8 @@
 package com.tinet.flowfoundry.security;
 
-import com.tinet.flowfoundry.workflow.TenantContextDto;
+import com.tinet.flowfoundry.workflow.NamespaceContextDto;
 import jakarta.servlet.http.HttpServletRequest;
+import java.util.Optional;
 import java.util.Set;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -10,8 +11,8 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 /**
- * Resolves tenant-scoped workflow namespaces. In the multi-tenant model, {@code tenantId} and
- * workflow {@code namespace} are the same value.
+ * Resolves the namespace-scoped access for the current request. Namespace is the single
+ * user-facing isolation unit: workflows, run logs and api keys are all scoped by it.
  */
 @Service
 public class NamespaceAccessService {
@@ -23,75 +24,57 @@ public class NamespaceAccessService {
   }
 
   public Set<String> allowedNamespaces() {
-    return allowedTenantIds();
-  }
-
-  public Set<String> allowedTenantIds() {
-    return currentCaller().map(CallerAuthentication::namespaces).orElse(Set.of(properties.devNamespace()));
+    return currentCaller()
+        .map(CallerAuthentication::namespaces)
+        .orElse(Set.of(properties.devNamespace()));
   }
 
   public boolean canAccess(String namespace) {
-    return canAccessTenant(namespace);
-  }
-
-  public boolean canAccessTenant(String tenantId) {
-    if (tenantId == null || tenantId.isBlank()) {
+    if (namespace == null || namespace.isBlank()) {
       return false;
     }
     return currentCaller()
-        .map(caller -> caller.admin() || caller.namespaces().contains(tenantId))
+        .map(caller -> caller.admin() || caller.namespaces().contains(namespace))
         .orElse(true);
   }
 
   public void requireAccess(String namespace) {
-    requireTenantAccess(namespace);
-  }
-
-  public void requireTenantAccess(String tenantId) {
-    if (!canAccessTenant(tenantId)) {
-      throw new NamespaceAccessDeniedException(tenantId);
+    if (!canAccess(namespace)) {
+      throw new NamespaceAccessDeniedException(namespace);
     }
   }
 
   public String resolveActiveNamespace() {
-    return resolveActiveTenantId();
-  }
-
-  public String resolveActiveTenantId() {
     CallerAuthentication caller = currentCaller().orElse(null);
     if (caller != null && caller.admin() && caller.namespaces().isEmpty()) {
-      return resolveTenantHeader().orElse(properties.devNamespace());
+      return resolveNamespaceHeader().orElse(properties.devNamespace());
     }
 
-    Set<String> allowed = allowedTenantIds();
-    java.util.Optional<String> headerTenant = resolveTenantHeader();
-    if (headerTenant.isPresent()) {
-      String tenantId = TenantIds.normalize(headerTenant.get());
-      requireTenantAccess(tenantId);
-      return tenantId;
+    Set<String> allowed = allowedNamespaces();
+    Optional<String> headerNamespace = resolveNamespaceHeader();
+    if (headerNamespace.isPresent()) {
+      String namespace = NamespaceIds.normalize(headerNamespace.get());
+      requireAccess(namespace);
+      return namespace;
     }
     if (allowed.size() == 1) {
       return allowed.iterator().next();
     }
     throw new IllegalArgumentException(
-        "Header "
-            + PlatformSecurityHeaders.TENANT_ID
-            + " (or "
-            + PlatformSecurityHeaders.PLATFORM_NAMESPACE
-            + ") is required");
+        "Header " + PlatformSecurityHeaders.PLATFORM_NAMESPACE + " is required");
   }
 
   public void requireAuthenticatedNamespace() {
-    resolveActiveTenantId();
+    resolveActiveNamespace();
   }
 
-  public TenantContextDto tenantContext() {
-    Set<String> allowed = allowedTenantIds();
-    java.util.Optional<String> headerTenant = resolveTenantHeader();
+  public NamespaceContextDto namespaceContext() {
+    Set<String> allowed = allowedNamespaces();
+    Optional<String> headerNamespace = resolveNamespaceHeader();
     String active =
-        headerTenant
-            .filter(tenant -> canAccessTenant(TenantIds.normalize(tenant)))
-            .map(TenantIds::normalize)
+        headerNamespace
+            .filter(ns -> canAccess(NamespaceIds.normalize(ns)))
+            .map(NamespaceIds::normalize)
             .orElseGet(
                 () -> {
                   if (allowed.size() == 1) {
@@ -99,39 +82,37 @@ public class NamespaceAccessService {
                   }
                   return null;
                 });
-    return new TenantContextDto(active, allowed, PlatformSecurityHeaders.TENANT_ID);
+    return new NamespaceContextDto(active, allowed, PlatformSecurityHeaders.PLATFORM_NAMESPACE);
   }
 
   public boolean isAdmin() {
     return currentCaller().map(CallerAuthentication::admin).orElse(!properties.enabled());
   }
 
-  private java.util.Optional<String> resolveTenantHeader() {
+  private Optional<String> resolveNamespaceHeader() {
     HttpServletRequest request = currentRequest();
     if (request == null) {
-      return java.util.Optional.empty();
+      return Optional.empty();
     }
-    String tenantHeader = request.getHeader(PlatformSecurityHeaders.TENANT_ID);
-    if (tenantHeader != null && !tenantHeader.isBlank()) {
-      return java.util.Optional.of(tenantHeader.trim());
-    }
+    // 规范请求头：X-Platform-Namespace（平台唯一的隔离单位）。
     String namespaceHeader = request.getHeader(PlatformSecurityHeaders.PLATFORM_NAMESPACE);
     if (namespaceHeader == null || namespaceHeader.isBlank()) {
-      return java.util.Optional.empty();
+      return Optional.empty();
     }
-    return java.util.Optional.of(namespaceHeader.trim());
+    return Optional.of(namespaceHeader.trim());
   }
 
-  private static java.util.Optional<CallerAuthentication> currentCaller() {
+  private static Optional<CallerAuthentication> currentCaller() {
     Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
     if (authentication instanceof CallerAuthentication caller) {
-      return java.util.Optional.of(caller);
+      return Optional.of(caller);
     }
-    return java.util.Optional.empty();
+    return Optional.empty();
   }
 
   private static HttpServletRequest currentRequest() {
-    if (!(RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes)) {
+    if (!(RequestContextHolder.getRequestAttributes()
+        instanceof ServletRequestAttributes attributes)) {
       return null;
     }
     return attributes.getRequest();

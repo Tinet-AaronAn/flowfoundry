@@ -602,7 +602,7 @@ class FlowCompilerTest {
                         "scriptCodeId",
                         "demo",
                         "taskHeaders",
-                        Map.of("x-tenant", "demo", "x-priority", "high"))),
+                        Map.of("x-region", "demo", "x-priority", "high"))),
                 node("End", "END", Map.of())),
             List.of(
                 new FlowEdge("Start", "Task_A", "default"),
@@ -613,7 +613,7 @@ class FlowCompilerTest {
 
     assertThat(taskNode.config()).containsKey("taskHeaders");
     assertThat(taskNode.config().get("taskHeaders"))
-        .isEqualTo(Map.of("x-tenant", "demo", "x-priority", "high"));
+        .isEqualTo(Map.of("x-region", "demo", "x-priority", "high"));
   }
 
   @Test

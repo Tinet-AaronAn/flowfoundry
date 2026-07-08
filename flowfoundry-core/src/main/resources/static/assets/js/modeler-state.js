@@ -50,7 +50,7 @@
         activities: [],
         activityGroups: [],
         activityGroupFilter: 'all',
-        allowedTenantIds: [],
+        allowedNamespaces: [],
         scriptCatalog: [],
         scriptVersionsByCodeId: {},
         scriptCatalogSource: 'stub',

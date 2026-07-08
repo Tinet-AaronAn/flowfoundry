@@ -9,34 +9,34 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
 public final class CallerAuthentication extends AbstractAuthenticationToken {
 
-  private final String clientId;
+  private final String apiKeyId;
   private final Set<String> namespaces;
   private final boolean admin;
 
   private CallerAuthentication(
-      String clientId, Set<String> namespaces, boolean admin, Collection<GrantedAuthority> authorities) {
+      String apiKeyId, Set<String> namespaces, boolean admin, Collection<GrantedAuthority> authorities) {
     super(authorities);
-    this.clientId = clientId;
+    this.apiKeyId = apiKeyId;
     this.namespaces = Set.copyOf(namespaces);
     this.admin = admin;
     setAuthenticated(true);
   }
 
-  public static CallerAuthentication forClient(ApiClientService.AuthenticatedApiClient client) {
+  public static CallerAuthentication forApiKey(ApiKeyService.AuthenticatedApiKey apiKey) {
     return new CallerAuthentication(
-        client.clientId(),
-        client.namespaces(),
-        client.admin(),
-        authorities(client.admin()));
+        apiKey.apiKeyId(),
+        apiKey.namespaces(),
+        apiKey.admin(),
+        authorities(apiKey.admin()));
   }
 
   public static CallerAuthentication forDev(String devNamespace) {
     return new CallerAuthentication(
-        "dev", Set.of(devNamespace), true, List.of(role("ROLE_API_CLIENT"), role("ROLE_PLATFORM_ADMIN")));
+        "dev", Set.of(devNamespace), true, List.of(role("ROLE_API_KEY"), role("ROLE_PLATFORM_ADMIN")));
   }
 
-  public String clientId() {
-    return clientId;
+  public String apiKeyId() {
+    return apiKeyId;
   }
 
   public Set<String> namespaces() {
@@ -54,14 +54,14 @@ public final class CallerAuthentication extends AbstractAuthenticationToken {
 
   @Override
   public Object getPrincipal() {
-    return clientId;
+    return apiKeyId;
   }
 
   private static List<GrantedAuthority> authorities(boolean admin) {
     if (admin) {
-      return List.of(role("ROLE_API_CLIENT"), role("ROLE_PLATFORM_ADMIN"));
+      return List.of(role("ROLE_API_KEY"), role("ROLE_PLATFORM_ADMIN"));
     }
-    return List.of(role("ROLE_API_CLIENT"));
+    return List.of(role("ROLE_API_KEY"));
   }
 
   private static SimpleGrantedAuthority role(String role) {

@@ -39,17 +39,17 @@
       <div class="page-header">
         <h1 data-i18n="admin.title">API Key Management</h1>
         <div class="spacer"></div>
-        <button onclick="createAdminClient()" data-i18n="admin.create">New API Key</button>
+        <button onclick="createAdminApiKey()" data-i18n="admin.create">New API Key</button>
       </div>
       <div id="adminAccessDenied" class="app-notice app-notice-warning hidden">
         <div class="app-notice-text" data-i18n="admin.accessDenied">Admin API is only available from 127.0.0.1 on this machine.</div>
       </div>
       <div id="adminPanels">
         <p class="admin-profile" id="adminProfileText"></p>
-        <h2 class="admin-section-title" data-i18n="admin.clientsTitle">API Key</h2>
+        <h2 class="admin-section-title" data-i18n="admin.apiKeysTitle">API Key</h2>
         <div class="workflow-filters">
-          <input id="adminClientSearch" class="workflow-search" data-i18n-placeholder="admin.searchPlaceholder" placeholder="Search by name..." oninput="renderAdminClientsTable()" />
-          <button class="secondary" onclick="refreshAdminClients()" data-i18n="admin.refresh">Refresh</button>
+          <input id="adminApiKeySearch" class="workflow-search" data-i18n-placeholder="admin.searchPlaceholder" placeholder="Search by name..." oninput="renderAdminApiKeysTable()" />
+          <button class="secondary" onclick="refreshAdminApiKeys()" data-i18n="admin.refresh">Refresh</button>
         </div>
         <div class="table admin-table-wrap">
           <table class="admin-table">
@@ -63,7 +63,7 @@
                 <th data-i18n="admin.col.actions">Actions</th>
               </tr>
             </thead>
-            <tbody id="adminClientsTable">
+            <tbody id="adminApiKeysTable">
               <tr><td colspan="6" class="admin-empty">Loading...</td></tr>
             </tbody>
           </table>
@@ -72,7 +72,7 @@
         <div class="workflow-filters admin-audit-filters">
           <input id="adminAuditFromFilter" class="workflow-search" type="datetime-local" data-i18n-title="admin.auditFrom" title="Access from" />
           <input id="adminAuditToFilter" class="workflow-search" type="datetime-local" data-i18n-title="admin.auditTo" title="Access to" />
-          <input id="adminAuditClientFilter" class="workflow-search" data-i18n-placeholder="admin.auditClientPlaceholder" placeholder="Filter by client..." />
+          <input id="adminAuditApiKeyFilter" class="workflow-search" data-i18n-placeholder="admin.auditApiKeyPlaceholder" placeholder="Filter by API key..." />
           <input id="adminAuditActionFilter" class="workflow-search" data-i18n-placeholder="admin.auditActionPlaceholder" placeholder="Filter by action..." />
           <label class="admin-audit-option">
             <input id="adminAuditIncludeApiCalls" type="checkbox" />
@@ -87,7 +87,7 @@
               <tr>
                 <th data-i18n="admin.auditCol.time">Time</th>
                 <th data-i18n="admin.auditCol.action">Action</th>
-                <th data-i18n="admin.auditCol.client">Client</th>
+                <th data-i18n="admin.auditCol.apiKey">API Key</th>
                 <th data-i18n="admin.auditCol.request">Request</th>
                 <th data-i18n="admin.auditCol.status">Status</th>
                 <th data-i18n="admin.auditCol.detail">Detail</th>

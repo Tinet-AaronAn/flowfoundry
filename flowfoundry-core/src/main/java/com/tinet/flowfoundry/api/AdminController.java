@@ -1,13 +1,13 @@
 package com.tinet.flowfoundry.api;
 
 import com.tinet.flowfoundry.security.AdminAccessService;
-import com.tinet.flowfoundry.security.AdminContracts.ApiClientDto;
+import com.tinet.flowfoundry.security.AdminContracts.ApiKeyDto;
 import com.tinet.flowfoundry.security.AdminContracts.AuditLogPageDto;
 import com.tinet.flowfoundry.security.AdminContracts.CallerProfileDto;
-import com.tinet.flowfoundry.security.AdminContracts.CreateApiClientRequest;
-import com.tinet.flowfoundry.security.AdminContracts.CreateApiClientResponse;
-import com.tinet.flowfoundry.security.AdminContracts.UpdateApiClientRequest;
-import com.tinet.flowfoundry.security.ApiClientService;
+import com.tinet.flowfoundry.security.AdminContracts.CreateApiKeyRequest;
+import com.tinet.flowfoundry.security.AdminContracts.CreateApiKeyResponse;
+import com.tinet.flowfoundry.security.AdminContracts.UpdateApiKeyRequest;
+import com.tinet.flowfoundry.security.ApiKeyService;
 import com.tinet.flowfoundry.security.AuditLogService;
 import com.tinet.flowfoundry.security.NamespaceAccessService;
 import com.tinet.flowfoundry.security.PlatformSecurityProperties;
@@ -30,19 +30,19 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/admin")
 public class AdminController {
 
-  private final ApiClientService apiClientService;
+  private final ApiKeyService apiKeyService;
   private final AuditLogService auditLogService;
   private final AdminAccessService adminAccessService;
   private final NamespaceAccessService namespaceAccessService;
   private final PlatformSecurityProperties securityProperties;
 
   public AdminController(
-      ApiClientService apiClientService,
+      ApiKeyService apiKeyService,
       AuditLogService auditLogService,
       AdminAccessService adminAccessService,
       NamespaceAccessService namespaceAccessService,
       PlatformSecurityProperties securityProperties) {
-    this.apiClientService = apiClientService;
+    this.apiKeyService = apiKeyService;
     this.auditLogService = auditLogService;
     this.adminAccessService = adminAccessService;
     this.namespaceAccessService = namespaceAccessService;
@@ -52,55 +52,66 @@ public class AdminController {
   @GetMapping("/me")
   public CallerProfileDto me() {
     return new CallerProfileDto(
-        adminAccessService.actorClientId(),
+        adminAccessService.actorApiKeyId(),
         adminAccessService.isLocalAdminRequest(),
         namespaceAccessService.allowedNamespaces(),
-        namespaceAccessService.allowedTenantIds(),
         securityProperties.enabled());
   }
 
-  @GetMapping("/api-clients")
-  public List<ApiClientDto> listClients() {
+  @GetMapping("/api-keys")
+  public List<ApiKeyDto> listApiKeys(
+      @RequestParam(name = "allNamespaces", defaultValue = "false") boolean allNamespaces) {
     adminAccessService.requireAdmin();
-    return apiClientService.list();
+    // 默认按右上角选中 namespace 过滤；管理员可传 allNamespaces=true 查看全部。
+    if (allNamespaces) {
+      return apiKeyService.list();
+    }
+    String namespace = namespaceAccessService.namespaceContext().namespace();
+    return namespace == null
+        ? apiKeyService.list()
+        : apiKeyService.listByNamespace(namespace);
   }
 
-  @GetMapping("/api-clients/{clientId}")
-  public ApiClientDto getClient(@PathVariable String clientId) {
+  @GetMapping("/api-keys/{apiKeyId}")
+  public ApiKeyDto getApiKey(@PathVariable String apiKeyId) {
     adminAccessService.requireAdmin();
-    return apiClientService.get(clientId);
+    return apiKeyService.get(apiKeyId);
   }
 
-  @PostMapping("/api-clients")
+  @PostMapping("/api-keys")
   @ResponseStatus(HttpStatus.CREATED)
-  public CreateApiClientResponse createClient(@RequestBody CreateApiClientRequest request) {
-    return apiClientService.create(request);
+  public CreateApiKeyResponse createApiKey(@RequestBody CreateApiKeyRequest request) {
+    return apiKeyService.create(request);
   }
 
-  @PutMapping("/api-clients/{clientId}")
-  public ApiClientDto updateClient(
-      @PathVariable String clientId, @RequestBody UpdateApiClientRequest request) {
-    return apiClientService.update(clientId, request);
+  @PutMapping("/api-keys/{apiKeyId}")
+  public ApiKeyDto updateApiKey(
+      @PathVariable String apiKeyId, @RequestBody UpdateApiKeyRequest request) {
+    return apiKeyService.update(apiKeyId, request);
   }
 
-  @DeleteMapping("/api-clients/{clientId}")
+  @DeleteMapping("/api-keys/{apiKeyId}")
   @ResponseStatus(HttpStatus.NO_CONTENT)
-  public void deleteClient(@PathVariable String clientId) {
+  public void deleteApiKey(@PathVariable String apiKeyId) {
     adminAccessService.requireAdmin();
-    apiClientService.delete(clientId);
+    apiKeyService.delete(apiKeyId);
   }
 
   @GetMapping("/audit-logs")
   public AuditLogPageDto auditLogs(
-      @RequestParam(required = false) String clientId,
+      @RequestParam(required = false) String apiKeyId,
       @RequestParam(required = false) String action,
       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
           Instant from,
       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to,
       @RequestParam(defaultValue = "false") boolean includeApiCalls,
+      @RequestParam(name = "allNamespaces", defaultValue = "false") boolean allNamespaces,
       @RequestParam(defaultValue = "0") int page,
       @RequestParam(defaultValue = "10") int size) {
     adminAccessService.requireAdmin();
-    return auditLogService.search(clientId, action, from, to, includeApiCalls, page, size);
+    // 默认按右上角选中 namespace 过滤；管理员可传 allNamespaces=true 查看全部。
+    String namespace = allNamespaces ? null : namespaceAccessService.namespaceContext().namespace();
+    return auditLogService.search(
+        apiKeyId, action, from, to, includeApiCalls, namespace, page, size);
   }
 }

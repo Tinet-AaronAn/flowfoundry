@@ -234,7 +234,7 @@
           .filter(w => (!keyword || w.name.toLowerCase().includes(keyword) || w.id.toLowerCase().includes(keyword)) && (!status || w.status === status))
           .sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
         table.innerHTML = `
-          <div class="table-row header"><div>${escapeHtml(t('workflow.table.nameId'))}</div><div>${escapeHtml(t('workflow.table.tenant'))}</div><div>${escapeHtml(t('workflow.table.version'))}</div><div>${escapeHtml(t('workflow.table.status'))}</div><div>${escapeHtml(t('workflow.table.updated'))}</div><div>${escapeHtml(t('workflow.table.actions'))}</div></div>
+          <div class="table-row header"><div>${escapeHtml(t('workflow.table.nameId'))}</div><div>${escapeHtml(t('workflow.table.namespace'))}</div><div>${escapeHtml(t('workflow.table.version'))}</div><div>${escapeHtml(t('workflow.table.status'))}</div><div>${escapeHtml(t('workflow.table.updated'))}</div><div>${escapeHtml(t('workflow.table.actions'))}</div></div>
           ${rows.map(w => workflowRowHtml(w)).join('') || `<div class="table-row"><div>${escapeHtml(t('workflow.empty'))}</div><div></div><div></div><div></div><div></div><div></div></div>`}
         `;
       }
@@ -248,7 +248,7 @@
               <span class="help">${escapeHtml(w.id)}</span>
             </button>
           </div>
-          <div><span class="pill">${escapeHtml(w.namespace || platformTenantId() || '-')}</span></div>
+          <div><span class="pill">${escapeHtml(w.namespace || platformNamespace() || '-')}</span></div>
           <div><select onchange="openWorkflow('${escapeAttr(w.id)}', this.value, false)">${versions}</select></div>
           <div><span class="pill ${escapeAttr(w.status)}">${escapeHtml(w.status)}</span></div>
           <div>${escapeHtml(formatDate(w.updatedAt))}</div>

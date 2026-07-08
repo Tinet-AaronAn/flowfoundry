@@ -12,9 +12,9 @@
       <header class="topbar">
         <div class="brand"><span class="logo"></span><span>FlowFoundry</span></div>
         <div class="spacer"></div>
-        <label class="locale-switch" for="tenantSelect" id="tenantSwitch">
-          <span data-i18n="tenant.label">Tenant</span>
-          <select id="tenantSelect" onchange="setActiveTenantId(this.value)"></select>
+        <label class="locale-switch" for="namespaceSelect" id="namespaceSwitch">
+          <span data-i18n="namespace.label">Namespace</span>
+          <select id="namespaceSelect" onchange="setActiveNamespace(this.value)"></select>
         </label>
         <label class="locale-switch" for="localeSelect">
           <span data-i18n="locale.label">Language</span>
@@ -92,17 +92,18 @@
             <div class="page-header">
               <h1 data-i18n="admin.title">API Key Management</h1>
               <div class="spacer"></div>
-              <button onclick="createAdminClient()" data-i18n="admin.create">New API Key</button>
+              <button onclick="createAdminApiKey()" data-i18n="admin.create">New API Key</button>
             </div>
             <div id="adminAccessDenied" class="app-notice app-notice-warning hidden">
               <div class="app-notice-text" data-i18n="admin.accessDenied">Admin API is only available from 127.0.0.1 on this machine.</div>
             </div>
             <div id="adminPanels">
               <p class="admin-profile" id="adminProfileText"></p>
-              <h2 class="admin-section-title" data-i18n="admin.clientsTitle">API Key</h2>
+              <h2 class="admin-section-title" data-i18n="admin.apiKeysTitle">API Key</h2>
               <div class="workflow-filters">
-                <input id="adminClientSearch" class="workflow-search" data-i18n-placeholder="admin.searchPlaceholder" placeholder="Search by name..." oninput="renderAdminClientsTable()" />
-                <button class="secondary" onclick="refreshAdminClients()" data-i18n="admin.refresh">Refresh</button>
+                <input id="adminApiKeySearch" class="workflow-search" data-i18n-placeholder="admin.searchPlaceholder" placeholder="Search by name..." oninput="renderAdminApiKeysTable()" />
+                <label class="admin-inline-check"><input type="checkbox" id="adminAllNamespaces" onchange="toggleAdminAllNamespaces(this.checked)" /> <span data-i18n="admin.allNamespaces">All namespaces</span></label>
+                <button class="secondary" onclick="refreshAdminApiKeys()" data-i18n="admin.refresh">Refresh</button>
               </div>
               <div class="table admin-table-wrap">
                 <table class="admin-table">
@@ -116,7 +117,7 @@
                       <th data-i18n="admin.col.actions">Actions</th>
                     </tr>
                   </thead>
-                  <tbody id="adminClientsTable">
+                  <tbody id="adminApiKeysTable">
                     <tr><td colspan="6" class="admin-empty">Loading...</td></tr>
                   </tbody>
                 </table>
@@ -125,7 +126,7 @@
               <div class="workflow-filters admin-audit-filters">
                 <input id="adminAuditFromFilter" class="workflow-search" type="datetime-local" data-i18n-title="admin.auditFrom" title="Access from" />
                 <input id="adminAuditToFilter" class="workflow-search" type="datetime-local" data-i18n-title="admin.auditTo" title="Access to" />
-                <input id="adminAuditClientFilter" class="workflow-search" data-i18n-placeholder="admin.auditClientPlaceholder" placeholder="Filter by client..." />
+                <input id="adminAuditApiKeyFilter" class="workflow-search" data-i18n-placeholder="admin.auditApiKeyPlaceholder" placeholder="Filter by API key..." />
                 <input id="adminAuditActionFilter" class="workflow-search" data-i18n-placeholder="admin.auditActionPlaceholder" placeholder="Filter by action..." />
                 <label class="admin-audit-option">
                   <input id="adminAuditIncludeApiCalls" type="checkbox" />
@@ -140,7 +141,7 @@
                     <tr>
                       <th data-i18n="admin.auditCol.time">Time</th>
                       <th data-i18n="admin.auditCol.action">Action</th>
-                      <th data-i18n="admin.auditCol.client">Client</th>
+                      <th data-i18n="admin.auditCol.apiKey">API Key</th>
                       <th data-i18n="admin.auditCol.request">Request</th>
                       <th data-i18n="admin.auditCol.status">Status</th>
                       <th data-i18n="admin.auditCol.detail">Detail</th>
@@ -337,7 +338,7 @@
     <script src="assets/js/i18n.js?v=@flowfoundry.static.version@"></script>
     <script src="/api/platform/auth.js?v=@flowfoundry.static.version@"></script>
     <script src="assets/js/modeler-api.js?v=@flowfoundry.static.version@"></script>
-    <script src="assets/js/modeler-tenant.js?v=@flowfoundry.static.version@"></script>
+    <script src="assets/js/modeler-namespace.js?v=@flowfoundry.static.version@"></script>
     <script src="assets/js/locales/en.js?v=@flowfoundry.static.version@"></script>
     <script src="assets/js/locales/zh.js?v=@flowfoundry.static.version@"></script>
     <script src="assets/js/modeler-state.js?v=@flowfoundry.static.version@"></script>
@@ -356,7 +357,7 @@
     <script src="assets/js/modeler-admin.js?v=@flowfoundry.static.version@"></script>
     <script>
       initI18n();
-      initTenantContext().then(() => {
+      initNamespaceContext().then(() => {
         loadActivities();
         loadAdminProfile();
       });

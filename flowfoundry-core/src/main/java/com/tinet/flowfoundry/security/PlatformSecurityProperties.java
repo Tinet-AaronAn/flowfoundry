@@ -11,7 +11,7 @@ public class PlatformSecurityProperties {
   private String devNamespace = "default";
   private String bootstrapAdminKey = "";
   private boolean adminLocalhostOnly = true;
-  private List<ApiKeyClientProperties> apiKeys = new ArrayList<>();
+  private List<ApiKeyProperties> apiKeys = new ArrayList<>();
 
   public boolean enabled() {
     return enabled;
@@ -45,27 +45,27 @@ public class PlatformSecurityProperties {
     this.adminLocalhostOnly = adminLocalhostOnly;
   }
 
-  public List<ApiKeyClientProperties> apiKeys() {
+  public List<ApiKeyProperties> apiKeys() {
     return apiKeys == null ? List.of() : apiKeys;
   }
 
-  public void setApiKeys(List<ApiKeyClientProperties> apiKeys) {
+  public void setApiKeys(List<ApiKeyProperties> apiKeys) {
     this.apiKeys = apiKeys;
   }
 
-  public static class ApiKeyClientProperties {
+  public static class ApiKeyProperties {
 
-    private String clientId;
+    private String id;
     private String key;
     private boolean admin;
     private List<String> namespaces = new ArrayList<>();
 
-    public String clientId() {
-      return clientId;
+    public String id() {
+      return id;
     }
 
-    public void setClientId(String clientId) {
-      this.clientId = clientId;
+    public void setId(String id) {
+      this.id = id;
     }
 
     public String key() {

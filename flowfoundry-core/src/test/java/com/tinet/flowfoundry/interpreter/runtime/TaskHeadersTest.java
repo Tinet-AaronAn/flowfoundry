@@ -14,10 +14,10 @@ class TaskHeadersTest {
             "_config",
             Map.of(
                 TaskHeaders.CONFIG_KEY,
-                Map.of("x-tenant", "demo", "x-priority", "high")));
+                Map.of("x-region", "demo", "x-priority", "high")));
 
     assertThat(TaskHeaders.fromActivityInput(input))
-        .containsEntry("x-tenant", "demo")
+        .containsEntry("x-region", "demo")
         .containsEntry("x-priority", "high");
   }
 

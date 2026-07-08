@@ -1,9 +1,6 @@
 package com.tinet.flowfoundry.config;
 
-import io.temporal.client.WorkflowClient;
-import io.temporal.client.WorkflowClientOptions;
-import io.temporal.client.schedules.ScheduleClient;
-import io.temporal.client.schedules.ScheduleClientOptions;
+import com.tinet.flowfoundry.temporal.TemporalClients;
 import io.temporal.serviceclient.WorkflowServiceStubs;
 import io.temporal.serviceclient.WorkflowServiceStubsOptions;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -15,6 +12,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 @Configuration
 @EnableConfigurationProperties({
   TemporalProperties.class,
+  NamespaceRoutingProperties.class,
   com.tinet.flowfoundry.activity.ScriptRuntimeProperties.class,
   com.tinet.flowfoundry.script.ScriptCatalogProperties.class
 })
@@ -27,16 +25,8 @@ public class FlowFoundryPlatformConfiguration {
   }
 
   @Bean
-  WorkflowClient workflowClient(WorkflowServiceStubs service, TemporalProperties properties) {
-    return WorkflowClient.newInstance(
-        service, WorkflowClientOptions.newBuilder().setNamespace(properties.namespace()).build());
-  }
-
-  @Bean
-  ScheduleClient scheduleClient(WorkflowServiceStubs service, TemporalProperties properties) {
-    return ScheduleClient.newInstance(
-        service,
-        ScheduleClientOptions.newBuilder().setNamespace(properties.namespace()).build());
+  TemporalClients temporalClients(WorkflowServiceStubs service) {
+    return new TemporalClients(service);
   }
 
   @Bean

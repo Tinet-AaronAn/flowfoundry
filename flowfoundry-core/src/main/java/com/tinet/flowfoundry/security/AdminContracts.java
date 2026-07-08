@@ -8,7 +8,7 @@ public final class AdminContracts {
 
   private AdminContracts() {}
 
-  public record ApiClientDto(
+  public record ApiKeyDto(
       String id,
       String displayName,
       String description,
@@ -20,34 +20,30 @@ public final class AdminContracts {
       Instant updatedAt,
       Instant lastUsedAt) {}
 
-  public record CreateApiClientRequest(
+  public record CreateApiKeyRequest(
       String id,
       String displayName,
       String description,
       boolean admin,
       List<String> namespaces) {}
 
-  public record UpdateApiClientRequest(
+  public record UpdateApiKeyRequest(
       String displayName,
       String description,
       String status,
       Boolean admin,
       List<String> namespaces) {}
 
-  public record CreateApiClientResponse(ApiClientDto client, String apiKey) {}
+  public record CreateApiKeyResponse(ApiKeyDto apiKey, String secret) {}
 
   public record CallerProfileDto(
-      String clientId,
-      boolean admin,
-      Set<String> namespaces,
-      Set<String> allowedTenantIds,
-      boolean securityEnabled) {}
+      String apiKeyId, boolean admin, Set<String> namespaces, boolean securityEnabled) {}
 
   public record AuditLogDto(
       Long id,
       Instant occurredAt,
-      String clientId,
-      String actorClientId,
+      String apiKeyId,
+      String actorApiKeyId,
       String action,
       String resourceType,
       String resourceId,

@@ -58,8 +58,10 @@ services:
     command:
       - |
         temporal operator namespace create call-campaign --address temporal:7233 2>/dev/null || true
+        temporal operator namespace create flowfoundry-system --address temporal:7233 2>/dev/null || true
         temporal operator namespace describe call-campaign --address temporal:7233
-        echo "namespace call-campaign ready"
+        temporal operator namespace describe flowfoundry-system --address temporal:7233
+        echo "namespaces call-campaign + flowfoundry-system ready"
     restart: "no"
 
   temporal-ui:

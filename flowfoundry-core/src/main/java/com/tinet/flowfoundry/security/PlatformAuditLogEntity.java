@@ -19,11 +19,11 @@ public class PlatformAuditLogEntity {
   @Column(name = "occurred_at", nullable = false)
   private Instant occurredAt;
 
-  @Column(name = "client_id", length = 64)
-  private String clientId;
+  @Column(name = "api_key_id", length = 64)
+  private String apiKeyId;
 
-  @Column(name = "actor_client_id", length = 64)
-  private String actorClientId;
+  @Column(name = "actor_api_key_id", length = 64)
+  private String actorApiKeyId;
 
   @Column(nullable = false, length = 64)
   private String action;
@@ -68,20 +68,20 @@ public class PlatformAuditLogEntity {
     this.occurredAt = occurredAt;
   }
 
-  public String getClientId() {
-    return clientId;
+  public String getApiKeyId() {
+    return apiKeyId;
   }
 
-  public void setClientId(String clientId) {
-    this.clientId = clientId;
+  public void setApiKeyId(String apiKeyId) {
+    this.apiKeyId = apiKeyId;
   }
 
-  public String getActorClientId() {
-    return actorClientId;
+  public String getActorApiKeyId() {
+    return actorApiKeyId;
   }
 
-  public void setActorClientId(String actorClientId) {
-    this.actorClientId = actorClientId;
+  public void setActorApiKeyId(String actorApiKeyId) {
+    this.actorApiKeyId = actorApiKeyId;
   }
 
   public String getAction() {

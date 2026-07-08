@@ -9,7 +9,7 @@ import com.tinet.flowfoundry.config.FlowFoundryProperties;
 import com.tinet.flowfoundry.config.StaticAssetVersion;
 import com.tinet.flowfoundry.config.TemporalProperties;
 import java.util.Optional;
-import com.tinet.flowfoundry.security.AdminContracts.CreateApiClientRequest;
+import com.tinet.flowfoundry.security.AdminContracts.CreateApiKeyRequest;
 import jakarta.servlet.ServletException;
 import java.io.IOException;
 import java.util.List;
@@ -34,14 +34,14 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 @TestPropertySource(properties = "flowfoundry.security.enabled=true")
 @Import({
   JacksonAutoConfiguration.class,
-  ApiClientService.class,
+  ApiKeyService.class,
   AuditLogService.class,
   AdminAccessService.class,
   PlatformSecurityProperties.class
 })
 class PlatformSecurityIntegrationTest {
 
-  @Autowired private ApiClientService apiClientService;
+  @Autowired private ApiKeyService apiKeyService;
   @Autowired private AuditLogService auditLogService;
 
   private PlatformSecurityProperties properties;
@@ -52,13 +52,13 @@ class PlatformSecurityIntegrationTest {
     properties = new PlatformSecurityProperties();
     properties.setEnabled(true);
     properties.setDevNamespace("alpha");
-    filter = new ApiKeyAuthenticationFilter(properties, apiClientService, auditLogService);
+    filter = new ApiKeyAuthenticationFilter(properties, apiKeyService, auditLogService);
     SecurityContextHolder.getContext()
         .setAuthentication(
-            CallerAuthentication.forClient(
-                new ApiClientService.AuthenticatedApiClient("platform-admin", java.util.Set.of(), true)));
-    apiClientService.create(
-        new CreateApiClientRequest("alpha-client", "Alpha", null, false, List.of("alpha")));
+            CallerAuthentication.forApiKey(
+                new ApiKeyService.AuthenticatedApiKey("platform-admin", java.util.Set.of(), true)));
+    apiKeyService.create(
+        new CreateApiKeyRequest("alpha-key", "Alpha", null, false, List.of("alpha")));
   }
 
   @AfterEach
@@ -69,10 +69,10 @@ class PlatformSecurityIntegrationTest {
   @Test
   void authenticatesValidApiKey() throws ServletException, IOException {
     String key =
-        apiClientService
+        apiKeyService
             .create(
-                new CreateApiClientRequest("auth-test", "Auth Test", null, false, List.of("alpha")))
-            .apiKey();
+                new CreateApiKeyRequest("auth-test", "Auth Test", null, false, List.of("alpha")))
+            .secret();
 
     MockHttpServletRequest request = new MockHttpServletRequest();
     request.addHeader(PlatformSecurityHeaders.API_KEY, key);
@@ -80,7 +80,7 @@ class PlatformSecurityIntegrationTest {
 
     var authentication = SecurityContextHolder.getContext().getAuthentication();
     assertThat(authentication).isInstanceOf(CallerAuthentication.class);
-    assertThat(((CallerAuthentication) authentication).clientId()).isEqualTo("auth-test");
+    assertThat(((CallerAuthentication) authentication).apiKeyId()).isEqualTo("auth-test");
   }
 
   @Test
@@ -97,7 +97,7 @@ class PlatformSecurityIntegrationTest {
   void usesDevNamespaceWhenSecurityDisabled() throws ServletException, IOException {
     properties.setEnabled(false);
     properties.setDevNamespace("local-ns");
-    filter = new ApiKeyAuthenticationFilter(properties, apiClientService, auditLogService);
+    filter = new ApiKeyAuthenticationFilter(properties, apiKeyService, auditLogService);
     filter.doFilter(new MockHttpServletRequest(), new MockHttpServletResponse(), new MockFilterChain());
 
     var authentication = SecurityContextHolder.getContext().getAuthentication();

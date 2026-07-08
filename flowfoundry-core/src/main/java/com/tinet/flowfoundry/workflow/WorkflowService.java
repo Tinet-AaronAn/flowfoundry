@@ -51,7 +51,13 @@ public class WorkflowService {
     String normalizedStatus = status == null || status.isBlank() ? "" : WorkflowStatus.fromValue(status).value();
     String normalizedKeyword = normalizeKeyword(keyword);
     List<WorkflowDefinitionEntity> definitions;
-    if (namespaceAccess.isAdmin() && namespaceAccess.allowedNamespaces().isEmpty()) {
+    // 严格按右上角「选中的单个 namespace」过滤；管理员未选中（无 namespace header）时才看全部。
+    String activeNamespace = namespaceAccess.namespaceContext().namespace();
+    if (activeNamespace != null) {
+      definitions =
+          definitionRepository.search(
+              normalizedKeyword, normalizedStatus, List.of(activeNamespace));
+    } else if (namespaceAccess.isAdmin()) {
       definitions = definitionRepository.searchAll(normalizedKeyword, normalizedStatus);
     } else {
       List<String> namespaces = namespaceAccess.allowedNamespaces().stream().sorted().toList();

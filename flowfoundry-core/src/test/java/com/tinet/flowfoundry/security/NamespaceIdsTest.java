@@ -5,22 +5,22 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
 
-class TenantIdsTest {
+class NamespaceIdsTest {
 
   @Test
-  void normalizesValidTenantId() {
-    assertThat(TenantIds.normalize(" tenant-a_1 ")).isEqualTo("tenant-a_1");
+  void normalizesValidNamespace() {
+    assertThat(NamespaceIds.normalize(" ns-a_1 ")).isEqualTo("ns-a_1");
   }
 
   @Test
-  void rejectsBlankTenantId() {
-    assertThatThrownBy(() -> TenantIds.normalize(" "))
+  void rejectsBlankNamespace() {
+    assertThatThrownBy(() -> NamespaceIds.normalize(" "))
         .isInstanceOf(IllegalArgumentException.class);
   }
 
   @Test
   void rejectsInvalidCharacters() {
-    assertThatThrownBy(() -> TenantIds.normalize("tenant/a"))
+    assertThatThrownBy(() -> NamespaceIds.normalize("ns/a"))
         .isInstanceOf(IllegalArgumentException.class);
   }
 }

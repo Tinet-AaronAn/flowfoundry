@@ -31,7 +31,7 @@ public class AdminAccessService {
     }
   }
 
-  public String actorClientId() {
+  public String actorApiKeyId() {
     HttpServletRequest request = currentRequest();
     if (request != null && LocalhostAddresses.isLocalhost(request.getRemoteAddr())) {
       return "localhost-admin";

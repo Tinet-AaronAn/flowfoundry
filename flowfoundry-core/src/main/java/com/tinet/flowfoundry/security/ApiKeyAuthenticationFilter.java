@@ -13,15 +13,15 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
 
   private final PlatformSecurityProperties properties;
-  private final ApiClientService apiClientService;
+  private final ApiKeyService apiKeyService;
   private final AuditLogService auditLogService;
 
   public ApiKeyAuthenticationFilter(
       PlatformSecurityProperties properties,
-      ApiClientService apiClientService,
+      ApiKeyService apiKeyService,
       AuditLogService auditLogService) {
     this.properties = properties;
-    this.apiClientService = apiClientService;
+    this.apiKeyService = apiKeyService;
     this.auditLogService = auditLogService;
   }
 
@@ -42,8 +42,8 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
       return;
     }
 
-    var client = apiClientService.authenticate(apiKey);
-    if (client.isEmpty()) {
+    var authenticated = apiKeyService.authenticate(apiKey);
+    if (authenticated.isEmpty()) {
       auditLogService.record(
           new AuditLogService.AuditLogEntry(
               null,
@@ -62,9 +62,9 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
       return;
     }
 
-    apiClientService.touchLastUsed(client.get().clientId());
+    apiKeyService.touchLastUsed(authenticated.get().apiKeyId());
     SecurityContextHolder.getContext()
-        .setAuthentication(CallerAuthentication.forClient(client.get()));
+        .setAuthentication(CallerAuthentication.forApiKey(authenticated.get()));
     filterChain.doFilter(request, response);
   }
 

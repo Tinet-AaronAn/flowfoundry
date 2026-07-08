@@ -1,7 +1,7 @@
 package com.tinet.flowfoundry.api;
 
 import com.tinet.flowfoundry.security.AdminAccessDeniedException;
-import com.tinet.flowfoundry.security.ApiClientNotFoundException;
+import com.tinet.flowfoundry.security.ApiKeyNotFoundException;
 import com.tinet.flowfoundry.security.NamespaceAccessDeniedException;
 import com.tinet.flowfoundry.workflow.WorkflowConflictException;
 import com.tinet.flowfoundry.workflow.WorkflowNotFoundException;
@@ -62,8 +62,8 @@ public class WorkflowApiExceptionHandler {
     return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", ex.getMessage()));
   }
 
-  @ExceptionHandler(ApiClientNotFoundException.class)
-  public ResponseEntity<Map<String, String>> apiClientNotFound(ApiClientNotFoundException ex) {
+  @ExceptionHandler(ApiKeyNotFoundException.class)
+  public ResponseEntity<Map<String, String>> apiKeyNotFound(ApiKeyNotFoundException ex) {
     return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", ex.getMessage()));
   }
 

@@ -1,14 +1,16 @@
 
       let adminProfile = null;
-      let adminClients = [];
+      let adminApiKeys = [];
       let adminAuditLogs = [];
       let adminAuditState = { page: 0, size: 10, totalPages: 0, totalElements: 0, loaded: false };
+      let adminAllNamespaces = false;
 
       async function adminApi(path = '', options = {}) {
         const response = await fetch(platformApiUrl(`/admin${path}`), {
           ...options,
           headers: {
             'Content-Type': 'application/json',
+            ...platformApiHeaders(),
             ...(options?.headers || {})
           }
         });
@@ -25,15 +27,15 @@
         return text ? JSON.parse(text) : null;
       }
 
-      function adminNamespacesLabel(client) {
-        if (!client) return '-';
-        if (client.admin) return t('admin.namespaceAdmin');
-        const namespaces = adminClientNamespaceList(client);
+      function adminNamespacesLabel(apiKey) {
+        if (!apiKey) return '-';
+        if (apiKey.admin) return t('admin.namespaceAdmin');
+        const namespaces = adminApiKeyNamespaceList(apiKey);
         return namespaces.length ? namespaces.join(', ') : '-';
       }
 
-      function adminClientNamespaceList(client) {
-        const namespaces = client?.namespaces;
+      function adminApiKeyNamespaceList(apiKey) {
+        const namespaces = apiKey?.namespaces;
         if (Array.isArray(namespaces)) {
           return namespaces.map(item => String(item).trim()).filter(Boolean);
         }
@@ -62,7 +64,7 @@
         } catch (err) {
           adminProfile = {
             admin: true,
-            clientId: 'localhost-admin',
+            apiKeyId: 'localhost-admin',
             securityEnabled: true,
             error: err.message
           };
@@ -83,63 +85,72 @@
         $('adminAccessDenied')?.classList.add('hidden');
         $('adminPanels')?.classList.remove('hidden');
         $('adminProfileText').textContent = t('admin.profile', {
-          actor: adminProfile.clientId || 'localhost-admin',
+          actor: adminProfile.apiKeyId || 'localhost-admin',
           security: adminProfile.securityEnabled ? t('admin.securityOn') : t('admin.securityOff')
         });
-        renderAdminClientsTable();
+        renderAdminApiKeysTable();
         try {
-          await refreshAdminClients();
+          await refreshAdminApiKeys();
           renderAdminAuditPlaceholder();
         } catch (err) {
           message(err.message, 'error');
         }
       }
 
-      function filteredAdminClients() {
-        const keyword = $('adminClientSearch')?.value.trim().toLowerCase() || '';
-        if (!keyword) return adminClients;
-        return adminClients.filter(client => {
-          const haystack = `${client.id} ${client.displayName} ${adminNamespacesLabel(client)}`.toLowerCase();
+      function filteredAdminApiKeys() {
+        const keyword = $('adminApiKeySearch')?.value.trim().toLowerCase() || '';
+        if (!keyword) return adminApiKeys;
+        return adminApiKeys.filter(apiKey => {
+          const haystack = `${apiKey.id} ${apiKey.displayName} ${adminNamespacesLabel(apiKey)}`.toLowerCase();
           return haystack.includes(keyword);
         });
       }
 
-      function renderAdminClientsTable() {
-        const tbody = $('adminClientsTable');
+      function renderAdminApiKeysTable() {
+        const tbody = $('adminApiKeysTable');
         if (!tbody) return;
-        const clients = filteredAdminClients();
-        if (clients.length === 0) {
-          const emptyText = adminClients.length === 0 ? t('admin.empty') : t('admin.emptySearch');
+        const apiKeys = filteredAdminApiKeys();
+        if (apiKeys.length === 0) {
+          const emptyText = adminApiKeys.length === 0 ? t('admin.empty') : t('admin.emptySearch');
           tbody.innerHTML = `<tr><td colspan="6" class="admin-empty">${escapeHtml(emptyText)}</td></tr>`;
           return;
         }
-        tbody.innerHTML = clients.map(client => `
+        tbody.innerHTML = apiKeys.map(apiKey => `
           <tr>
-            <td>${escapeHtml(client.displayName || client.id || '')}</td>
-            <td>${escapeHtml(adminNamespacesLabel(client))}</td>
-            <td><code>${escapeHtml(client.keyPrefix || '')}</code></td>
-            <td><span class="pill ${client.status === 'active' ? 'completed' : 'failed'}">${escapeHtml(client.status || '')}</span></td>
-            <td>${escapeHtml(formatInstant(client.lastUsedAt))}</td>
+            <td>${escapeHtml(apiKey.displayName || apiKey.id || '')}</td>
+            <td>${escapeHtml(adminNamespacesLabel(apiKey))}</td>
+            <td><code>${escapeHtml(apiKey.keyPrefix || '')}</code></td>
+            <td><span class="pill ${apiKey.status === 'active' ? 'completed' : 'failed'}">${escapeHtml(apiKey.status || '')}</span></td>
+            <td>${escapeHtml(formatInstant(apiKey.lastUsedAt))}</td>
             <td class="admin-actions">
-              <button class="secondary" onclick="viewAdminClient('${escapeAttr(client.id)}')">${escapeHtml(t('admin.view'))}</button>
-              <button class="secondary" onclick="editAdminClient('${escapeAttr(client.id)}')">${escapeHtml(t('admin.edit'))}</button>
-              ${client.status === 'active'
-                ? `<button class="secondary danger" onclick="disableAdminClient('${escapeAttr(client.id)}')">${escapeHtml(t('admin.disable'))}</button>`
-                : `<button class="secondary" onclick="enableAdminClient('${escapeAttr(client.id)}')">${escapeHtml(t('admin.enable'))}</button>`}
-              ${isProtectedAdminClient(client.id)
+              <button class="secondary" onclick="viewAdminApiKey('${escapeAttr(apiKey.id)}')">${escapeHtml(t('admin.view'))}</button>
+              <button class="secondary" onclick="editAdminApiKey('${escapeAttr(apiKey.id)}')">${escapeHtml(t('admin.edit'))}</button>
+              ${apiKey.status === 'active'
+                ? `<button class="secondary danger" onclick="disableAdminApiKey('${escapeAttr(apiKey.id)}')">${escapeHtml(t('admin.disable'))}</button>`
+                : `<button class="secondary" onclick="enableAdminApiKey('${escapeAttr(apiKey.id)}')">${escapeHtml(t('admin.enable'))}</button>`}
+              ${isProtectedAdminApiKey(apiKey.id)
                 ? ''
-                : `<button class="secondary danger" onclick="deleteAdminClient('${escapeAttr(client.id)}')">${escapeHtml(t('admin.delete'))}</button>`}
+                : `<button class="secondary danger" onclick="deleteAdminApiKey('${escapeAttr(apiKey.id)}')">${escapeHtml(t('admin.delete'))}</button>`}
             </td>
           </tr>
         `).join('');
       }
 
-      async function refreshAdminClients() {
-        adminClients = await adminApi('/api-clients');
-        if (!Array.isArray(adminClients)) {
-          adminClients = [];
+      async function refreshAdminApiKeys() {
+        const query = adminAllNamespaces ? '?allNamespaces=true' : '';
+        adminApiKeys = await adminApi(`/api-keys${query}`);
+        if (!Array.isArray(adminApiKeys)) {
+          adminApiKeys = [];
         }
-        renderAdminClientsTable();
+        renderAdminApiKeysTable();
+      }
+
+      function toggleAdminAllNamespaces(checked) {
+        adminAllNamespaces = !!checked;
+        refreshAdminApiKeys().catch(err => message(err.message, 'error'));
+        if (adminAuditState.loaded) {
+          searchAdminAuditLogs(0).catch(err => message(err.message, 'error'));
+        }
       }
 
       function readAdminAuditDateTimeInput(id) {
@@ -176,17 +187,18 @@
       }
 
       async function searchAdminAuditLogs(page = 0) {
-        const clientId = $('adminAuditClientFilter')?.value.trim() || '';
+        const apiKeyId = $('adminAuditApiKeyFilter')?.value.trim() || '';
         const action = $('adminAuditActionFilter')?.value.trim() || '';
         const from = readAdminAuditDateTimeInput('adminAuditFromFilter');
         const to = readAdminAuditDateTimeInput('adminAuditToFilter');
         const includeApiCalls = !!$('adminAuditIncludeApiCalls')?.checked;
         const query = new URLSearchParams();
-        if (clientId) query.set('clientId', clientId);
+        if (apiKeyId) query.set('apiKeyId', apiKeyId);
         if (action) query.set('action', action);
         if (from) query.set('from', from);
         if (to) query.set('to', to);
         if (includeApiCalls) query.set('includeApiCalls', 'true');
+        if (adminAllNamespaces) query.set('allNamespaces', 'true');
         query.set('page', String(Math.max(page, 0)));
         query.set('size', String(adminAuditState.size || 10));
         try {
@@ -214,7 +226,7 @@
           <tr>
             <td>${escapeHtml(formatInstant(log.occurredAt))}</td>
             <td>${escapeHtml(log.action || '')}</td>
-            <td>${escapeHtml(log.clientId || log.actorClientId || '')}</td>
+            <td>${escapeHtml(log.apiKeyId || log.actorApiKeyId || '')}</td>
             <td>${escapeHtml(`${log.httpMethod || ''} ${log.path || ''}`.trim())}</td>
             <td>${log.statusCode ?? ''}</td>
             <td>${escapeHtml(log.detail || '')}</td>
@@ -227,27 +239,27 @@
         return searchAdminAuditLogs(adminAuditState.page || 0);
       }
 
-      async function viewAdminClient(clientId) {
-        const client = adminClients.find(item => item.id === clientId) || await adminApi(`/api-clients/${encodeURIComponent(clientId)}`);
-        if (!client) return;
+      async function viewAdminApiKey(apiKeyId) {
+        const apiKey = adminApiKeys.find(item => item.id === apiKeyId) || await adminApi(`/api-keys/${encodeURIComponent(apiKeyId)}`);
+        if (!apiKey) return;
         await showAppDialog({
-          title: t('admin.viewTitle', { name: client.displayName || client.id }),
+          title: t('admin.viewTitle', { name: apiKey.displayName || apiKey.id }),
           message: [
-            `${t('admin.col.name')}: ${client.displayName || '-'}`,
-            `${t('admin.col.status')}: ${client.status || '-'}`,
-            `${t('admin.col.namespaces')}: ${adminNamespacesLabel(client)}`,
-            `${t('admin.col.keyPrefix')}: ${client.keyPrefix || '-'}`,
-            `${t('admin.col.lastUsed')}: ${formatInstant(client.lastUsedAt)}`,
-            `Created: ${formatInstant(client.createdAt)}`,
-            `Updated: ${formatInstant(client.updatedAt)}`,
-            client.description ? `Description: ${client.description}` : ''
+            `${t('admin.col.name')}: ${apiKey.displayName || '-'}`,
+            `${t('admin.col.status')}: ${apiKey.status || '-'}`,
+            `${t('admin.col.namespaces')}: ${adminNamespacesLabel(apiKey)}`,
+            `${t('admin.col.keyPrefix')}: ${apiKey.keyPrefix || '-'}`,
+            `${t('admin.col.lastUsed')}: ${formatInstant(apiKey.lastUsedAt)}`,
+            `Created: ${formatInstant(apiKey.createdAt)}`,
+            `Updated: ${formatInstant(apiKey.updatedAt)}`,
+            apiKey.description ? `Description: ${apiKey.description}` : ''
           ].filter(Boolean).join('\n'),
           input: 'none',
           confirmLabel: t('dialog.confirm')
         });
       }
 
-      function deriveClientId(displayName) {
+      function deriveApiKeyId(displayName) {
         const slug = (displayName || '')
           .trim()
           .toLowerCase()
@@ -259,14 +271,14 @@
         return `app-${Date.now().toString(36)}`;
       }
 
-      function adminClientFormFields(client = {}) {
-        const isAdmin = !!client.admin;
+      function adminApiKeyFormFields(apiKey = {}) {
+        const isAdmin = !!apiKey.admin;
         return [
           {
             name: 'displayName',
             label: t('admin.prompt.name'),
             type: 'text',
-            value: client.displayName || 'my-app'
+            value: apiKey.displayName || 'my-app'
           },
           {
             name: 'admin',
@@ -291,8 +303,8 @@
             label: t('admin.prompt.namespaces'),
             hint: t('admin.prompt.namespacesHint'),
             type: 'text',
-            value: client.id
-              ? adminClientNamespaceList(client).join(', ')
+            value: apiKey.id
+              ? adminApiKeyNamespaceList(apiKey).join(', ')
               : 'ai-collection-strategy',
             dependsOn: { field: 'admin', value: 'false' }
           },
@@ -300,12 +312,12 @@
             name: 'description',
             label: t('admin.prompt.description'),
             type: 'text',
-            value: client.description || ''
+            value: apiKey.description || ''
           }
         ];
       }
 
-      function parseAdminClientForm(result) {
+      function parseAdminApiKeyForm(result) {
         if (!result) return null;
         const displayName = (result.displayName || '').trim();
         if (!displayName) {
@@ -329,17 +341,17 @@
         };
       }
 
-      async function createAdminClient() {
+      async function createAdminApiKey() {
         const result = await showAppFormDialog({
           title: t('admin.createTitle'),
           confirmLabel: t('admin.save'),
-          fields: adminClientFormFields()
+          fields: adminApiKeyFormFields()
         });
-        const parsed = parseAdminClientForm(result);
+        const parsed = parseAdminApiKeyForm(result);
         if (!parsed) return;
-        const id = deriveClientId(parsed.displayName);
+        const id = deriveApiKeyId(parsed.displayName);
         try {
-          const created = await adminApi('/api-clients', {
+          const created = await adminApi('/api-keys', {
             method: 'POST',
             body: JSON.stringify({
               id,
@@ -349,55 +361,55 @@
               namespaces: parsed.namespaces
             })
           });
-          await showAdminKeyDialog(t('admin.keyCreated'), created.apiKey);
-          await refreshAdminClients();
+          await showAdminKeyDialog(t('admin.keyCreated'), created.secret);
+          await refreshAdminApiKeys();
           message(t('admin.created', { name: parsed.displayName }), 'success');
         } catch (err) {
           message(err.message, 'error');
         }
       }
 
-      async function editAdminClient(clientId) {
-        const client = adminClients.find(item => item.id === clientId);
-        if (!client) return;
+      async function editAdminApiKey(apiKeyId) {
+        const apiKey = adminApiKeys.find(item => item.id === apiKeyId);
+        if (!apiKey) return;
         const result = await showAppFormDialog({
           title: t('admin.editTitle'),
           confirmLabel: t('admin.save'),
-          fields: adminClientFormFields(client)
+          fields: adminApiKeyFormFields(apiKey)
         });
-        const parsed = parseAdminClientForm(result);
+        const parsed = parseAdminApiKeyForm(result);
         if (!parsed) return;
 
         try {
-          await adminApi(`/api-clients/${encodeURIComponent(clientId)}`, {
+          await adminApi(`/api-keys/${encodeURIComponent(apiKeyId)}`, {
             method: 'PUT',
             body: JSON.stringify({
               displayName: parsed.displayName,
               description: parsed.description,
-              status: client.status,
+              status: apiKey.status,
               admin: parsed.admin,
               namespaces: parsed.namespaces
             })
           });
-          await refreshAdminClients();
+          await refreshAdminApiKeys();
           message(t('admin.updated', { name: parsed.displayName }), 'success');
         } catch (err) {
           message(err.message, 'error');
         }
       }
 
-      function isProtectedAdminClient(clientId) {
-        return clientId === 'platform-admin';
+      function isProtectedAdminApiKey(apiKeyId) {
+        return apiKeyId === 'platform-admin';
       }
 
-      function adminClientLastUsedLabel(client) {
-        return client?.lastUsedAt ? formatInstant(client.lastUsedAt) : t('admin.lastUsedNever');
+      function adminApiKeyLastUsedLabel(apiKey) {
+        return apiKey?.lastUsedAt ? formatInstant(apiKey.lastUsedAt) : t('admin.lastUsedNever');
       }
 
-      async function disableAdminClient(clientId) {
-        const client = adminClients.find(item => item.id === clientId);
-        if (!client) return;
-        const label = client.displayName || clientId;
+      async function disableAdminApiKey(apiKeyId) {
+        const apiKey = adminApiKeys.find(item => item.id === apiKeyId);
+        if (!apiKey) return;
+        const label = apiKey.displayName || apiKeyId;
         const confirmed = await showAppDialog({
           title: t('admin.disable'),
           message: t('admin.confirm.disable', { name: label }),
@@ -406,60 +418,60 @@
         });
         if (!confirmed) return;
         try {
-          await adminApi(`/api-clients/${encodeURIComponent(clientId)}`, {
+          await adminApi(`/api-keys/${encodeURIComponent(apiKeyId)}`, {
             method: 'PUT',
             body: JSON.stringify({
-              displayName: client.displayName,
-              description: client.description || '',
+              displayName: apiKey.displayName,
+              description: apiKey.description || '',
               status: 'disabled',
-              admin: client.admin,
-              namespaces: Array.isArray(client.namespaces) ? client.namespaces : []
+              admin: apiKey.admin,
+              namespaces: Array.isArray(apiKey.namespaces) ? apiKey.namespaces : []
             })
           });
-          await refreshAdminClients();
+          await refreshAdminApiKeys();
           message(t('admin.disabled', { name: label }), 'success');
         } catch (err) {
           message(err.message, 'error');
         }
       }
 
-      async function deleteAdminClient(clientId) {
-        const client = adminClients.find(item => item.id === clientId);
-        if (!client) return;
-        const label = client.displayName || clientId;
+      async function deleteAdminApiKey(apiKeyId) {
+        const apiKey = adminApiKeys.find(item => item.id === apiKeyId);
+        if (!apiKey) return;
+        const label = apiKey.displayName || apiKeyId;
         const confirmed = await showAppDialog({
           title: t('admin.delete'),
-          message: t('admin.confirm.delete', { name: label, lastUsed: adminClientLastUsedLabel(client) }),
+          message: t('admin.confirm.delete', { name: label, lastUsed: adminApiKeyLastUsedLabel(apiKey) }),
           input: 'none',
           danger: true,
           confirmLabel: t('admin.delete')
         });
         if (!confirmed) return;
         try {
-          await adminApi(`/api-clients/${encodeURIComponent(clientId)}`, { method: 'DELETE' });
-          await refreshAdminClients();
+          await adminApi(`/api-keys/${encodeURIComponent(apiKeyId)}`, { method: 'DELETE' });
+          await refreshAdminApiKeys();
           message(t('admin.deleted', { name: label }), 'success');
         } catch (err) {
           message(err.message, 'error');
         }
       }
 
-      async function enableAdminClient(clientId) {
-        const client = adminClients.find(item => item.id === clientId);
-        if (!client) return;
+      async function enableAdminApiKey(apiKeyId) {
+        const apiKey = adminApiKeys.find(item => item.id === apiKeyId);
+        if (!apiKey) return;
         try {
-          await adminApi(`/api-clients/${encodeURIComponent(clientId)}`, {
+          await adminApi(`/api-keys/${encodeURIComponent(apiKeyId)}`, {
             method: 'PUT',
             body: JSON.stringify({
-              displayName: client.displayName,
-              description: client.description || '',
+              displayName: apiKey.displayName,
+              description: apiKey.description || '',
               status: 'active',
-              admin: client.admin,
-              namespaces: Array.isArray(client.namespaces) ? client.namespaces : []
+              admin: apiKey.admin,
+              namespaces: Array.isArray(apiKey.namespaces) ? apiKey.namespaces : []
             })
           });
-          await refreshAdminClients();
-          message(t('admin.enabled', { name: client.displayName || clientId }), 'success');
+          await refreshAdminApiKeys();
+          message(t('admin.enabled', { name: apiKey.displayName || apiKeyId }), 'success');
         } catch (err) {
           message(err.message, 'error');
         }

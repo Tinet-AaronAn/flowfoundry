@@ -26,8 +26,8 @@ public class WorkflowTimerScheduleController {
   public void sync(
       @PathVariable String workflowId, @RequestBody FlowDefinition definition) {
     namespaceAccess.requireAuthenticatedNamespace();
-    String tenantId = namespaceAccess.resolveActiveTenantId();
-    scheduleService.syncFromDefinition(workflowId, tenantId, definition);
+    String namespace = namespaceAccess.resolveActiveNamespace();
+    scheduleService.syncFromDefinition(workflowId, namespace, definition);
   }
 
   @PostMapping("/pause")

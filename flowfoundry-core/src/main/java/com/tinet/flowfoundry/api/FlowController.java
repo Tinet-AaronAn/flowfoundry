@@ -1,6 +1,5 @@
 package com.tinet.flowfoundry.api;
 
-import com.tinet.flowfoundry.config.TemporalProperties;
 import com.tinet.flowfoundry.flow.FlowCompiler;
 import com.tinet.flowfoundry.flow.FlowDefinition;
 import com.tinet.flowfoundry.interpreter.FlowInterpreterWorkflow;
@@ -11,6 +10,10 @@ import com.tinet.flowfoundry.interpreter.runtime.RunSource;
 import com.tinet.flowfoundry.interpreter.runtime.RunSourceResolver;
 import com.tinet.flowfoundry.registry.ActivityRegistry;
 import com.tinet.flowfoundry.security.NamespaceAccessService;
+import com.tinet.flowfoundry.temporal.DeploymentContract;
+import com.tinet.flowfoundry.temporal.DeploymentContractRegistry;
+import com.tinet.flowfoundry.temporal.RunNamespaceLocator;
+import com.tinet.flowfoundry.temporal.TemporalClients;
 import com.tinet.flowfoundry.workflow.WorkflowRunId;
 import io.temporal.api.common.v1.WorkflowExecution;
 import io.temporal.client.WorkflowClient;
@@ -30,8 +33,9 @@ import org.springframework.web.bind.annotation.RestController;
 public class FlowController {
 
   private final FlowCompiler compiler;
-  private final WorkflowClient workflowClient;
-  private final TemporalProperties temporalProperties;
+  private final TemporalClients temporalClients;
+  private final DeploymentContractRegistry contractRegistry;
+  private final RunNamespaceLocator runNamespaceLocator;
   private final ActivityRegistry activityRegistry;
 
   private final FlowRunStatusService runStatusService;
@@ -39,14 +43,16 @@ public class FlowController {
 
   public FlowController(
       FlowCompiler compiler,
-      WorkflowClient workflowClient,
-      TemporalProperties temporalProperties,
+      TemporalClients temporalClients,
+      DeploymentContractRegistry contractRegistry,
+      RunNamespaceLocator runNamespaceLocator,
       ActivityRegistry activityRegistry,
       FlowRunStatusService runStatusService,
       NamespaceAccessService namespaceAccess) {
     this.compiler = compiler;
-    this.workflowClient = workflowClient;
-    this.temporalProperties = temporalProperties;
+    this.temporalClients = temporalClients;
+    this.contractRegistry = contractRegistry;
+    this.runNamespaceLocator = runNamespaceLocator;
     this.activityRegistry = activityRegistry;
     this.runStatusService = runStatusService;
     this.namespaceAccess = namespaceAccess;
@@ -70,29 +76,39 @@ public class FlowController {
       @RequestHeader(value = RunSourceResolver.WEB_MODELER_CLIENT_HEADER, required = false)
           String clientHeader) {
     namespaceAccess.requireAuthenticatedNamespace();
-    String tenantId = namespaceAccess.resolveActiveTenantId();
+    String namespace = namespaceAccess.resolveActiveNamespace();
     ExecutionPlan plan = compiler.compile(request.flow());
     RunSource runSource = RunSourceResolver.resolve(request.runSource(), clientHeader);
     String businessKey =
         request.businessKey() == null || request.businessKey().isBlank()
-            ? tenantId + ":" + plan.flowId() + "-" + UUID.randomUUID()
-            : tenantId + ":" + request.businessKey();
+            ? namespace + ":" + plan.flowId() + "-" + UUID.randomUUID()
+            : namespace + ":" + request.businessKey();
     String workflowId =
         request.workflowId() == null || request.workflowId().isBlank()
             ? WorkflowRunId.forRun(runSource, plan.flowId())
             : requireRunWorkflowId(request.workflowId());
 
+    DeploymentContract contract = contractRegistry.resolveForRun();
+    // 后台建模器发起的调试运行（web-modeler）落到预留的系统 namespace，与业务生产 run logs 隔离；
+    // 生产运行落到使用方业务 namespace。两者共用同一业务 Task Queue，由使用方 Worker 同时轮询。
+    // 注意：这里的 temporalNamespace 是 Temporal 物理隔离单位，与上面的逻辑 namespace（RBAC / workflow 归属）无关。
+    String temporalNamespace =
+        runSource.usesStubActivities()
+            ? contractRegistry.systemNamespace()
+            : contract.temporalNamespace();
+    WorkflowClient workflowClient = temporalClients.workflowClient(temporalNamespace);
     FlowInterpreterWorkflow workflow =
         workflowClient.newWorkflowStub(
             FlowInterpreterWorkflow.class,
             WorkflowOptions.newBuilder()
                 .setWorkflowId(workflowId)
-                .setTaskQueue(temporalProperties.taskQueue())
+                .setTaskQueue(contract.taskQueue())
                 .build());
 
     WorkflowExecution execution =
         WorkflowClient.start(
             workflow::run, plan, businessKey, safeMap(request.input()), runSource.wireValue());
+    runNamespaceLocator.remember(workflowId, temporalNamespace);
     return new RunResponse(
         workflowId, execution.getRunId(), businessKey, runSource.wireValue(), plan);
   }
@@ -114,7 +130,9 @@ public class FlowController {
       @PathVariable String workflowId, @RequestBody HumanTaskCompletion completion) {
     namespaceAccess.requireAuthenticatedNamespace();
     requireRunWorkflowId(workflowId);
-    workflowClient
+    String namespace = runNamespaceLocator.locate(workflowId);
+    temporalClients
+        .workflowClient(namespace)
         .newWorkflowStub(FlowInterpreterWorkflow.class, workflowId)
         .completeHumanTask(completion);
   }

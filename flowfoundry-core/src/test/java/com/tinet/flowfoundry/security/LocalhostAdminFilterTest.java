@@ -18,7 +18,7 @@ class LocalhostAdminFilterTest {
     LocalhostAdminFilter filter = new LocalhostAdminFilter(properties);
 
     MockHttpServletRequest request = new MockHttpServletRequest();
-    request.setRequestURI("/api/admin/api-clients");
+    request.setRequestURI("/api/admin/api-keys");
     request.setRemoteAddr("127.0.0.1");
     MockHttpServletResponse response = new MockHttpServletResponse();
   MockFilterChain chain = new MockFilterChain();
@@ -36,7 +36,7 @@ class LocalhostAdminFilterTest {
     LocalhostAdminFilter filter = new LocalhostAdminFilter(properties);
 
     MockHttpServletRequest request = new MockHttpServletRequest();
-    request.setRequestURI("/api/admin/api-clients");
+    request.setRequestURI("/api/admin/api-keys");
     request.setRemoteAddr("10.0.0.8");
     MockHttpServletResponse response = new MockHttpServletResponse();
 

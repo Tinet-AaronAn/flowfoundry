@@ -41,4 +41,4 @@ flowfoundry-app/modules/ai-collection-strategy/
 - 建模器 / Registry：http://127.0.0.1:8081/
 - iframe 业务壳：http://127.0.0.1:8082/app/workflow-admin.html
 
-构建产物：`target/ai-collection-strategy-demo-1.0.0-SNAPSHOT.jar`
+构建产物：`target/ai-collection-strategy-demo-1.0.2.jar`

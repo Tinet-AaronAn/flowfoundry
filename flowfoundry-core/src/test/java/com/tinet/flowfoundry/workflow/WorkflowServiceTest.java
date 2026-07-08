@@ -7,15 +7,18 @@ import com.tinet.flowfoundry.workflow.WorkflowContracts.CreateWorkflowRequest;
 import com.tinet.flowfoundry.workflow.WorkflowContracts.CreateWorkflowVersionRequest;
 import com.tinet.flowfoundry.workflow.WorkflowContracts.WorkflowRecordDto;
 import com.tinet.flowfoundry.security.AdminAccessService;
-import com.tinet.flowfoundry.security.ApiClientService;
+import com.tinet.flowfoundry.security.ApiKeyService;
 import com.tinet.flowfoundry.security.AuditLogService;
 import com.tinet.flowfoundry.security.NamespaceAccessService;
+import com.tinet.flowfoundry.config.NamespaceRoutingProperties;
 import com.tinet.flowfoundry.config.TemporalProperties;
 import com.tinet.flowfoundry.flow.FlowCompiler;
 import com.tinet.flowfoundry.security.PlatformSecurityProperties;
 import com.tinet.flowfoundry.registry.ActivityRegistry;
+import com.tinet.flowfoundry.temporal.DeploymentContractRegistry;
 import com.tinet.flowfoundry.temporal.StartTimerScheduleService;
-import io.temporal.client.schedules.ScheduleClient;
+import com.tinet.flowfoundry.temporal.TemporalClients;
+import io.temporal.serviceclient.WorkflowServiceStubs;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -44,7 +47,7 @@ import org.springframework.test.context.TestPropertySource;
   ShortIdGenerator.class,
   NamespaceAccessService.class,
   AdminAccessService.class,
-  ApiClientService.class,
+  ApiKeyService.class,
   AuditLogService.class,
   PlatformSecurityProperties.class,
   WorkflowServiceTest.ScheduleTestConfig.class
@@ -57,10 +60,17 @@ class WorkflowServiceTest {
   static class ScheduleTestConfig {
     @Bean
     StartTimerScheduleService startTimerScheduleService() {
+      ActivityRegistry registry = new ActivityRegistry("1.0", "test", "test-queue", List.of());
+      TemporalClients temporalClients =
+          new TemporalClients(Mockito.mock(WorkflowServiceStubs.class));
+      DeploymentContractRegistry contractRegistry =
+          new DeploymentContractRegistry(
+              null,
+              new TemporalProperties("localhost:7233", "default", "test-queue", 10, 10, null),
+              registry,
+              new NamespaceRoutingProperties());
       return new StartTimerScheduleService(
-          new FlowCompiler(new ActivityRegistry("1.0", "test", "test-queue", List.of())),
-          Mockito.mock(ScheduleClient.class),
-          new TemporalProperties("localhost:7233", "default", "test-queue", 10, 10, null));
+          new FlowCompiler(registry), temporalClients, contractRegistry);
     }
   }
 

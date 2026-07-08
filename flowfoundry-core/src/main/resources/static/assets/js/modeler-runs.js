@@ -23,6 +23,7 @@
           definitionId: state.model.id,
           definitionName: state.model.name,
           version: state.activeVersion || '1.0.0',
+          namespace: (typeof platformNamespace === 'function' ? platformNamespace() : '') || '',
           input,
           runSource: runSource || 'web-modeler',
           status: 'RUNNING',
@@ -65,7 +66,10 @@
         const table = $('runsTable');
         if (!table) return;
         const keyword = ($('runsSearch')?.value || '').trim().toLowerCase();
+        const currentNamespace = (typeof platformNamespace === 'function' ? platformNamespace() : '') || '';
         const rows = state.flowRuns.filter(run => {
+          // 严格按选中 namespace 过滤；无 namespace 标签的旧记录保留兼容。
+          if (currentNamespace && run.namespace && run.namespace !== currentNamespace) return false;
           if (!keyword) return true;
           return run.id.toLowerCase().includes(keyword)
             || String(run.definitionName || '').toLowerCase().includes(keyword)

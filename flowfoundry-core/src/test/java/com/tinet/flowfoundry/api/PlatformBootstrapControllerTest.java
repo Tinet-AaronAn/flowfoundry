@@ -50,8 +50,8 @@ class PlatformBootstrapControllerTest {
         .andExpect(jsonPath("$.modeler.embedPath").value("/modeler/embed.html"))
         .andExpect(jsonPath("$.modeler.apiBase").value("/api"))
         .andExpect(jsonPath("$.modeler.sdkScriptPath").value("/assets/js/flowfoundry-modeler-sdk.js"))
-        .andExpect(jsonPath("$.defaultTenantId").value("default"))
-        .andExpect(jsonPath("$.tenantHeader").value("X-Tenant-Id"))
+        .andExpect(jsonPath("$.defaultNamespace").value("default"))
+        .andExpect(jsonPath("$.namespaceHeader").value("X-Platform-Namespace"))
         .andExpect(jsonPath("$.temporal.namespace").value("call-campaign"))
         .andExpect(jsonPath("$.temporal.uiBaseUrl").value("http://127.0.0.1:8080"));
   }

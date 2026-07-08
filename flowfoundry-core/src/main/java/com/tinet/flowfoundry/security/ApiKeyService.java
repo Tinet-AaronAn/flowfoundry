@@ -2,10 +2,10 @@ package com.tinet.flowfoundry.security;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
-import com.tinet.flowfoundry.security.AdminContracts.ApiClientDto;
-import com.tinet.flowfoundry.security.AdminContracts.CreateApiClientRequest;
-import com.tinet.flowfoundry.security.AdminContracts.CreateApiClientResponse;
-import com.tinet.flowfoundry.security.AdminContracts.UpdateApiClientRequest;
+import com.tinet.flowfoundry.security.AdminContracts.ApiKeyDto;
+import com.tinet.flowfoundry.security.AdminContracts.CreateApiKeyRequest;
+import com.tinet.flowfoundry.security.AdminContracts.CreateApiKeyResponse;
+import com.tinet.flowfoundry.security.AdminContracts.UpdateApiKeyRequest;
 import java.time.Instant;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -17,18 +17,18 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-public class ApiClientService {
+public class ApiKeyService {
 
-  private static final Pattern CLIENT_ID_PATTERN = Pattern.compile("^[a-z][a-z0-9-]{1,62}$");
+  private static final Pattern API_KEY_ID_PATTERN = Pattern.compile("^[a-z][a-z0-9-]{1,62}$");
 
-  private final PlatformApiClientRepository repository;
+  private final PlatformApiKeyRepository repository;
   private final AuditLogService auditLogService;
   private final AdminAccessService adminAccessService;
 
   @PersistenceContext private EntityManager entityManager;
 
-  public ApiClientService(
-      PlatformApiClientRepository repository,
+  public ApiKeyService(
+      PlatformApiKeyRepository repository,
       AuditLogService auditLogService,
       AdminAccessService adminAccessService) {
     this.repository = repository;
@@ -37,19 +37,19 @@ public class ApiClientService {
   }
 
   @Transactional(readOnly = true)
-  public Optional<AuthenticatedApiClient> authenticate(String rawKey) {
+  public Optional<AuthenticatedApiKey> authenticate(String rawKey) {
     if (rawKey == null || rawKey.isBlank()) {
       return Optional.empty();
     }
     return repository
-        .findByKeyHashAndStatus(ApiKeyHasher.hash(rawKey), ApiClientStatus.ACTIVE)
+        .findByKeyHashAndStatus(ApiKeyHasher.hash(rawKey), ApiKeyStatus.ACTIVE)
         .map(this::toAuthenticated);
   }
 
   @Transactional
-  public void touchLastUsed(String clientId) {
+  public void touchLastUsed(String apiKeyId) {
     repository
-        .findById(clientId)
+        .findById(apiKeyId)
         .ifPresent(
             entity -> {
               entity.setLastUsedAt(Instant.now());
@@ -58,47 +58,64 @@ public class ApiClientService {
   }
 
   @Transactional(readOnly = true)
-  public List<ApiClientDto> list() {
+  public List<ApiKeyDto> list() {
     return repository.findAll().stream().map(this::toDto).toList();
   }
 
+  /**
+   * 按选中 namespace 过滤：仅返回作用域包含该 namespace 的 Key；管理员 Key（可访问全部 namespace）始终展示。
+   */
   @Transactional(readOnly = true)
-  public ApiClientDto get(String clientId) {
-    return toDto(requireClient(clientId));
+  public List<ApiKeyDto> listByNamespace(String namespace) {
+    if (namespace == null || namespace.isBlank()) {
+      return list();
+    }
+    return repository.findAll().stream()
+        .map(this::toDto)
+        .filter(
+            apiKey ->
+                apiKey.admin()
+                    || (apiKey.namespaces() != null && apiKey.namespaces().contains(namespace)))
+        .toList();
+  }
+
+  @Transactional(readOnly = true)
+  public ApiKeyDto get(String apiKeyId) {
+    return toDto(requireApiKey(apiKeyId));
   }
 
   @Transactional
-  public CreateApiClientResponse create(CreateApiClientRequest request) {
+  public CreateApiKeyResponse create(CreateApiKeyRequest request) {
     adminAccessService.requireAdmin();
-    String clientId = normalizeClientId(request.id());
-    if (repository.existsById(clientId)) {
-      throw new IllegalArgumentException("API client already exists: " + clientId);
+    String apiKeyId = normalizeApiKeyId(request.id());
+    if (repository.existsById(apiKeyId)) {
+      throw new IllegalArgumentException("API key already exists: " + apiKeyId);
     }
     Set<String> namespaces = normalizeNamespaces(request.namespaces(), request.admin());
     String rawKey = ApiKeyGenerator.generate();
     Instant now = Instant.now();
 
-    PlatformApiClientEntity entity = new PlatformApiClientEntity();
-    entity.setId(clientId);
+    PlatformApiKeyEntity entity = new PlatformApiKeyEntity();
+    entity.setId(apiKeyId);
     entity.setDisplayName(requireDisplayName(request.displayName()));
     entity.setDescription(trimToNull(request.description()));
-    entity.setStatus(ApiClientStatus.ACTIVE);
+    entity.setStatus(ApiKeyStatus.ACTIVE);
     entity.setAdmin(request.admin());
     entity.setKeyHash(ApiKeyHasher.hash(rawKey));
     entity.setKeyPrefix(ApiKeyGenerator.prefix(rawKey));
     entity.setCreatedAt(now);
     entity.setUpdatedAt(now);
     entity.setNamespaces(namespaces);
-    PlatformApiClientEntity saved = repository.save(entity);
+    PlatformApiKeyEntity saved = repository.save(entity);
 
     auditLogService.record(
         new AuditLogService.AuditLogEntry(
             now,
-            clientId,
-            adminAccessService.actorClientId(),
-            AuditActions.CLIENT_CREATED,
-            "api_client",
-            clientId,
+            apiKeyId,
+            adminAccessService.actorApiKeyId(),
+            AuditActions.API_KEY_CREATED,
+            "api_key",
+            apiKeyId,
             namespaces.stream().findFirst().orElse(null),
             null,
             null,
@@ -106,13 +123,13 @@ public class ApiClientService {
             "displayName=" + saved.getDisplayName(),
             null));
 
-    return new CreateApiClientResponse(toDto(saved), rawKey);
+    return new CreateApiKeyResponse(toDto(saved), rawKey);
   }
 
   @Transactional
-  public ApiClientDto update(String clientId, UpdateApiClientRequest request) {
+  public ApiKeyDto update(String apiKeyId, UpdateApiKeyRequest request) {
     adminAccessService.requireAdmin();
-    PlatformApiClientEntity entity = requireClient(clientId);
+    PlatformApiKeyEntity entity = requireApiKey(apiKeyId);
     Instant now = Instant.now();
     if (request.displayName() != null && !request.displayName().isBlank()) {
       entity.setDisplayName(requireDisplayName(request.displayName()));
@@ -121,7 +138,7 @@ public class ApiClientService {
       entity.setDescription(trimToNull(request.description()));
     }
     if (request.status() != null && !request.status().isBlank()) {
-      entity.setStatus(ApiClientStatus.normalize(request.status()));
+      entity.setStatus(ApiKeyStatus.normalize(request.status()));
     }
     if (request.admin() != null) {
       entity.setAdmin(request.admin());
@@ -132,16 +149,16 @@ public class ApiClientService {
       entity.setNamespaces(normalizeNamespaces(request.namespaces(), false));
     }
     entity.setUpdatedAt(now);
-    PlatformApiClientEntity saved = repository.save(entity);
+    PlatformApiKeyEntity saved = repository.save(entity);
 
     auditLogService.record(
         new AuditLogService.AuditLogEntry(
             now,
-            clientId,
-            adminAccessService.actorClientId(),
-            AuditActions.CLIENT_UPDATED,
-            "api_client",
-            clientId,
+            apiKeyId,
+            adminAccessService.actorApiKeyId(),
+            AuditActions.API_KEY_UPDATED,
+            "api_key",
+            apiKeyId,
             saved.getNamespaces().stream().findFirst().orElse(null),
             null,
             null,
@@ -152,22 +169,22 @@ public class ApiClientService {
   }
 
   @Transactional
-  public ApiClientDto disable(String clientId) {
+  public ApiKeyDto disable(String apiKeyId) {
     adminAccessService.requireAdmin();
-    PlatformApiClientEntity entity = requireClient(clientId);
+    PlatformApiKeyEntity entity = requireApiKey(apiKeyId);
     Instant now = Instant.now();
-    entity.setStatus(ApiClientStatus.DISABLED);
+    entity.setStatus(ApiKeyStatus.DISABLED);
     entity.setUpdatedAt(now);
-    PlatformApiClientEntity saved = repository.save(entity);
+    PlatformApiKeyEntity saved = repository.save(entity);
 
     auditLogService.record(
         new AuditLogService.AuditLogEntry(
             now,
-            clientId,
-            adminAccessService.actorClientId(),
-            AuditActions.CLIENT_DISABLED,
-            "api_client",
-            clientId,
+            apiKeyId,
+            adminAccessService.actorApiKeyId(),
+            AuditActions.API_KEY_DISABLED,
+            "api_key",
+            apiKeyId,
             null,
             null,
             null,
@@ -178,12 +195,12 @@ public class ApiClientService {
   }
 
   @Transactional
-  public void delete(String clientId) {
+  public void delete(String apiKeyId) {
     adminAccessService.requireAdmin();
-    if (isProtectedClient(clientId)) {
-      throw new IllegalArgumentException("Cannot delete protected API client: " + clientId);
+    if (isProtectedApiKey(apiKeyId)) {
+      throw new IllegalArgumentException("Cannot delete protected API key: " + apiKeyId);
     }
-    PlatformApiClientEntity entity = requireClient(clientId);
+    PlatformApiKeyEntity entity = requireApiKey(apiKeyId);
     Instant now = Instant.now();
     String displayName = entity.getDisplayName();
     Instant lastUsedAt = entity.getLastUsedAt();
@@ -193,11 +210,11 @@ public class ApiClientService {
     auditLogService.record(
         new AuditLogService.AuditLogEntry(
             now,
-            clientId,
-            adminAccessService.actorClientId(),
-            AuditActions.CLIENT_DELETED,
-            "api_client",
-            clientId,
+            apiKeyId,
+            adminAccessService.actorApiKeyId(),
+            AuditActions.API_KEY_DELETED,
+            "api_key",
+            apiKeyId,
             null,
             null,
             null,
@@ -206,46 +223,46 @@ public class ApiClientService {
             null));
   }
 
-  private static boolean isProtectedClient(String clientId) {
-    return ApiClientBootstrapRunner.ADMIN_CLIENT_ID.equals(clientId);
+  private static boolean isProtectedApiKey(String apiKeyId) {
+    return ApiKeyBootstrapRunner.ADMIN_API_KEY_ID.equals(apiKeyId);
   }
 
   @Transactional
-  public PlatformApiClientEntity upsertFromBootstrap(
-      String clientId,
+  public PlatformApiKeyEntity upsertFromBootstrap(
+      String apiKeyId,
       String displayName,
       String rawKey,
       boolean admin,
       List<String> namespaces) {
     Instant now = Instant.now();
     entityManager.flush();
-    PlatformApiClientEntity entity = repository.findById(clientId).orElse(null);
+    PlatformApiKeyEntity entity = repository.findById(apiKeyId).orElse(null);
     String keyHash = ApiKeyHasher.hash(rawKey);
-    Optional<PlatformApiClientEntity> hashOwner = repository.findByKeyHash(keyHash);
-    if (hashOwner.isPresent() && (entity == null || !hashOwner.get().getId().equals(clientId))) {
-      PlatformApiClientEntity owner = hashOwner.get();
+    Optional<PlatformApiKeyEntity> hashOwner = repository.findByKeyHash(keyHash);
+    if (hashOwner.isPresent() && (entity == null || !hashOwner.get().getId().equals(apiKeyId))) {
+      PlatformApiKeyEntity owner = hashOwner.get();
       owner.setDisplayName(displayName);
       owner.setAdmin(admin);
       owner.setNamespaces(new LinkedHashSet<>(normalizeNamespaces(namespaces, admin)));
-      owner.setStatus(ApiClientStatus.ACTIVE);
+      owner.setStatus(ApiKeyStatus.ACTIVE);
       owner.setUpdatedAt(now);
       return repository.save(owner);
     }
     if (entity == null) {
-      entity = new PlatformApiClientEntity();
-      entity.setId(clientId);
+      entity = new PlatformApiKeyEntity();
+      entity.setId(apiKeyId);
       entity.setCreatedAt(now);
     } else if (keyHash.equals(entity.getKeyHash())) {
       entity.setDisplayName(displayName);
       entity.setAdmin(admin);
       entity.setNamespaces(new LinkedHashSet<>(normalizeNamespaces(namespaces, admin)));
-      entity.setStatus(ApiClientStatus.ACTIVE);
+      entity.setStatus(ApiKeyStatus.ACTIVE);
       entity.setUpdatedAt(now);
       return repository.save(entity);
     }
     entity.setDisplayName(displayName);
     entity.setDescription("Bootstrapped from configuration");
-    entity.setStatus(ApiClientStatus.ACTIVE);
+    entity.setStatus(ApiKeyStatus.ACTIVE);
     entity.setAdmin(admin);
     entity.setKeyHash(keyHash);
     entity.setKeyPrefix(ApiKeyGenerator.prefix(rawKey));
@@ -254,17 +271,17 @@ public class ApiClientService {
     return repository.save(entity);
   }
 
-  private PlatformApiClientEntity requireClient(String clientId) {
-    return repository.findById(clientId).orElseThrow(() -> new ApiClientNotFoundException(clientId));
+  private PlatformApiKeyEntity requireApiKey(String apiKeyId) {
+    return repository.findById(apiKeyId).orElseThrow(() -> new ApiKeyNotFoundException(apiKeyId));
   }
 
-  private AuthenticatedApiClient toAuthenticated(PlatformApiClientEntity entity) {
-    return new AuthenticatedApiClient(
+  private AuthenticatedApiKey toAuthenticated(PlatformApiKeyEntity entity) {
+    return new AuthenticatedApiKey(
         entity.getId(), Set.copyOf(entity.getNamespaces()), entity.isAdmin());
   }
 
-  private ApiClientDto toDto(PlatformApiClientEntity entity) {
-    return new ApiClientDto(
+  private ApiKeyDto toDto(PlatformApiKeyEntity entity) {
+    return new ApiKeyDto(
         entity.getId(),
         entity.getDisplayName(),
         entity.getDescription(),
@@ -277,14 +294,14 @@ public class ApiClientService {
         entity.getLastUsedAt());
   }
 
-  private static String normalizeClientId(String clientId) {
-    if (clientId == null || clientId.isBlank()) {
+  private static String normalizeApiKeyId(String apiKeyId) {
+    if (apiKeyId == null || apiKeyId.isBlank()) {
       throw new IllegalArgumentException("id is required");
     }
-    String normalized = clientId.trim().toLowerCase(Locale.ROOT);
-    if (!CLIENT_ID_PATTERN.matcher(normalized).matches()) {
+    String normalized = apiKeyId.trim().toLowerCase(Locale.ROOT);
+    if (!API_KEY_ID_PATTERN.matcher(normalized).matches()) {
       throw new IllegalArgumentException(
-          "id must match [a-z][a-z0-9-]{1,62}: " + clientId);
+          "id must match [a-z][a-z0-9-]{1,62}: " + apiKeyId);
     }
     return normalized;
   }
@@ -301,7 +318,7 @@ public class ApiClientService {
       return new LinkedHashSet<>();
     }
     if (namespaces == null || namespaces.isEmpty()) {
-      throw new IllegalArgumentException("namespaces is required for non-admin clients");
+      throw new IllegalArgumentException("namespaces is required for non-admin API keys");
     }
     Set<String> normalized = new LinkedHashSet<>();
     for (String namespace : namespaces) {
@@ -311,7 +328,7 @@ public class ApiClientService {
       normalized.add(namespace.trim());
     }
     if (normalized.isEmpty()) {
-      throw new IllegalArgumentException("namespaces is required for non-admin clients");
+      throw new IllegalArgumentException("namespaces is required for non-admin API keys");
     }
     return normalized;
   }
@@ -324,5 +341,5 @@ public class ApiClientService {
     return trimmed.isEmpty() ? null : trimmed;
   }
 
-  public record AuthenticatedApiClient(String clientId, Set<String> namespaces, boolean admin) {}
+  public record AuthenticatedApiKey(String apiKeyId, Set<String> namespaces, boolean admin) {}
 }
