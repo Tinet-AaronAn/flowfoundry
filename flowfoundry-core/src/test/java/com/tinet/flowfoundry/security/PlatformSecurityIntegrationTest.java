@@ -25,13 +25,11 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 @DataJpaTest
 @ActiveProfiles("test")
-@TestPropertySource(properties = "flowfoundry.security.enabled=true")
 @Import({
   JacksonAutoConfiguration.class,
   ApiKeyService.class,
@@ -50,9 +48,8 @@ class PlatformSecurityIntegrationTest {
   @BeforeEach
   void setUp() {
     properties = new PlatformSecurityProperties();
-    properties.setEnabled(true);
     properties.setDevNamespace("alpha");
-    filter = new ApiKeyAuthenticationFilter(properties, apiKeyService, auditLogService);
+    filter = new ApiKeyAuthenticationFilter(apiKeyService, auditLogService);
     SecurityContextHolder.getContext()
         .setAuthentication(
             CallerAuthentication.forApiKey(
@@ -91,19 +88,6 @@ class PlatformSecurityIntegrationTest {
     filter.doFilter(request, response, new MockFilterChain());
 
     assertThat(response.getStatus()).isEqualTo(401);
-  }
-
-  @Test
-  void usesDevNamespaceWhenSecurityDisabled() throws ServletException, IOException {
-    properties.setEnabled(false);
-    properties.setDevNamespace("local-ns");
-    filter = new ApiKeyAuthenticationFilter(properties, apiKeyService, auditLogService);
-    filter.doFilter(new MockHttpServletRequest(), new MockHttpServletResponse(), new MockFilterChain());
-
-    var authentication = SecurityContextHolder.getContext().getAuthentication();
-    assertThat(authentication).isInstanceOf(CallerAuthentication.class);
-    assertThat(((CallerAuthentication) authentication).namespaces()).containsExactly("local-ns");
-    assertThat(((CallerAuthentication) authentication).admin()).isTrue();
   }
 
   @Test

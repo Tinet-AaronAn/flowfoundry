@@ -67,8 +67,9 @@ start_app() {
     --flowfoundry.activity-registry.path="file:$REGISTRY" \
     --platform.activity-registry.path="file:$REGISTRY" \
     --flowfoundry.security.dev-namespace="${FLOWFOUNDRY_DEV_NAMESPACE:-default}" \
-    --flowfoundry.security.modeler-api-key="${FLOWFOUNDRY_MODELER_API_KEY:-local-dev-key}" \
-    --flowfoundry.security.bootstrap-admin-key="${FLOWFOUNDRY_BOOTSTRAP_ADMIN_KEY:-local-admin-key}" \
+    --flowfoundry.security.api-keys[0].id=platform-admin \
+    --flowfoundry.security.api-keys[0].key="${FLOWFOUNDRY_API_KEY:-local-admin-key}" \
+    --flowfoundry.security.api-keys[0].admin=true \
     --flowfoundry.modeler.allow-frame-embedding=true \
     --temporal.host="${TEMPORAL_HOST:-127.0.0.1:7233}" \
     --temporal.namespace="${TEMPORAL_NAMESPACE:-default}" \

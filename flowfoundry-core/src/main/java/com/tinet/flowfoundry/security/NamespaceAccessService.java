@@ -86,7 +86,7 @@ public class NamespaceAccessService {
   }
 
   public boolean isAdmin() {
-    return currentCaller().map(CallerAuthentication::admin).orElse(!properties.enabled());
+    return currentCaller().map(CallerAuthentication::admin).orElse(false);
   }
 
   private Optional<String> resolveNamespaceHeader() {

@@ -7,19 +7,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "flowfoundry.security")
 public class PlatformSecurityProperties {
 
-  private boolean enabled = false;
   private String devNamespace = "default";
-  private String bootstrapAdminKey = "";
   private boolean adminLocalhostOnly = true;
   private List<ApiKeyProperties> apiKeys = new ArrayList<>();
-
-  public boolean enabled() {
-    return enabled;
-  }
-
-  public void setEnabled(boolean enabled) {
-    this.enabled = enabled;
-  }
 
   public String devNamespace() {
     return devNamespace == null || devNamespace.isBlank() ? "default" : devNamespace.trim();
@@ -27,14 +17,6 @@ public class PlatformSecurityProperties {
 
   public void setDevNamespace(String devNamespace) {
     this.devNamespace = devNamespace;
-  }
-
-  public String bootstrapAdminKey() {
-    return bootstrapAdminKey == null ? "" : bootstrapAdminKey;
-  }
-
-  public void setBootstrapAdminKey(String bootstrapAdminKey) {
-    this.bootstrapAdminKey = bootstrapAdminKey;
   }
 
   public boolean adminLocalhostOnly() {

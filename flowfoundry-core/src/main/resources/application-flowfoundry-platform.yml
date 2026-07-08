@@ -74,11 +74,15 @@ flowfoundry:
       - http://127.0.0.1:8082
       - http://localhost:8082
   security:
-    enabled: ${FLOWFOUNDRY_SECURITY_ENABLED:false}
+    # 鉴权始终启用（无“安全关闭”开关）。默认管理员 Key 由 FLOWFOUNDRY_API_KEY 提供，
+    # 未配置时回退 local-admin-key；admin=true ⇒ namespaces 为空表示可访问全部 namespace。
     dev-namespace: ${FLOWFOUNDRY_DEV_NAMESPACE:default}
-    bootstrap-admin-key: ${FLOWFOUNDRY_BOOTSTRAP_ADMIN_KEY:}
     admin-localhost-only: ${FLOWFOUNDRY_ADMIN_LOCALHOST_ONLY:true}
-    api-keys: []
+    api-keys:
+      - id: platform-admin
+        key: ${FLOWFOUNDRY_API_KEY:local-admin-key}
+        admin: true
+        namespaces: []
 
 management:
   endpoints:

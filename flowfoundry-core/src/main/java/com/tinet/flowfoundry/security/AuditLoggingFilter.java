@@ -12,12 +12,9 @@ import org.springframework.web.util.ContentCachingResponseWrapper;
 
 public class AuditLoggingFilter extends OncePerRequestFilter {
 
-  private final PlatformSecurityProperties properties;
   private final AuditLogService auditLogService;
 
-  public AuditLoggingFilter(
-      PlatformSecurityProperties properties, AuditLogService auditLogService) {
-    this.properties = properties;
+  public AuditLoggingFilter(AuditLogService auditLogService) {
     this.auditLogService = auditLogService;
   }
 
@@ -38,11 +35,6 @@ public class AuditLoggingFilter extends OncePerRequestFilter {
   protected void doFilterInternal(
       HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
       throws ServletException, IOException {
-    if (!properties.enabled()) {
-      filterChain.doFilter(request, response);
-      return;
-    }
-
     ContentCachingResponseWrapper wrapped = new ContentCachingResponseWrapper(response);
     try {
       filterChain.doFilter(request, wrapped);

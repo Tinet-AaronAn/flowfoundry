@@ -33,4 +33,12 @@ public interface WorkflowDefinitionRepository extends JpaRepository<WorkflowDefi
       """)
   List<WorkflowDefinitionEntity> searchAll(
       @Param("keyword") String keyword, @Param("status") String status);
+
+  @Query(
+      """
+      SELECT DISTINCT w.namespace FROM WorkflowDefinitionEntity w
+      WHERE w.namespace IS NOT NULL AND w.namespace <> ''
+      ORDER BY w.namespace
+      """)
+  List<String> findDistinctNamespaces();
 }

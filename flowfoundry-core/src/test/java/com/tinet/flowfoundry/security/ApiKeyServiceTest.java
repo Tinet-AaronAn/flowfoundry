@@ -16,11 +16,9 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.TestPropertySource;
 
 @DataJpaTest
 @ActiveProfiles("test")
-@TestPropertySource(properties = "flowfoundry.security.enabled=true")
 @Import({
   JacksonAutoConfiguration.class,
   ApiKeyService.class,

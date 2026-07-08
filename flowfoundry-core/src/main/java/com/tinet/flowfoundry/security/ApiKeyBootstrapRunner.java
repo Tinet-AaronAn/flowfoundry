@@ -17,6 +17,8 @@ public class ApiKeyBootstrapRunner {
   private static final Logger log = LoggerFactory.getLogger(ApiKeyBootstrapRunner.class);
   static final String LEGACY_MODELER_API_KEY_ID = "platform-modeler";
   public static final String ADMIN_API_KEY_ID = "platform-admin";
+  // 与配置默认值 FLOWFOUNDRY_API_KEY:local-admin-key 对齐：当没有任何管理员 Key 时兜底创建。
+  static final String DEFAULT_ADMIN_KEY = "local-admin-key";
 
   private final PlatformSecurityProperties properties;
   private final ApiKeyService apiKeyService;
@@ -53,22 +55,27 @@ public class ApiKeyBootstrapRunner {
       log.info("Synchronized API key from configuration: {}", apiKeyId);
     }
 
-    if (repository.count() == 0) {
-      String bootstrapAdminKey = properties.bootstrapAdminKey();
-      if (bootstrapAdminKey != null && !bootstrapAdminKey.isBlank()) {
-        apiKeyService.upsertFromBootstrap(
-            ADMIN_API_KEY_ID,
-            "Platform Admin",
-            bootstrapAdminKey.trim(),
-            true,
-            List.of());
-        log.warn(
-            "Created bootstrap admin API key '{}'. Change this key after first login.",
-            ADMIN_API_KEY_ID);
-      }
-    }
-
+    ensureAdminApiKey();
     removeLegacyModelerApiKey();
+  }
+
+  /**
+   * 保证平台初始化后始终存在一个可访问全部 namespace 的管理员 Key（admin=true ⇒ namespaces 为空表示不限）。
+   * 正常情况下配置里的 {@code platform-admin} 已经同步创建；此处仅在完全缺失时兜底创建默认 Key。
+   */
+  private void ensureAdminApiKey() {
+    boolean hasActiveAdmin =
+        repository.findAll().stream()
+            .anyMatch(entity -> entity.isAdmin() && ApiKeyStatus.isActive(entity.getStatus()));
+    if (hasActiveAdmin) {
+      return;
+    }
+    apiKeyService.upsertFromBootstrap(
+        ADMIN_API_KEY_ID, "Platform Admin", DEFAULT_ADMIN_KEY, true, List.of());
+    log.warn(
+        "No admin API key found; provisioned default admin key '{}'. "
+            + "Set FLOWFOUNDRY_API_KEY and rotate it after first login.",
+        ADMIN_API_KEY_ID);
   }
 
   private void removeLegacyModelerApiKey() {

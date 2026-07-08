@@ -10,7 +10,6 @@ import com.tinet.flowfoundry.security.AdminContracts.UpdateApiKeyRequest;
 import com.tinet.flowfoundry.security.ApiKeyService;
 import com.tinet.flowfoundry.security.AuditLogService;
 import com.tinet.flowfoundry.security.NamespaceAccessService;
-import com.tinet.flowfoundry.security.PlatformSecurityProperties;
 import java.time.Instant;
 import java.util.List;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -34,28 +33,26 @@ public class AdminController {
   private final AuditLogService auditLogService;
   private final AdminAccessService adminAccessService;
   private final NamespaceAccessService namespaceAccessService;
-  private final PlatformSecurityProperties securityProperties;
 
   public AdminController(
       ApiKeyService apiKeyService,
       AuditLogService auditLogService,
       AdminAccessService adminAccessService,
-      NamespaceAccessService namespaceAccessService,
-      PlatformSecurityProperties securityProperties) {
+      NamespaceAccessService namespaceAccessService) {
     this.apiKeyService = apiKeyService;
     this.auditLogService = auditLogService;
     this.adminAccessService = adminAccessService;
     this.namespaceAccessService = namespaceAccessService;
-    this.securityProperties = securityProperties;
   }
 
   @GetMapping("/me")
   public CallerProfileDto me() {
+    // 平台始终启用鉴权，securityEnabled 恒为 true（保留字段以兼容前端展示）。
     return new CallerProfileDto(
         adminAccessService.actorApiKeyId(),
         adminAccessService.isLocalAdminRequest(),
         namespaceAccessService.allowedNamespaces(),
-        securityProperties.enabled());
+        true);
   }
 
   @GetMapping("/api-keys")

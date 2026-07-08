@@ -34,22 +34,14 @@ public class PlatformSecurityConfiguration {
       ObjectMapper objectMapper)
       throws Exception {
     ApiKeyAuthenticationFilter apiKeyFilter =
-        new ApiKeyAuthenticationFilter(properties, apiKeyService, auditLogService);
-    AuditLoggingFilter auditFilter = new AuditLoggingFilter(properties, auditLogService);
+        new ApiKeyAuthenticationFilter(apiKeyService, auditLogService);
+    AuditLoggingFilter auditFilter = new AuditLoggingFilter(auditLogService);
     LocalhostAdminFilter localhostAdminFilter = new LocalhostAdminFilter(properties);
     http.csrf(csrf -> csrf.disable())
         .cors(Customizer.withDefaults())
         .sessionManagement(
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
     configureFrameHeaders(http, flowFoundryProperties);
-
-    if (!properties.enabled()) {
-      http.authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
-          .addFilterBefore(localhostAdminFilter, UsernamePasswordAuthenticationFilter.class)
-          .addFilterBefore(apiKeyFilter, UsernamePasswordAuthenticationFilter.class)
-          .addFilterAfter(auditFilter, ApiKeyAuthenticationFilter.class);
-      return http.build();
-    }
 
     http.authorizeHttpRequests(
             auth ->

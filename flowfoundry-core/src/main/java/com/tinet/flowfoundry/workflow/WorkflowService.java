@@ -46,6 +46,12 @@ public class WorkflowService {
     this.startTimerScheduleService = startTimerScheduleService;
   }
 
+  /** 平台已知的逻辑 namespace（workflow 定义里出现过的），供管理员 namespace 选择器填充。 */
+  @Transactional(readOnly = true)
+  public List<String> knownNamespaces() {
+    return definitionRepository.findDistinctNamespaces();
+  }
+
   @Transactional(readOnly = true)
   public List<WorkflowRecordDto> list(String keyword, String status) {
     String normalizedStatus = status == null || status.isBlank() ? "" : WorkflowStatus.fromValue(status).value();

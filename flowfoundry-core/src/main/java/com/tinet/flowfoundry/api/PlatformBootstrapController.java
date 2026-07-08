@@ -46,7 +46,6 @@ public class PlatformBootstrapController {
     modelerConfig.put("allowFrameEmbedding", modeler.isAllowFrameEmbedding());
 
     Map<String, Object> config = new LinkedHashMap<>();
-    config.put("securityEnabled", securityProperties.enabled());
     config.put("devNamespace", securityProperties.devNamespace());
     config.put("defaultNamespace", securityProperties.devNamespace());
     config.put("namespaceHeader", PlatformSecurityHeaders.PLATFORM_NAMESPACE);
@@ -63,9 +62,6 @@ public class PlatformBootstrapController {
 
   @GetMapping(value = "/auth.js", produces = "application/javascript")
   public ResponseEntity<String> authScript() {
-    if (!securityProperties.enabled()) {
-      return noStoreJs("// FlowFoundry security disabled");
-    }
     String apiKey = resolveBrowserApiKey();
     String namespace = securityProperties.devNamespace();
     if (apiKey.isBlank()) {
@@ -87,10 +83,6 @@ public class PlatformBootstrapController {
   }
 
   private String resolveBrowserApiKey() {
-    String bootstrapKey = securityProperties.bootstrapAdminKey();
-    if (bootstrapKey != null && !bootstrapKey.isBlank()) {
-      return bootstrapKey.trim();
-    }
     return securityProperties.apiKeys().stream()
         .filter(
             apiKey ->

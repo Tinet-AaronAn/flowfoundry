@@ -12,15 +12,11 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
 
-  private final PlatformSecurityProperties properties;
   private final ApiKeyService apiKeyService;
   private final AuditLogService auditLogService;
 
   public ApiKeyAuthenticationFilter(
-      PlatformSecurityProperties properties,
-      ApiKeyService apiKeyService,
-      AuditLogService auditLogService) {
-    this.properties = properties;
+      ApiKeyService apiKeyService, AuditLogService auditLogService) {
     this.apiKeyService = apiKeyService;
     this.auditLogService = auditLogService;
   }
@@ -29,13 +25,6 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
   protected void doFilterInternal(
       HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
       throws ServletException, IOException {
-    if (!properties.enabled()) {
-      SecurityContextHolder.getContext()
-          .setAuthentication(CallerAuthentication.forDev(properties.devNamespace()));
-      filterChain.doFilter(request, response);
-      return;
-    }
-
     String apiKey = resolveApiKey(request);
     if (apiKey == null) {
       filterChain.doFilter(request, response);

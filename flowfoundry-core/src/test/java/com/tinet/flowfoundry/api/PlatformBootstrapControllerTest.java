@@ -21,7 +21,6 @@ class PlatformBootstrapControllerTest {
   @BeforeEach
   void setUp() {
     PlatformSecurityProperties security = new PlatformSecurityProperties();
-    security.setEnabled(false);
     security.setDevNamespace("default");
 
     FlowFoundryProperties flowFoundry = new FlowFoundryProperties();
@@ -59,9 +58,13 @@ class PlatformBootstrapControllerTest {
   @Test
   void authScriptUsesConfiguredAdminApiKey() throws Exception {
     PlatformSecurityProperties security = new PlatformSecurityProperties();
-    security.setEnabled(true);
     security.setDevNamespace("ai-collection-strategy");
-    security.setBootstrapAdminKey("local-admin-key");
+    PlatformSecurityProperties.ApiKeyProperties adminKey =
+        new PlatformSecurityProperties.ApiKeyProperties();
+    adminKey.setId("platform-admin");
+    adminKey.setKey("local-admin-key");
+    adminKey.setAdmin(true);
+    security.setApiKeys(java.util.List.of(adminKey));
 
     mockMvc =
         MockMvcBuilders.standaloneSetup(

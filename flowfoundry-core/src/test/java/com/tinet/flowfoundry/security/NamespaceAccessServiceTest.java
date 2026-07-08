@@ -18,7 +18,6 @@ class NamespaceAccessServiceTest {
   @BeforeEach
   void setUp() {
     PlatformSecurityProperties properties = new PlatformSecurityProperties();
-    properties.setEnabled(true);
     properties.setDevNamespace("default");
     namespaceAccess = new NamespaceAccessService(properties);
     SecurityContextHolder.getContext()

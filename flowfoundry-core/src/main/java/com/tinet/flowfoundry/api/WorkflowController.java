@@ -41,7 +41,15 @@ public class WorkflowController {
 
   @GetMapping("/context")
   public NamespaceContextDto namespaceContext() {
-    return namespaceAccess.namespaceContext();
+    NamespaceContextDto base = namespaceAccess.namespaceContext();
+    if (!namespaceAccess.isAdmin()) {
+      return base;
+    }
+    // 管理员可访问全部 namespace：把「已知逻辑 namespace」（workflow 定义里出现过的）并入允许集，
+    // 使右上角选择器能列出并切换所有 namespace。
+    java.util.SortedSet<String> known = new java.util.TreeSet<>(base.allowedNamespaces());
+    known.addAll(workflowService.knownNamespaces());
+    return new NamespaceContextDto(base.namespace(), known, base.namespaceHeader());
   }
 
   @GetMapping

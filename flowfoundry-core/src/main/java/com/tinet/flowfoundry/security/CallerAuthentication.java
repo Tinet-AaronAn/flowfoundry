@@ -30,11 +30,6 @@ public final class CallerAuthentication extends AbstractAuthenticationToken {
         authorities(apiKey.admin()));
   }
 
-  public static CallerAuthentication forDev(String devNamespace) {
-    return new CallerAuthentication(
-        "dev", Set.of(devNamespace), true, List.of(role("ROLE_API_KEY"), role("ROLE_PLATFORM_ADMIN")));
-  }
-
   public String apiKeyId() {
     return apiKeyId;
   }

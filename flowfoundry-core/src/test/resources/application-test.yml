@@ -15,5 +15,4 @@ spring:
 
 flowfoundry:
   security:
-    enabled: false
     dev-namespace: test-ns
