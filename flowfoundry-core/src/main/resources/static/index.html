@@ -5,12 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta http-equiv="Cache-Control" content="no-cache" />
     <title>FlowFoundry Modeler - Temporal Runtime</title>
+    <link rel="icon" href="assets/brand/flowfoundry-icon.svg?v=@flowfoundry.static.version@" type="image/svg+xml" />
     <link rel="stylesheet" href="assets/css/modeler.css?v=@flowfoundry.static.version@" />
   </head>
   <body>
     <div class="shell">
       <header class="topbar">
-        <div class="brand"><span class="logo"></span><span>FlowFoundry</span></div>
+        <div class="brand"><img class="logo" src="assets/brand/flowfoundry-icon.svg?v=@flowfoundry.static.version@" alt="" width="28" height="28" /><span>FlowFoundry</span></div>
         <div class="spacer"></div>
         <label class="locale-switch" for="namespaceSelect" id="namespaceSwitch">
           <span data-i18n="namespace.label">Namespace</span>
@@ -28,7 +29,7 @@
       <div class="app" id="app">
         <aside class="nav" id="navPanel">
           <div class="nav-header">
-            <div class="nav-title">FlowFoundry</div>
+            <div class="nav-title"><img class="logo nav-logo" src="assets/brand/flowfoundry-icon.svg?v=@flowfoundry.static.version@" alt="" width="24" height="24" /><span>FlowFoundry</span></div>
             <button type="button" class="panel-toggle" id="navToggleBtn" onclick="toggleNav()" data-i18n-title="nav.collapse" title="Collapse menu" aria-expanded="true">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
@@ -42,7 +43,8 @@
             </div>
             <div class="nav-group hidden" id="navSystemGroup">
               <div class="nav-group-title">SYSTEM</div>
-              <button class="nav-link" id="navAdminApiKeys" onclick="switchView('admin')">API Keys</button>
+              <button class="nav-link" id="navAdminNamespaces" onclick="switchView('namespaces')" data-i18n="nav.namespaces">Namespaces</button>
+              <button class="nav-link" id="navAdminApiKeys" onclick="switchView('admin')" data-i18n="nav.apiKeys">API Keys</button>
             </div>
           </div>
         </aside>
@@ -84,7 +86,8 @@
               <h1 data-i18n="runs.title">Execution Runs</h1>
             </div>
             <div class="workflow-filters">
-              <input id="runsSearch" class="workflow-search" data-i18n-placeholder="runs.searchPlaceholder" placeholder="Search by execution ID or workflow..." oninput="renderRunsList()" />
+              <input id="runsSearch" class="workflow-search" data-i18n-placeholder="runs.searchPlaceholder" placeholder="Search by execution ID or workflow..." onkeydown="if (event.key === 'Enter') searchRunsList()" />
+              <button class="secondary" onclick="searchRunsList()" data-i18n="runs.search">Search</button>
             </div>
             <div class="table" id="runsTable"></div>
           </section>
@@ -102,7 +105,6 @@
               <h2 class="admin-section-title" data-i18n="admin.apiKeysTitle">API Key</h2>
               <div class="workflow-filters">
                 <input id="adminApiKeySearch" class="workflow-search" data-i18n-placeholder="admin.searchPlaceholder" placeholder="Search by name..." oninput="renderAdminApiKeysTable()" />
-                <label class="admin-inline-check"><input type="checkbox" id="adminAllNamespaces" onchange="toggleAdminAllNamespaces(this.checked)" /> <span data-i18n="admin.allNamespaces">All namespaces</span></label>
                 <button class="secondary" onclick="refreshAdminApiKeys()" data-i18n="admin.refresh">Refresh</button>
               </div>
               <div class="table admin-table-wrap">
@@ -149,6 +151,40 @@
                   </thead>
                   <tbody id="adminAuditTable">
                     <tr><td colspan="6" class="admin-empty" data-i18n="admin.auditPrompt">Set filters and click Search to query audit logs.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+          <section class="admin-list view" id="namespacesView">
+            <div class="page-header">
+              <h1 data-i18n="nsAdmin.title">Namespace Management</h1>
+              <div class="spacer"></div>
+              <button onclick="createAdminNamespace()" data-i18n="nsAdmin.create">New Namespace</button>
+            </div>
+            <div id="namespacesAccessDenied" class="app-notice app-notice-warning hidden">
+              <div class="app-notice-text" data-i18n="admin.accessDenied">Admin API is only available from 127.0.0.1 on this machine.</div>
+            </div>
+            <div id="namespacesPanels">
+              <div class="workflow-filters">
+                <input id="namespaceAdminSearch" class="workflow-search" data-i18n-placeholder="nsAdmin.searchPlaceholder" placeholder="Search namespaces..." oninput="renderAdminNamespacesTable()" />
+                <button class="secondary" onclick="refreshAdminNamespaces()" data-i18n="admin.refresh">Refresh</button>
+              </div>
+              <div class="table admin-table-wrap">
+                <table class="admin-table">
+                  <thead>
+                    <tr>
+                      <th data-i18n="nsAdmin.col.id">Namespace ID</th>
+                      <th data-i18n="nsAdmin.col.displayName">Display name</th>
+                      <th data-i18n="nsAdmin.col.description">Description</th>
+                      <th data-i18n="nsAdmin.col.type">Type</th>
+                      <th data-i18n="nsAdmin.col.created">Created</th>
+                      <th data-i18n="nsAdmin.col.updated">Updated</th>
+                      <th data-i18n="admin.col.actions">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="adminNamespacesTable">
+                    <tr><td colspan="7" class="admin-empty">Loading...</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -355,6 +391,7 @@
     <script src="assets/js/modeler-runs.js?v=@flowfoundry.static.version@"></script>
     <script src="assets/js/modeler-bootstrap.js?v=@flowfoundry.static.version@"></script>
     <script src="assets/js/modeler-admin.js?v=@flowfoundry.static.version@"></script>
+    <script src="assets/js/modeler-namespaces.js?v=@flowfoundry.static.version@"></script>
     <script>
       initI18n();
       initNamespaceContext().then(() => {

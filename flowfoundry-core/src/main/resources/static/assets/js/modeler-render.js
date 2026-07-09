@@ -86,7 +86,7 @@
         renderMinimap();
         renderProperties();
         renderWorkflowList();
-        renderRunsList();
+        if (state.currentView === 'runs') renderRunsView();
         renderNavigation();
         updateButtons();
         updateViewportUi();
@@ -97,11 +97,13 @@
         $('navModeler')?.classList.toggle('active', state.currentView === 'modeler');
         $('navRuns')?.classList.toggle('active', state.currentView === 'runs');
         $('navAdminApiKeys')?.classList.toggle('active', state.currentView === 'admin');
+        $('navAdminNamespaces')?.classList.toggle('active', state.currentView === 'namespaces');
       }
 
       function applyViewLayout() {
         const inModeler = state.currentView === 'modeler';
         $('app')?.classList.toggle('modeler-view', inModeler);
+        renderNamespaceSelector();
       }
 
       function switchView(view) {
@@ -111,12 +113,17 @@
         $('modelerView')?.classList.toggle('active', view === 'modeler');
         $('runsView')?.classList.toggle('active', view === 'runs');
         $('adminView')?.classList.toggle('active', view === 'admin');
+        $('namespacesView')?.classList.toggle('active', view === 'namespaces');
         renderNavigation();
         if (view === 'workflows') renderWorkflowList();
-        if (view === 'runs') renderRunsList();
+        if (view === 'runs') renderRunsView();
         if (view === 'admin') {
           dismissNotice();
           renderAdminView();
+        }
+        if (view === 'namespaces') {
+          dismissNotice();
+          renderNamespacesView();
         }
         if (view === 'modeler') {
           syncModelHeader();

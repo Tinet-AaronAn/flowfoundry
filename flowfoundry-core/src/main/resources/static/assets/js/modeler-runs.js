@@ -1,11 +1,40 @@
       const FLOW_RUNS_KEY = 'flowfoundry-flow-runs';
 
+      function extractNamespaceFromBusinessKey(businessKey) {
+        if (!businessKey || typeof businessKey !== 'string') return '';
+        const idx = businessKey.indexOf(':');
+        return idx > 0 ? businessKey.slice(0, idx) : '';
+      }
+
+      function resolveRunNamespace(run) {
+        if (!run) return '';
+        if (run.namespace) return String(run.namespace);
+        return extractNamespaceFromBusinessKey(run.lastSnapshot?.businessKey);
+      }
+
+      function runMatchesNamespace(run, currentNamespace) {
+        if (!currentNamespace) return true;
+        const runNamespace = resolveRunNamespace(run);
+        return runNamespace === currentNamespace;
+      }
+
       function loadFlowRuns() {
         try {
           state.flowRuns = JSON.parse(localStorage.getItem(FLOW_RUNS_KEY) || '[]');
         } catch (ignored) {
           state.flowRuns = [];
         }
+        let changed = false;
+        state.flowRuns.forEach(run => {
+          if (!run.namespace) {
+            const inferred = resolveRunNamespace(run);
+            if (inferred) {
+              run.namespace = inferred;
+              changed = true;
+            }
+          }
+        });
+        if (changed) persistFlowRuns();
       }
 
       function persistFlowRuns() {
@@ -62,14 +91,51 @@
         renderRunsList();
       }
 
+      function clearActiveRunIfNamespaceMismatch(namespace) {
+        const active = activeFlowRun();
+        if (active && !runMatchesNamespace(active, namespace)) {
+          state.activeRunId = '';
+          setActiveWorkflowRunId('');
+          state.runtimeSnapshot = null;
+          stopRuntimePolling?.();
+        }
+      }
+
+      function renderRunsSearchPrompt() {
+        const table = $('runsTable');
+        if (!table) return;
+        table.innerHTML = `<div class="runs-search-prompt admin-empty">${escapeHtml(t('runs.searchPrompt'))}</div>`;
+      }
+
+      function resetRunsSearchView() {
+        state.runsListLoaded = false;
+        if (state.currentView === 'runs') renderRunsSearchPrompt();
+      }
+
+      function renderRunsView() {
+        stopRuntimePolling?.();
+        state.runsListLoaded = false;
+        loadFlowRuns();
+        renderRunsSearchPrompt();
+      }
+
+      function searchRunsList() {
+        loadFlowRuns();
+        state.runsListLoaded = true;
+        renderRunsList();
+      }
+
       function renderRunsList() {
         const table = $('runsTable');
         if (!table) return;
+        if (!state.runsListLoaded) {
+          if (state.currentView === 'runs') renderRunsSearchPrompt();
+          return;
+        }
         const keyword = ($('runsSearch')?.value || '').trim().toLowerCase();
         const currentNamespace = (typeof platformNamespace === 'function' ? platformNamespace() : '') || '';
         const rows = state.flowRuns.filter(run => {
-          // 严格按选中 namespace 过滤；无 namespace 标签的旧记录保留兼容。
-          if (currentNamespace && run.namespace && run.namespace !== currentNamespace) return false;
+          if (!runMatchesNamespace(run, currentNamespace)) return false;
           if (!keyword) return true;
           return run.id.toLowerCase().includes(keyword)
             || String(run.definitionName || '').toLowerCase().includes(keyword)
@@ -88,6 +154,37 @@
         `;
       }
 
+      function resolveRunTemporalHistoryUrl(run) {
+        const snapshot = run?.lastSnapshot
+          || (run?.id && run.id === state.runtimeSnapshot?.workflowId ? state.runtimeSnapshot : null);
+        if (snapshot?.temporalHistoryUrl) return snapshot.temporalHistoryUrl;
+        const workflowId = run?.id || snapshot?.workflowId;
+        if (!workflowId) return null;
+        const temporal = window.FLOWFOUNDRY_PUBLIC_CONFIG?.temporal || {};
+        const base = String(snapshot?.temporalUiBaseUrl || temporal.uiBaseUrl || 'http://127.0.0.1:8080').replace(/\/+$/, '');
+        const namespace = encodeURIComponent(snapshot?.temporalNamespace || temporal.namespace || 'default');
+        const wf = encodeURIComponent(workflowId);
+        const runId = snapshot?.runId;
+        if (runId) {
+          return `${base}/namespaces/${namespace}/workflows/${wf}/${encodeURIComponent(runId)}/history`;
+        }
+        return `${base}/namespaces/${namespace}/workflows/${wf}/history`;
+      }
+
+      function openRunTemporalLog(runId) {
+        const run = state.flowRuns.find(item => item.id === runId);
+        const url = resolveRunTemporalHistoryUrl(run);
+        if (!url) {
+          message(t('runs.message.temporalLogUnavailable'), 'error');
+          return;
+        }
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
+
+      async function showRunState(runId) {
+        await queryRunState(runId);
+      }
+
       function runRowHtml(run) {
         const active = run.id === state.activeRunId ? ' active' : '';
         return `<div class="table-row runs-row${active}">
@@ -97,7 +194,8 @@
           <div><span class="pill ${escapeAttr((run.status || 'RUNNING').toLowerCase())}">${escapeHtml(run.status || 'RUNNING')}</span><div class="help">${escapeHtml(run.runSource || 'web-modeler')}</div></div>
           <div>${escapeHtml(formatDate(run.startedAt))}</div>
           <div class="table-actions">
-            <button class="secondary" onclick="queryRunState('${escapeAttr(run.id)}')">${escapeHtml(t('runs.query'))}</button>
+            <button class="secondary" onclick="showRunState('${escapeAttr(run.id)}')">${escapeHtml(t('runs.showState'))}</button>
+            <button class="secondary" onclick="openRunTemporalLog('${escapeAttr(run.id)}')">${escapeHtml(t('runs.temporalLog'))}</button>
           </div>
         </div>`;
       }
@@ -129,12 +227,12 @@
         updateFlowRunStatus(runId, data.status || 'RUNNING', data);
         setActiveWorkflowRunId(runId);
         state.runtimeSnapshot = data;
-        if (data.runSource) {
-          const run = state.flowRuns.find(r => r.id === runId);
-          if (run) {
-            run.runSource = data.runSource;
-            persistFlowRuns();
-          }
+        const run = state.flowRuns.find(r => r.id === runId);
+        if (run) {
+          if (data.runSource) run.runSource = data.runSource;
+          const namespace = extractNamespaceFromBusinessKey(data.businessKey);
+          if (namespace) run.namespace = namespace;
+          persistFlowRuns();
         }
         renderRuntimeStatus(data);
         highlightRuntimeNode(data.currentNodeId || data.waitingHumanTaskNodeId || null);

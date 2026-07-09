@@ -28,6 +28,9 @@ import org.springframework.stereotype.Component;
  *       与生产 run logs 隔离。调试运行使用桩 Activity，但桩化发生在 Activity 内部，故仍需 Worker 在该 namespace
  *       轮询同一 Task Queue。
  * </ul>
+ *
+ * <p>平台 core Activity（{@code script-runtime}、{@code human-task}）走 {@code flowfoundry-platform} 队列，
+ * 由 {@link PlatformCoreWorkerBootstrap} 在平台进程内执行，业务 Worker 不轮询该队列。
  */
 @Component
 @ConditionalOnFlowFoundryWorker

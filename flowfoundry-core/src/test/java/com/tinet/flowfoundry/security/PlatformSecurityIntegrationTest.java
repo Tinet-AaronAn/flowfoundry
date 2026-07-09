@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.tinet.flowfoundry.api.PlatformBootstrapController;
 import com.tinet.flowfoundry.config.FlowFoundryProperties;
+import com.tinet.flowfoundry.config.NamespaceRoutingProperties;
 import com.tinet.flowfoundry.config.StaticAssetVersion;
 import com.tinet.flowfoundry.config.TemporalProperties;
 import java.util.Optional;
@@ -48,7 +49,6 @@ class PlatformSecurityIntegrationTest {
   @BeforeEach
   void setUp() {
     properties = new PlatformSecurityProperties();
-    properties.setDevNamespace("alpha");
     filter = new ApiKeyAuthenticationFilter(apiKeyService, auditLogService);
     SecurityContextHolder.getContext()
         .setAuthentication(
@@ -96,6 +96,7 @@ class PlatformSecurityIntegrationTest {
         MockMvcBuilders.standaloneSetup(
                 new PlatformBootstrapController(
                     properties,
+                    new NamespaceRoutingProperties(),
                     new FlowFoundryProperties(),
                     new TemporalProperties(
                         "127.0.0.1:7233", "default", "flowfoundry-platform", 50, 100, null),

@@ -8,7 +8,6 @@ flowfoundry:
   security:
     # 平台始终启用鉴权（无“关闭”开关）。默认管理员 Key 由 FLOWFOUNDRY_API_KEY 提供，
     # 未配置时回退到 local-admin-key，保证本地开箱可用。
-    dev-namespace: ${FLOWFOUNDRY_DEV_NAMESPACE:default}
     api-keys:
       - id: platform-admin
         key: ${FLOWFOUNDRY_API_KEY:local-admin-key}

@@ -41,4 +41,6 @@ public interface WorkflowDefinitionRepository extends JpaRepository<WorkflowDefi
       ORDER BY w.namespace
       """)
   List<String> findDistinctNamespaces();
+
+  long countByNamespace(String namespace);
 }

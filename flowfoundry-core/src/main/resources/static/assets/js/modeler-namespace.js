@@ -17,7 +17,7 @@
         } catch (ignored) {
           // fall back to bootstrap defaults
         }
-        const defaultNamespace = global.FLOWFOUNDRY_PUBLIC_CONFIG?.defaultNamespace;
+        const defaultNamespace = window.FLOWFOUNDRY_PUBLIC_CONFIG?.defaultNamespace;
         if (!platformNamespace() && defaultNamespace) {
           setPlatformNamespace(defaultNamespace);
         }
@@ -25,15 +25,31 @@
         renderNamespaceSelector();
       }
 
+      function isGlobalAdminView() {
+        return state.currentView === 'admin' || state.currentView === 'namespaces';
+      }
+
+      function setNamespaceSelectorVisible(visible) {
+        const wrap = $('namespaceSwitch');
+        if (!wrap) return;
+        wrap.classList.toggle('hidden', !visible);
+        if (visible) wrap.removeAttribute('hidden');
+        else wrap.setAttribute('hidden', '');
+      }
+
       function renderNamespaceSelector() {
         const select = $('namespaceSelect');
         const wrap = $('namespaceSwitch');
         if (!select || !wrap) return;
+        if (isGlobalAdminView()) {
+          setNamespaceSelectorVisible(false);
+          return;
+        }
         const allowed = state.allowedNamespaces?.length
           ? state.allowedNamespaces
           : [platformNamespace()].filter(Boolean);
         if (allowed.length === 0) {
-          wrap.hidden = true;
+          setNamespaceSelectorVisible(false);
           return;
         }
         const current = platformNamespace() || allowed[0];
@@ -41,7 +57,7 @@
         select.innerHTML = allowed
           .map(id => `<option value="${escapeAttr(id)}" ${id === current ? 'selected' : ''}>${escapeHtml(id)}</option>`)
           .join('');
-        wrap.hidden = allowed.length <= 1;
+        setNamespaceSelectorVisible(allowed.length > 1);
       }
 
       async function setActiveNamespace(namespace) {
@@ -49,8 +65,11 @@
         setPlatformNamespace(namespace);
         await refreshWorkflowStoreForNamespace();
         renderNamespaceSelector();
+        if (typeof clearActiveRunIfNamespaceMismatch === 'function') {
+          clearActiveRunIfNamespaceMismatch(namespace);
+        }
         if (typeof renderWorkflowList === 'function') renderWorkflowList();
-        if (typeof renderRunsList === 'function') renderRunsList();
+        if (typeof resetRunsSearchView === 'function') resetRunsSearchView();
         message(t('message.namespaceChanged', { namespace }), 'info');
       }
 

@@ -14,5 +14,5 @@ spring:
       - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
 
 flowfoundry:
-  security:
-    dev-namespace: test-ns
+  namespace:
+    system: test-ns

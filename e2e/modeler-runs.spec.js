@@ -29,6 +29,7 @@ test.describe('FlowFoundry execution runs', () => {
 
     await page.locator('#navRuns').click();
     await expect(page.locator('#runsView')).toHaveClass(/active/);
+    await page.locator('#runsView').getByRole('button', { name: 'Search', exact: true }).click();
     await expect(page.locator('#runsTable')).toContainText(workflowId);
     await expect(page.locator('#propertiesPanel')).toBeHidden();
 

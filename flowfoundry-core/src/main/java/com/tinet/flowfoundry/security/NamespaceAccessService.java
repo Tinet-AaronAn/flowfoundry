@@ -1,5 +1,6 @@
 package com.tinet.flowfoundry.security;
 
+import com.tinet.flowfoundry.config.NamespaceRoutingProperties;
 import com.tinet.flowfoundry.workflow.NamespaceContextDto;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Optional;
@@ -17,16 +18,16 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 @Service
 public class NamespaceAccessService {
 
-  private final PlatformSecurityProperties properties;
+  private final NamespaceRoutingProperties namespaceRouting;
 
-  public NamespaceAccessService(PlatformSecurityProperties properties) {
-    this.properties = properties;
+  public NamespaceAccessService(NamespaceRoutingProperties namespaceRouting) {
+    this.namespaceRouting = namespaceRouting;
   }
 
   public Set<String> allowedNamespaces() {
     return currentCaller()
         .map(CallerAuthentication::namespaces)
-        .orElse(Set.of(properties.devNamespace()));
+        .orElse(Set.of(platformNamespace()));
   }
 
   public boolean canAccess(String namespace) {
@@ -47,7 +48,7 @@ public class NamespaceAccessService {
   public String resolveActiveNamespace() {
     CallerAuthentication caller = currentCaller().orElse(null);
     if (caller != null && caller.admin() && caller.namespaces().isEmpty()) {
-      return resolveNamespaceHeader().orElse(properties.devNamespace());
+      return resolveNamespaceHeader().orElse(platformNamespace());
     }
 
     Set<String> allowed = allowedNamespaces();
@@ -87,6 +88,11 @@ public class NamespaceAccessService {
 
   public boolean isAdmin() {
     return currentCaller().map(CallerAuthentication::admin).orElse(false);
+  }
+
+  /** 平台（core）固定逻辑 namespace，与 Temporal 系统 namespace 同名。 */
+  private String platformNamespace() {
+    return namespaceRouting.system();
   }
 
   private Optional<String> resolveNamespaceHeader() {

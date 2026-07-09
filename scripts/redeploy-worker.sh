@@ -66,7 +66,7 @@ start_app() {
     --flowfoundry.run-mode=platform \
     --flowfoundry.activity-registry.path="file:$REGISTRY" \
     --platform.activity-registry.path="file:$REGISTRY" \
-    --flowfoundry.security.dev-namespace="${FLOWFOUNDRY_DEV_NAMESPACE:-default}" \
+    --flowfoundry.namespace.system="${FLOWFOUNDRY_SYSTEM_NAMESPACE:-flowfoundry-system}" \
     --flowfoundry.security.api-keys[0].id=platform-admin \
     --flowfoundry.security.api-keys[0].key="${FLOWFOUNDRY_API_KEY:-local-admin-key}" \
     --flowfoundry.security.api-keys[0].admin=true \

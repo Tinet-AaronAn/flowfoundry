@@ -67,6 +67,7 @@
         runtimeSnapshot: null,
         lastRunResult: null,
         flowRuns: [],
+        runsListLoaded: false,
         activeRunId: null,
         taskMorphMenuNodeId: null,
         suppressCanvasClick: false,

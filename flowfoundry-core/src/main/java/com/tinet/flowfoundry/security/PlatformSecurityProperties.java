@@ -7,17 +7,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "flowfoundry.security")
 public class PlatformSecurityProperties {
 
-  private String devNamespace = "default";
   private boolean adminLocalhostOnly = true;
   private List<ApiKeyProperties> apiKeys = new ArrayList<>();
-
-  public String devNamespace() {
-    return devNamespace == null || devNamespace.isBlank() ? "default" : devNamespace.trim();
-  }
-
-  public void setDevNamespace(String devNamespace) {
-    this.devNamespace = devNamespace;
-  }
 
   public boolean adminLocalhostOnly() {
     return adminLocalhostOnly;

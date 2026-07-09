@@ -6,10 +6,14 @@ import com.tinet.flowfoundry.security.AdminContracts.AuditLogPageDto;
 import com.tinet.flowfoundry.security.AdminContracts.CallerProfileDto;
 import com.tinet.flowfoundry.security.AdminContracts.CreateApiKeyRequest;
 import com.tinet.flowfoundry.security.AdminContracts.CreateApiKeyResponse;
+import com.tinet.flowfoundry.security.AdminContracts.CreateNamespaceRequest;
+import com.tinet.flowfoundry.security.AdminContracts.NamespaceDto;
 import com.tinet.flowfoundry.security.AdminContracts.UpdateApiKeyRequest;
+import com.tinet.flowfoundry.security.AdminContracts.UpdateNamespaceRequest;
 import com.tinet.flowfoundry.security.ApiKeyService;
 import com.tinet.flowfoundry.security.AuditLogService;
 import com.tinet.flowfoundry.security.NamespaceAccessService;
+import com.tinet.flowfoundry.security.NamespaceAdminService;
 import java.time.Instant;
 import java.util.List;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -33,16 +37,19 @@ public class AdminController {
   private final AuditLogService auditLogService;
   private final AdminAccessService adminAccessService;
   private final NamespaceAccessService namespaceAccessService;
+  private final NamespaceAdminService namespaceAdminService;
 
   public AdminController(
       ApiKeyService apiKeyService,
       AuditLogService auditLogService,
       AdminAccessService adminAccessService,
-      NamespaceAccessService namespaceAccessService) {
+      NamespaceAccessService namespaceAccessService,
+      NamespaceAdminService namespaceAdminService) {
     this.apiKeyService = apiKeyService;
     this.auditLogService = auditLogService;
     this.adminAccessService = adminAccessService;
     this.namespaceAccessService = namespaceAccessService;
+    this.namespaceAdminService = namespaceAdminService;
   }
 
   @GetMapping("/me")
@@ -56,17 +63,9 @@ public class AdminController {
   }
 
   @GetMapping("/api-keys")
-  public List<ApiKeyDto> listApiKeys(
-      @RequestParam(name = "allNamespaces", defaultValue = "false") boolean allNamespaces) {
+  public List<ApiKeyDto> listApiKeys() {
     adminAccessService.requireAdmin();
-    // 默认按右上角选中 namespace 过滤；管理员可传 allNamespaces=true 查看全部。
-    if (allNamespaces) {
-      return apiKeyService.list();
-    }
-    String namespace = namespaceAccessService.namespaceContext().namespace();
-    return namespace == null
-        ? apiKeyService.list()
-        : apiKeyService.listByNamespace(namespace);
+    return apiKeyService.list();
   }
 
   @GetMapping("/api-keys/{apiKeyId}")
@@ -102,13 +101,40 @@ public class AdminController {
           Instant from,
       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to,
       @RequestParam(defaultValue = "false") boolean includeApiCalls,
-      @RequestParam(name = "allNamespaces", defaultValue = "false") boolean allNamespaces,
       @RequestParam(defaultValue = "0") int page,
       @RequestParam(defaultValue = "10") int size) {
     adminAccessService.requireAdmin();
-    // 默认按右上角选中 namespace 过滤；管理员可传 allNamespaces=true 查看全部。
-    String namespace = allNamespaces ? null : namespaceAccessService.namespaceContext().namespace();
     return auditLogService.search(
-        apiKeyId, action, from, to, includeApiCalls, namespace, page, size);
+        apiKeyId, action, from, to, includeApiCalls, null, page, size);
+  }
+
+  @GetMapping("/namespaces")
+  public List<NamespaceDto> listNamespaces() {
+    adminAccessService.requireAdmin();
+    return namespaceAdminService.list();
+  }
+
+  @GetMapping("/namespaces/{namespaceId}")
+  public NamespaceDto getNamespace(@PathVariable String namespaceId) {
+    adminAccessService.requireAdmin();
+    return namespaceAdminService.get(namespaceId);
+  }
+
+  @PostMapping("/namespaces")
+  @ResponseStatus(HttpStatus.CREATED)
+  public NamespaceDto createNamespace(@RequestBody CreateNamespaceRequest request) {
+    return namespaceAdminService.create(request);
+  }
+
+  @PutMapping("/namespaces/{namespaceId}")
+  public NamespaceDto updateNamespace(
+      @PathVariable String namespaceId, @RequestBody UpdateNamespaceRequest request) {
+    return namespaceAdminService.update(namespaceId, request);
+  }
+
+  @DeleteMapping("/namespaces/{namespaceId}")
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  public void deleteNamespace(@PathVariable String namespaceId) {
+    namespaceAdminService.delete(namespaceId);
   }
 }

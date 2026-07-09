@@ -9,6 +9,9 @@ public final class AuditActions {
   public static final String API_KEY_DISABLED = "API_KEY_DISABLED";
   public static final String API_KEY_DELETED = "API_KEY_DELETED";
   public static final String API_KEY_ROTATED = "API_KEY_ROTATED";
+  public static final String NAMESPACE_CREATED = "NAMESPACE_CREATED";
+  public static final String NAMESPACE_UPDATED = "NAMESPACE_UPDATED";
+  public static final String NAMESPACE_DELETED = "NAMESPACE_DELETED";
 
   private AuditActions() {}
 }

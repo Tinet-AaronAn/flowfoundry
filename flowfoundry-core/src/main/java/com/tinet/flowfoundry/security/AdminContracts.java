@@ -60,4 +60,16 @@ public final class AdminContracts {
       int size,
       long totalElements,
       int totalPages) {}
+
+  public record NamespaceDto(
+      String id,
+      String displayName,
+      String description,
+      boolean system,
+      Instant createdAt,
+      Instant updatedAt) {}
+
+  public record CreateNamespaceRequest(String id, String displayName, String description) {}
+
+  public record UpdateNamespaceRequest(String displayName, String description) {}
 }

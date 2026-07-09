@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.tinet.flowfoundry.config.FlowFoundryProperties;
+import com.tinet.flowfoundry.config.NamespaceRoutingProperties;
 import com.tinet.flowfoundry.config.StaticAssetVersion;
 import com.tinet.flowfoundry.config.TemporalProperties;
 import com.tinet.flowfoundry.security.PlatformSecurityProperties;
@@ -21,7 +22,7 @@ class PlatformBootstrapControllerTest {
   @BeforeEach
   void setUp() {
     PlatformSecurityProperties security = new PlatformSecurityProperties();
-    security.setDevNamespace("default");
+    NamespaceRoutingProperties namespaceRouting = new NamespaceRoutingProperties();
 
     FlowFoundryProperties flowFoundry = new FlowFoundryProperties();
     FlowFoundryProperties.Modeler modeler = new FlowFoundryProperties.Modeler();
@@ -35,7 +36,11 @@ class PlatformBootstrapControllerTest {
     mockMvc =
         MockMvcBuilders.standaloneSetup(
                 new PlatformBootstrapController(
-                    security, flowFoundry, temporal, new StaticAssetVersion(Optional.empty())))
+                    security,
+                    namespaceRouting,
+                    flowFoundry,
+                    temporal,
+                    new StaticAssetVersion(Optional.empty())))
             .build();
   }
 
@@ -49,7 +54,7 @@ class PlatformBootstrapControllerTest {
         .andExpect(jsonPath("$.modeler.embedPath").value("/modeler/embed.html"))
         .andExpect(jsonPath("$.modeler.apiBase").value("/api"))
         .andExpect(jsonPath("$.modeler.sdkScriptPath").value("/assets/js/flowfoundry-modeler-sdk.js"))
-        .andExpect(jsonPath("$.defaultNamespace").value("default"))
+        .andExpect(jsonPath("$.defaultNamespace").value("flowfoundry-system"))
         .andExpect(jsonPath("$.namespaceHeader").value("X-Platform-Namespace"))
         .andExpect(jsonPath("$.temporal.namespace").value("call-campaign"))
         .andExpect(jsonPath("$.temporal.uiBaseUrl").value("http://127.0.0.1:8080"));
@@ -58,7 +63,8 @@ class PlatformBootstrapControllerTest {
   @Test
   void authScriptUsesConfiguredAdminApiKey() throws Exception {
     PlatformSecurityProperties security = new PlatformSecurityProperties();
-    security.setDevNamespace("ai-collection-strategy");
+    NamespaceRoutingProperties namespaceRouting = new NamespaceRoutingProperties();
+    namespaceRouting.setSystem("flowfoundry-system");
     PlatformSecurityProperties.ApiKeyProperties adminKey =
         new PlatformSecurityProperties.ApiKeyProperties();
     adminKey.setId("platform-admin");
@@ -70,6 +76,7 @@ class PlatformBootstrapControllerTest {
         MockMvcBuilders.standaloneSetup(
                 new PlatformBootstrapController(
                     security,
+                    namespaceRouting,
                     new FlowFoundryProperties(),
                     new TemporalProperties(
                         "127.0.0.1:7233", "default", "flowfoundry-platform", 50, 100, null),
@@ -82,7 +89,10 @@ class PlatformBootstrapControllerTest {
         .andExpect(
             org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
                 .string(
-                    org.hamcrest.Matchers.containsString(
-                        "window.FLOWFOUNDRY_API_KEY=\"local-admin-key\"")));
+                    org.hamcrest.Matchers.allOf(
+                        org.hamcrest.Matchers.containsString(
+                            "window.FLOWFOUNDRY_API_KEY=\"local-admin-key\""),
+                        org.hamcrest.Matchers.containsString(
+                            "window.FLOWFOUNDRY_NAMESPACE=\"flowfoundry-system\""))));
   }
 }

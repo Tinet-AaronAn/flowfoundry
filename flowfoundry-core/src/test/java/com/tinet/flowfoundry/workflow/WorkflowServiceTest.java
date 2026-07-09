@@ -33,7 +33,7 @@ import org.springframework.test.context.TestPropertySource;
 
 @DataJpaTest
 @ActiveProfiles("test")
-@TestPropertySource(properties = "flowfoundry.security.dev-namespace=test-ns")
+@TestPropertySource(properties = "flowfoundry.namespace.system=test-ns")
 @Import({
   JacksonAutoConfiguration.class,
   WorkflowService.class,
@@ -42,6 +42,7 @@ import org.springframework.test.context.TestPropertySource;
   PlatformIdGenerator.class,
   ShortIdGenerator.class,
   NamespaceAccessService.class,
+  NamespaceRoutingProperties.class,
   AdminAccessService.class,
   ApiKeyService.class,
   AuditLogService.class,

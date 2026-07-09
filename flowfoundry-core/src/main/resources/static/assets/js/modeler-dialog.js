@@ -102,6 +102,11 @@
             if (el.checked) data[el.name] = el.value;
             return;
           }
+          if (el.type === 'checkbox' && el.dataset.checkboxGroup === 'true') {
+            if (!Array.isArray(data[el.name])) data[el.name] = [];
+            if (el.checked) data[el.name].push(el.value);
+            return;
+          }
           data[el.name] = el.value;
         });
         return data;
@@ -184,6 +189,28 @@
               <legend class="app-dialog-form-label">${escapeHtml(field.label || field.name)}</legend>
               ${hint}
               <div class="app-dialog-form-radios">${options}</div>
+            </fieldset>
+          `;
+        }
+        if (field.type === 'checkbox-group') {
+          const selected = new Set(Array.isArray(field.value) ? field.value : []);
+          const options = (field.options || []).map(option => `
+            <label class="app-dialog-form-checkbox">
+              <input type="checkbox" data-checkbox-group="true" name="${escapeAttr(field.name)}" value="${escapeAttr(option.value)}"${selected.has(option.value) ? ' checked' : ''} />
+              <div class="app-dialog-form-checkbox-body">
+                <span class="app-dialog-form-checkbox-label">${escapeHtml(option.label || option.value)}</span>
+                ${option.hint ? `<span class="app-dialog-form-checkbox-hint">${escapeHtml(option.hint)}</span>` : ''}
+              </div>
+            </label>
+          `).join('');
+          const empty = (field.options || []).length === 0
+            ? `<p class="app-dialog-form-empty">${escapeHtml(field.emptyLabel || t('admin.error.noNamespacesAvailable'))}</p>`
+            : '';
+          return `
+            <fieldset class="app-dialog-form-group${hiddenClass}"${dependsAttrs}>
+              <legend class="app-dialog-form-label">${escapeHtml(field.label || field.name)}</legend>
+              ${hint}
+              <div class="app-dialog-form-checkboxes">${empty || options}</div>
             </fieldset>
           `;
         }

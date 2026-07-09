@@ -1,5 +1,6 @@
 package com.tinet.flowfoundry.api;
 
+import com.tinet.flowfoundry.config.NamespaceRoutingProperties;
 import com.tinet.flowfoundry.config.FlowFoundryProperties;
 import com.tinet.flowfoundry.config.StaticAssetVersion;
 import com.tinet.flowfoundry.config.TemporalProperties;
@@ -20,16 +21,19 @@ import org.springframework.web.bind.annotation.RestController;
 public class PlatformBootstrapController {
 
   private final PlatformSecurityProperties securityProperties;
+  private final NamespaceRoutingProperties namespaceRouting;
   private final FlowFoundryProperties flowFoundryProperties;
   private final TemporalProperties temporalProperties;
   private final StaticAssetVersion staticAssetVersion;
 
   public PlatformBootstrapController(
       PlatformSecurityProperties securityProperties,
+      NamespaceRoutingProperties namespaceRouting,
       FlowFoundryProperties flowFoundryProperties,
       TemporalProperties temporalProperties,
       StaticAssetVersion staticAssetVersion) {
     this.securityProperties = securityProperties;
+    this.namespaceRouting = namespaceRouting;
     this.flowFoundryProperties = flowFoundryProperties;
     this.temporalProperties = temporalProperties;
     this.staticAssetVersion = staticAssetVersion;
@@ -46,8 +50,8 @@ public class PlatformBootstrapController {
     modelerConfig.put("allowFrameEmbedding", modeler.isAllowFrameEmbedding());
 
     Map<String, Object> config = new LinkedHashMap<>();
-    config.put("devNamespace", securityProperties.devNamespace());
-    config.put("defaultNamespace", securityProperties.devNamespace());
+    String platformNamespace = namespaceRouting.system();
+    config.put("defaultNamespace", platformNamespace);
     config.put("namespaceHeader", PlatformSecurityHeaders.PLATFORM_NAMESPACE);
     config.put("staticAssetVersion", staticAssetVersion.value());
     config.put("modeler", modelerConfig);
@@ -63,7 +67,7 @@ public class PlatformBootstrapController {
   @GetMapping(value = "/auth.js", produces = "application/javascript")
   public ResponseEntity<String> authScript() {
     String apiKey = resolveBrowserApiKey();
-    String namespace = securityProperties.devNamespace();
+    String namespace = namespaceRouting.system();
     if (apiKey.isBlank()) {
       return noStoreJs("// FlowFoundry API key not configured");
     }

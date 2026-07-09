@@ -3,7 +3,6 @@
       let adminApiKeys = [];
       let adminAuditLogs = [];
       let adminAuditState = { page: 0, size: 10, totalPages: 0, totalElements: 0, loaded: false };
-      let adminAllNamespaces = false;
 
       async function adminApi(path = '', options = {}) {
         const response = await fetch(platformApiUrl(`/admin${path}`), {
@@ -29,7 +28,7 @@
 
       function adminNamespacesLabel(apiKey) {
         if (!apiKey) return '-';
-        if (apiKey.admin) return t('admin.namespaceAdmin');
+        if (apiKey.admin) return '*';
         const namespaces = adminApiKeyNamespaceList(apiKey);
         return namespaces.length ? namespaces.join(', ') : '-';
       }
@@ -137,20 +136,11 @@
       }
 
       async function refreshAdminApiKeys() {
-        const query = adminAllNamespaces ? '?allNamespaces=true' : '';
-        adminApiKeys = await adminApi(`/api-keys${query}`);
+        adminApiKeys = await adminApi('/api-keys');
         if (!Array.isArray(adminApiKeys)) {
           adminApiKeys = [];
         }
         renderAdminApiKeysTable();
-      }
-
-      function toggleAdminAllNamespaces(checked) {
-        adminAllNamespaces = !!checked;
-        refreshAdminApiKeys().catch(err => message(err.message, 'error'));
-        if (adminAuditState.loaded) {
-          searchAdminAuditLogs(0).catch(err => message(err.message, 'error'));
-        }
       }
 
       function readAdminAuditDateTimeInput(id) {
@@ -198,7 +188,6 @@
         if (from) query.set('from', from);
         if (to) query.set('to', to);
         if (includeApiCalls) query.set('includeApiCalls', 'true');
-        if (adminAllNamespaces) query.set('allNamespaces', 'true');
         query.set('page', String(Math.max(page, 0)));
         query.set('size', String(adminAuditState.size || 10));
         try {
@@ -271,8 +260,39 @@
         return `app-${Date.now().toString(36)}`;
       }
 
-      function adminApiKeyFormFields(apiKey = {}) {
+      function generateCreateApiKeyId(displayName) {
+        const base = deriveApiKeyId(displayName);
+        const suffix = Date.now().toString(36).slice(-5);
+        let id = `${base}-${suffix}`;
+        if (id.length > 63) {
+          id = `${base.slice(0, 63 - suffix.length - 1)}-${suffix}`;
+        }
+        return id;
+      }
+
+      async function loadAdminNamespaceOptions() {
+        try {
+          const namespaces = await adminApi('/namespaces');
+          if (!Array.isArray(namespaces)) return [];
+          return namespaces.map(item => ({
+            value: item.id,
+            label: item.displayName && item.displayName !== item.id
+              ? `${item.displayName} (${item.id})`
+              : item.id,
+            hint: item.description || ''
+          }));
+        } catch (err) {
+          message(err.message, 'error');
+          return [];
+        }
+      }
+
+      async function buildAdminApiKeyFormFields(apiKey = {}) {
         const isAdmin = !!apiKey.admin;
+        const namespaceOptions = await loadAdminNamespaceOptions();
+        const defaultNamespaces = apiKey.id
+          ? adminApiKeyNamespaceList(apiKey)
+          : namespaceOptions.slice(0, 1).map(item => item.value);
         return [
           {
             name: 'displayName',
@@ -301,11 +321,10 @@
           {
             name: 'namespaces',
             label: t('admin.prompt.namespaces'),
-            hint: t('admin.prompt.namespacesHint'),
-            type: 'text',
-            value: apiKey.id
-              ? adminApiKeyNamespaceList(apiKey).join(', ')
-              : 'ai-collection-strategy',
+            hint: t('admin.prompt.namespacesMultiHint'),
+            type: 'checkbox-group',
+            options: namespaceOptions,
+            value: defaultNamespaces,
             dependsOn: { field: 'admin', value: 'false' }
           },
           {
@@ -327,7 +346,11 @@
         const admin = result.admin === 'true';
         let namespaces = [];
         if (!admin) {
-          namespaces = (result.namespaces || '').split(',').map(item => item.trim()).filter(Boolean);
+          if (Array.isArray(result.namespaces)) {
+            namespaces = result.namespaces.map(item => String(item).trim()).filter(Boolean);
+          } else if (typeof result.namespaces === 'string') {
+            namespaces = result.namespaces.split(',').map(item => item.trim()).filter(Boolean);
+          }
           if (namespaces.length === 0) {
             message(t('admin.error.namespacesRequired'), 'error');
             return null;
@@ -342,14 +365,15 @@
       }
 
       async function createAdminApiKey() {
+        const fields = await buildAdminApiKeyFormFields();
         const result = await showAppFormDialog({
           title: t('admin.createTitle'),
           confirmLabel: t('admin.save'),
-          fields: adminApiKeyFormFields()
+          fields
         });
         const parsed = parseAdminApiKeyForm(result);
         if (!parsed) return;
-        const id = deriveApiKeyId(parsed.displayName);
+        const id = generateCreateApiKeyId(parsed.displayName);
         try {
           const created = await adminApi('/api-keys', {
             method: 'POST',
@@ -361,21 +385,27 @@
               namespaces: parsed.namespaces
             })
           });
-          await showAdminKeyDialog(t('admin.keyCreated'), created.secret);
+          const secret = created?.secret;
+          if (!secret) {
+            throw new Error(t('admin.error.createResponseMissing'));
+          }
+          await showAdminKeyDialog(t('admin.keyCreated'), secret);
           await refreshAdminApiKeys();
           message(t('admin.created', { name: parsed.displayName }), 'success');
         } catch (err) {
           message(err.message, 'error');
+          $('appNotice')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
         }
       }
 
       async function editAdminApiKey(apiKeyId) {
         const apiKey = adminApiKeys.find(item => item.id === apiKeyId);
         if (!apiKey) return;
+        const fields = await buildAdminApiKeyFormFields(apiKey);
         const result = await showAppFormDialog({
           title: t('admin.editTitle'),
           confirmLabel: t('admin.save'),
-          fields: adminApiKeyFormFields(apiKey)
+          fields
         });
         const parsed = parseAdminApiKeyForm(result);
         if (!parsed) return;
