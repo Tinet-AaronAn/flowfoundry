@@ -5,10 +5,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.tinet.flowfoundry.config.FlowFoundryProperties;
-import com.tinet.flowfoundry.config.NamespaceRoutingProperties;
 import com.tinet.flowfoundry.config.StaticAssetVersion;
 import com.tinet.flowfoundry.config.TemporalProperties;
+import com.tinet.flowfoundry.registry.ActivityCatalogService;
+import com.tinet.flowfoundry.registry.ActivityRegistry;
 import com.tinet.flowfoundry.security.PlatformSecurityProperties;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -22,7 +24,10 @@ class PlatformBootstrapControllerTest {
   @BeforeEach
   void setUp() {
     PlatformSecurityProperties security = new PlatformSecurityProperties();
-    NamespaceRoutingProperties namespaceRouting = new NamespaceRoutingProperties();
+    ActivityCatalogService activityCatalog =
+        ActivityCatalogService.forRegistries(
+            null,
+            new ActivityRegistry("1.0", "ai-collection-strategy", "ai-collection-strategy", List.of()));
 
     FlowFoundryProperties flowFoundry = new FlowFoundryProperties();
     FlowFoundryProperties.Modeler modeler = new FlowFoundryProperties.Modeler();
@@ -30,14 +35,14 @@ class PlatformBootstrapControllerTest {
     modeler.setEmbedPath("/modeler/embed.html");
     flowFoundry.setModeler(modeler);
 
-    TemporalProperties temporal = new TemporalProperties(
-        "127.0.0.1:7233", "call-campaign", "flowfoundry-platform", 50, 100, "http://127.0.0.1:8080");
+    TemporalProperties temporal =
+        new TemporalProperties("127.0.0.1:7233", 50, 100, "http://127.0.0.1:8080");
 
     mockMvc =
         MockMvcBuilders.standaloneSetup(
                 new PlatformBootstrapController(
                     security,
-                    namespaceRouting,
+                    activityCatalog,
                     flowFoundry,
                     temporal,
                     new StaticAssetVersion(Optional.empty())))
@@ -54,17 +59,14 @@ class PlatformBootstrapControllerTest {
         .andExpect(jsonPath("$.modeler.embedPath").value("/modeler/embed.html"))
         .andExpect(jsonPath("$.modeler.apiBase").value("/api"))
         .andExpect(jsonPath("$.modeler.sdkScriptPath").value("/assets/js/flowfoundry-modeler-sdk.js"))
-        .andExpect(jsonPath("$.defaultNamespace").value("flowfoundry-system"))
+        .andExpect(jsonPath("$.defaultNamespace").value("ai-collection-strategy"))
         .andExpect(jsonPath("$.namespaceHeader").value("X-Platform-Namespace"))
-        .andExpect(jsonPath("$.temporal.namespace").value("call-campaign"))
         .andExpect(jsonPath("$.temporal.uiBaseUrl").value("http://127.0.0.1:8080"));
   }
 
   @Test
   void authScriptUsesConfiguredAdminApiKey() throws Exception {
     PlatformSecurityProperties security = new PlatformSecurityProperties();
-    NamespaceRoutingProperties namespaceRouting = new NamespaceRoutingProperties();
-    namespaceRouting.setSystem("flowfoundry-system");
     PlatformSecurityProperties.ApiKeyProperties adminKey =
         new PlatformSecurityProperties.ApiKeyProperties();
     adminKey.setId("platform-admin");
@@ -72,14 +74,18 @@ class PlatformBootstrapControllerTest {
     adminKey.setAdmin(true);
     security.setApiKeys(java.util.List.of(adminKey));
 
+    ActivityCatalogService activityCatalog =
+        ActivityCatalogService.forRegistries(
+            null,
+            new ActivityRegistry("1.0", "ai-collection-strategy", "ai-collection-strategy", List.of()));
+
     mockMvc =
         MockMvcBuilders.standaloneSetup(
                 new PlatformBootstrapController(
                     security,
-                    namespaceRouting,
+                    activityCatalog,
                     new FlowFoundryProperties(),
-                    new TemporalProperties(
-                        "127.0.0.1:7233", "default", "flowfoundry-platform", 50, 100, null),
+                    new TemporalProperties("127.0.0.1:7233", 50, 100, null),
                     new StaticAssetVersion(Optional.empty())))
             .build();
 
@@ -93,6 +99,6 @@ class PlatformBootstrapControllerTest {
                         org.hamcrest.Matchers.containsString(
                             "window.FLOWFOUNDRY_API_KEY=\"local-admin-key\""),
                         org.hamcrest.Matchers.containsString(
-                            "window.FLOWFOUNDRY_NAMESPACE=\"flowfoundry-system\""))));
+                            "window.FLOWFOUNDRY_NAMESPACE=\"ai-collection-strategy\""))));
   }
 }

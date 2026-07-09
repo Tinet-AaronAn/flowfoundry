@@ -6,7 +6,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.tinet.flowfoundry.api.PlatformBootstrapController;
 import com.tinet.flowfoundry.config.FlowFoundryProperties;
-import com.tinet.flowfoundry.config.NamespaceRoutingProperties;
+import com.tinet.flowfoundry.registry.ActivityCatalogService;
+import com.tinet.flowfoundry.registry.ActivityRegistry;
 import com.tinet.flowfoundry.config.StaticAssetVersion;
 import com.tinet.flowfoundry.config.TemporalProperties;
 import java.util.Optional;
@@ -96,10 +97,12 @@ class PlatformSecurityIntegrationTest {
         MockMvcBuilders.standaloneSetup(
                 new PlatformBootstrapController(
                     properties,
-                    new NamespaceRoutingProperties(),
+                    ActivityCatalogService.forRegistries(
+                        null,
+                        new ActivityRegistry(
+                            "1.0", "ai-collection-strategy", "ai-collection-strategy", List.of())),
                     new FlowFoundryProperties(),
-                    new TemporalProperties(
-                        "127.0.0.1:7233", "default", "flowfoundry-platform", 50, 100, null),
+                    new TemporalProperties("127.0.0.1:7233", 50, 100, null),
                     new StaticAssetVersion(Optional.empty())))
             .build();
 

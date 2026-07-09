@@ -96,7 +96,6 @@
               canvasKind: n.kind,
               kind: executionNodeKind(n.kind),
               activityType: resolveActivityType(n),
-              taskQueue: resolveNodeTaskQueue(n),
               timeout: n.timeout,
               maxAttempts: n.maxAttempts,
               scriptCodeId: n.scriptCodeId,

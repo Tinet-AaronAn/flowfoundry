@@ -1,9 +1,9 @@
 package com.tinet.flowfoundry.api;
 
-import com.tinet.flowfoundry.config.NamespaceRoutingProperties;
 import com.tinet.flowfoundry.config.FlowFoundryProperties;
 import com.tinet.flowfoundry.config.StaticAssetVersion;
 import com.tinet.flowfoundry.config.TemporalProperties;
+import com.tinet.flowfoundry.registry.ActivityCatalogService;
 import com.tinet.flowfoundry.security.PlatformSecurityHeaders;
 import com.tinet.flowfoundry.security.ApiKeyBootstrapRunner;
 import com.tinet.flowfoundry.security.PlatformSecurityProperties;
@@ -21,19 +21,19 @@ import org.springframework.web.bind.annotation.RestController;
 public class PlatformBootstrapController {
 
   private final PlatformSecurityProperties securityProperties;
-  private final NamespaceRoutingProperties namespaceRouting;
+  private final ActivityCatalogService activityCatalog;
   private final FlowFoundryProperties flowFoundryProperties;
   private final TemporalProperties temporalProperties;
   private final StaticAssetVersion staticAssetVersion;
 
   public PlatformBootstrapController(
       PlatformSecurityProperties securityProperties,
-      NamespaceRoutingProperties namespaceRouting,
+      ActivityCatalogService activityCatalog,
       FlowFoundryProperties flowFoundryProperties,
       TemporalProperties temporalProperties,
       StaticAssetVersion staticAssetVersion) {
     this.securityProperties = securityProperties;
-    this.namespaceRouting = namespaceRouting;
+    this.activityCatalog = activityCatalog;
     this.flowFoundryProperties = flowFoundryProperties;
     this.temporalProperties = temporalProperties;
     this.staticAssetVersion = staticAssetVersion;
@@ -49,14 +49,13 @@ public class PlatformBootstrapController {
     modelerConfig.put("sdkScriptPath", modeler.getSdkScriptPath());
     modelerConfig.put("allowFrameEmbedding", modeler.isAllowFrameEmbedding());
 
+    String defaultNamespace = activityCatalog.localBusinessNamespace();
     Map<String, Object> config = new LinkedHashMap<>();
-    String platformNamespace = namespaceRouting.system();
-    config.put("defaultNamespace", platformNamespace);
+    config.put("defaultNamespace", defaultNamespace);
     config.put("namespaceHeader", PlatformSecurityHeaders.PLATFORM_NAMESPACE);
     config.put("staticAssetVersion", staticAssetVersion.value());
     config.put("modeler", modelerConfig);
     Map<String, Object> temporal = new LinkedHashMap<>();
-    temporal.put("namespace", temporalProperties.namespace());
     temporal.put("uiBaseUrl", temporalProperties.resolvedUiBaseUrl());
     config.put("temporal", temporal);
     return ResponseEntity.ok()
@@ -67,7 +66,7 @@ public class PlatformBootstrapController {
   @GetMapping(value = "/auth.js", produces = "application/javascript")
   public ResponseEntity<String> authScript() {
     String apiKey = resolveBrowserApiKey();
-    String namespace = namespaceRouting.system();
+    String namespace = activityCatalog.localBusinessNamespace();
     if (apiKey.isBlank()) {
       return noStoreJs("// FlowFoundry API key not configured");
     }

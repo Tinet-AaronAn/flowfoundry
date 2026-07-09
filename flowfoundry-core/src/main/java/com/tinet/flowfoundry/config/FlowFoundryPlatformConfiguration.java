@@ -12,7 +12,6 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 @Configuration
 @EnableConfigurationProperties({
   TemporalProperties.class,
-  NamespaceRoutingProperties.class,
   com.tinet.flowfoundry.activity.ScriptRuntimeProperties.class,
   com.tinet.flowfoundry.script.ScriptCatalogProperties.class
 })

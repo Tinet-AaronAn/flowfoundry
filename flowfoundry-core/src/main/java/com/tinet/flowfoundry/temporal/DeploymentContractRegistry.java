@@ -1,9 +1,8 @@
 package com.tinet.flowfoundry.temporal;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.tinet.flowfoundry.config.NamespaceRoutingProperties;
-import com.tinet.flowfoundry.config.TemporalProperties;
-import com.tinet.flowfoundry.registry.ActivityRegistry;
+import com.tinet.flowfoundry.registry.ActivityCatalogService;
 import java.time.Duration;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -16,13 +15,10 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 /**
- * 使用方部署契约注册表（Redis 共享）。
+ * Redis-backed registry of app Worker deployment contracts ({@code namespace + taskQueue}).
  *
- * <p>Worker 启动时 {@link #publish(DeploymentContract)} 上报自身 {@code {namespace, taskQueue}}；平台据此把
- * workflow 执行 / run logs 路由到该使用方独立的 Temporal namespace（详见 docs/detailed-design.md §11）。
- *
- * <p>当尚无 Worker 注册时，平台回退到 {@link #localContract()}（由本地加载的 Activity 注册表 + {@code
- * temporal.namespace} 推导），保证单场景部署开箱可用。
+ * <p>When no Worker heartbeat exists, {@link #localContract()} falls back to the platform's
+ * locally loaded business Activity Registry.
  */
 @Component
 public class DeploymentContractRegistry {
@@ -32,37 +28,19 @@ public class DeploymentContractRegistry {
   private static final Duration CONTRACT_TTL = Duration.ofSeconds(90);
 
   private final StringRedisTemplate redis;
-  private final TemporalProperties temporalProperties;
-  private final ActivityRegistry activityRegistry;
-  private final NamespaceRoutingProperties namespaceRouting;
+  private final ActivityCatalogService activityCatalog;
   private final ObjectMapper json = new ObjectMapper();
 
   public DeploymentContractRegistry(
-      StringRedisTemplate redis,
-      TemporalProperties temporalProperties,
-      ActivityRegistry activityRegistry,
-      NamespaceRoutingProperties namespaceRouting) {
+      StringRedisTemplate redis, ActivityCatalogService activityCatalog) {
     this.redis = redis;
-    this.temporalProperties = temporalProperties;
-    this.activityRegistry = activityRegistry;
-    this.namespaceRouting = namespaceRouting;
+    this.activityCatalog = activityCatalog;
   }
 
-  public String systemNamespace() {
-    return namespaceRouting.system();
-  }
-
-  /**
-   * 平台回退契约：无 Worker 注册时据本地 Activity 注册表 + {@code temporal.namespace} 推导。业务 Task Queue
-   * 取注册表 {@code defaultTaskQueue}（使用方 Worker 实际轮询的队列），而非平台自身的 {@code
-   * temporal.task-queue}。
-   */
   public DeploymentContract localContract() {
-    String registryNamespace = activityRegistry.namespace();
-    String taskQueue =
-        firstNonBlank(activityRegistry.defaultTaskQueue(), temporalProperties.taskQueue());
-    return new DeploymentContract(
-        registryNamespace, registryNamespace, temporalProperties.namespace(), taskQueue);
+    String namespace = activityCatalog.localBusinessNamespace();
+    String taskQueue = activityCatalog.localDefaultTaskQueue();
+    return new DeploymentContract(namespace, namespace, taskQueue);
   }
 
   public void publish(DeploymentContract contract) {
@@ -70,7 +48,7 @@ public class DeploymentContractRegistry {
       redis
           .opsForValue()
           .set(
-              CONTRACT_PREFIX + contract.registryNamespace(),
+              CONTRACT_PREFIX + contract.namespace(),
               json.writeValueAsString(contract),
               CONTRACT_TTL);
     } catch (Exception e) {
@@ -97,22 +75,37 @@ public class DeploymentContractRegistry {
     }
   }
 
-  /** 为一次运行解析目标契约：优先已注册的同 registryNamespace 契约，否则回退本地契约。 */
-  public DeploymentContract resolveForRun() {
-    String registryNamespace = activityRegistry.namespace();
-    return registeredContracts().stream()
-        .filter(c -> registryNamespace.equals(c.registryNamespace()))
-        .findFirst()
-        .orElseGet(this::localContract);
+  /** Resolve Worker contract for a workflow / run namespace. */
+  public DeploymentContract resolveForNamespace(String namespace) {
+    if (namespace == null || namespace.isBlank()) {
+      throw new IllegalArgumentException("namespace is required");
+    }
+    String normalized = namespace.trim();
+    Optional<DeploymentContract> registered =
+        registeredContracts().stream()
+            .filter(contract -> normalized.equals(contract.namespace()))
+            .findFirst();
+    if (registered.isPresent()) {
+      return registered.get();
+    }
+    if (normalized.equals(activityCatalog.localBusinessNamespace())) {
+      return localContract();
+    }
+    throw new IllegalArgumentException(
+        "No Worker registered for namespace: "
+            + normalized
+            + " (known: "
+            + knownNamespaces()
+            + ")");
   }
 
-  /** 所有已知业务 Temporal namespace（本地契约 + 已注册契约），用于 run→namespace 反查扫描。 */
-  public Set<String> businessNamespaces() {
+  /** All namespaces with a registered or local Worker contract. */
+  public Set<String> knownNamespaces() {
     Set<String> namespaces = new LinkedHashSet<>();
-    namespaces.add(localContract().temporalNamespace());
+    namespaces.add(activityCatalog.localBusinessNamespace());
     for (DeploymentContract contract : registeredContracts()) {
-      if (contract.temporalNamespace() != null && !contract.temporalNamespace().isBlank()) {
-        namespaces.add(contract.temporalNamespace());
+      if (contract.namespace() != null && !contract.namespace().isBlank()) {
+        namespaces.add(contract.namespace());
       }
     }
     return namespaces;
@@ -120,17 +113,41 @@ public class DeploymentContractRegistry {
 
   private Optional<DeploymentContract> readContract(String value) {
     try {
-      return Optional.of(json.readValue(value, DeploymentContract.class));
+      JsonNode node = json.readTree(value);
+      String appId = textOrNull(node.get("appId"));
+      String namespace =
+          firstNonBlank(
+              textOrNull(node.get("namespace")),
+              textOrNull(node.get("registryNamespace")),
+              textOrNull(node.get("temporalNamespace")));
+      String taskQueue = textOrNull(node.get("taskQueue"));
+      if (namespace == null || taskQueue == null) {
+        return Optional.empty();
+      }
+      if (appId == null || appId.isBlank()) {
+        appId = namespace;
+      }
+      return Optional.of(new DeploymentContract(appId, namespace, taskQueue));
     } catch (Exception e) {
       log.warn("Ignoring malformed deployment contract payload: {}", e.toString());
       return Optional.empty();
     }
   }
 
-  private static String firstNonBlank(String primary, String fallback) {
-    if (primary != null && !primary.isBlank()) {
-      return primary;
+  private static String textOrNull(JsonNode node) {
+    if (node == null || node.isNull()) {
+      return null;
     }
-    return fallback;
+    String value = node.asText();
+    return value == null || value.isBlank() ? null : value.trim();
+  }
+
+  private static String firstNonBlank(String... values) {
+    for (String value : values) {
+      if (value != null && !value.isBlank()) {
+        return value.trim();
+      }
+    }
+    return null;
   }
 }

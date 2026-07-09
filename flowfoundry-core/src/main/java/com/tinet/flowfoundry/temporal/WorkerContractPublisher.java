@@ -1,7 +1,6 @@
 package com.tinet.flowfoundry.temporal;
 
 import com.tinet.flowfoundry.config.ConditionalOnFlowFoundryWorker;
-import com.tinet.flowfoundry.config.TemporalProperties;
 import com.tinet.flowfoundry.registry.ActivityRegistry;
 import jakarta.annotation.PreDestroy;
 import java.util.concurrent.Executors;
@@ -28,7 +27,6 @@ public class WorkerContractPublisher {
   private static final long HEARTBEAT_SECONDS = 30;
 
   private final DeploymentContractRegistry contractRegistry;
-  private final TemporalProperties temporalProperties;
   private final ActivityRegistry activityRegistry;
   private final String appId;
 
@@ -36,11 +34,9 @@ public class WorkerContractPublisher {
 
   public WorkerContractPublisher(
       DeploymentContractRegistry contractRegistry,
-      TemporalProperties temporalProperties,
       ActivityRegistry activityRegistry,
       @Value("${spring.application.name:flowfoundry-worker}") String appId) {
     this.contractRegistry = contractRegistry;
-    this.temporalProperties = temporalProperties;
     this.activityRegistry = activityRegistry;
     this.appId = appId;
   }
@@ -50,10 +46,9 @@ public class WorkerContractPublisher {
     DeploymentContract contract = selfContract();
     contractRegistry.publish(contract);
     log.info(
-        "Published deployment contract appId={} registryNamespace={} temporalNamespace={} taskQueue={}",
+        "Published deployment contract appId={} namespace={} taskQueue={}",
         contract.appId(),
-        contract.registryNamespace(),
-        contract.temporalNamespace(),
+        contract.namespace(),
         contract.taskQueue());
     scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
       Thread thread = new Thread(r, "flowfoundry-contract-heartbeat");
@@ -69,7 +64,9 @@ public class WorkerContractPublisher {
 
   private DeploymentContract selfContract() {
     return new DeploymentContract(
-        appId, activityRegistry.namespace(), temporalProperties.namespace(), temporalProperties.taskQueue());
+        appId,
+        activityRegistry.namespace(),
+        activityRegistry.defaultTaskQueue());
   }
 
   @PreDestroy

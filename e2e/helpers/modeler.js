@@ -165,7 +165,7 @@ async function mockBackend(page, state = {}) {
           eventType: 'EVENT_TYPE_ACTIVITY_TASK_SCHEDULED',
           type: 'activityTaskScheduledEventAttributes',
           activityType: 'dynamic-activity-router',
-          taskQueue: 'call-campaign',
+          taskQueue: 'ai-collection-strategy',
         },
       ],
     }),

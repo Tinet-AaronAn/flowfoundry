@@ -1,15 +1,11 @@
 
       let adminNamespaces = [];
 
-      function namespaceTypeLabel(item) {
-        return item?.system ? t('nsAdmin.typeSystem') : t('nsAdmin.typeRegular');
-      }
-
       function filteredAdminNamespaces() {
         const keyword = $('namespaceAdminSearch')?.value.trim().toLowerCase() || '';
         if (!keyword) return adminNamespaces;
         return adminNamespaces.filter(item => {
-          const haystack = `${item.id} ${item.displayName || ''} ${item.description || ''} ${namespaceTypeLabel(item)}`.toLowerCase();
+          const haystack = `${item.id} ${item.displayName || ''} ${item.description || ''}`.toLowerCase();
           return haystack.includes(keyword);
         });
       }
@@ -20,7 +16,7 @@
         const namespaces = filteredAdminNamespaces();
         if (namespaces.length === 0) {
           const emptyText = adminNamespaces.length === 0 ? t('nsAdmin.empty') : t('nsAdmin.emptySearch');
-          tbody.innerHTML = `<tr><td colspan="7" class="admin-empty">${escapeHtml(emptyText)}</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="6" class="admin-empty">${escapeHtml(emptyText)}</td></tr>`;
           return;
         }
         tbody.innerHTML = namespaces.map(item => `
@@ -28,16 +24,11 @@
             <td><code>${escapeHtml(item.id || '')}</code></td>
             <td>${escapeHtml(item.displayName || '')}</td>
             <td>${escapeHtml(item.description || '-')}</td>
-            <td>${item.system
-              ? `<span class="pill completed">${escapeHtml(t('nsAdmin.typeSystem'))}</span>`
-              : escapeHtml(t('nsAdmin.typeRegular'))}</td>
             <td>${escapeHtml(formatInstant(item.createdAt))}</td>
             <td>${escapeHtml(formatInstant(item.updatedAt))}</td>
             <td class="admin-actions">
-              ${item.system
-                ? `<span class="help">${escapeHtml(t('nsAdmin.systemLocked'))}</span>`
-                : `<button class="secondary" onclick="editAdminNamespace('${escapeAttr(item.id)}')">${escapeHtml(t('admin.edit'))}</button>
-                   <button class="secondary danger" onclick="deleteAdminNamespace('${escapeAttr(item.id)}')">${escapeHtml(t('admin.delete'))}</button>`}
+              <button class="secondary" onclick="editAdminNamespace('${escapeAttr(item.id)}')">${escapeHtml(t('admin.edit'))}</button>
+              <button class="secondary danger" onclick="deleteAdminNamespace('${escapeAttr(item.id)}')">${escapeHtml(t('admin.delete'))}</button>
             </td>
           </tr>
         `).join('');
@@ -144,7 +135,7 @@
 
       async function editAdminNamespace(namespaceId) {
         const namespace = adminNamespaces.find(item => item.id === namespaceId);
-        if (!namespace || namespace.system) return;
+        if (!namespace) return;
         const result = await showAppFormDialog({
           title: t('nsAdmin.editTitle'),
           confirmLabel: t('admin.save'),
@@ -166,7 +157,7 @@
 
       async function deleteAdminNamespace(namespaceId) {
         const namespace = adminNamespaces.find(item => item.id === namespaceId);
-        if (!namespace || namespace.system) return;
+        if (!namespace) return;
         const confirmed = await showAppDialog({
           title: t('admin.delete'),
           message: t('nsAdmin.confirm.delete', { id: namespace.id, name: namespace.displayName || namespace.id }),

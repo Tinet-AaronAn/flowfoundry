@@ -2,11 +2,10 @@ package com.tinet.flowfoundry.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+/** Temporal cluster connection settings (host, concurrency, UI). Namespace and task queue come from Activity Registry. */
 @ConfigurationProperties(prefix = "temporal")
 public record TemporalProperties(
     String host,
-    String namespace,
-    String taskQueue,
     int maxConcurrentActivities,
     int maxConcurrentWorkflows,
     String uiBaseUrl) {

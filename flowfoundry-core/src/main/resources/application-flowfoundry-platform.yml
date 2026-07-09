@@ -34,8 +34,6 @@ spring:
 
 temporal:
   host: ${TEMPORAL_HOST:localhost:7233}
-  namespace: ${TEMPORAL_NAMESPACE:default}
-  task-queue: ${TEMPORAL_TASK_QUEUE:flowfoundry-platform}
   ui-base-url: ${TEMPORAL_UI_BASE_URL:http://127.0.0.1:8080}
   max-concurrent-activities: ${TEMPORAL_MAX_CONCURRENT_ACTIVITIES:50}
   max-concurrent-workflows: ${TEMPORAL_MAX_CONCURRENT_WORKFLOWS:100}
@@ -58,10 +56,6 @@ platform:
 
 flowfoundry:
   run-mode: platform
-  namespace:
-    # 系统 namespace：flowfoundry-core 平台管理相关 Temporal 资源使用（当前预留）。
-    # 业务 workflow / run logs 落在各使用方独立的业务 namespace（由部署契约声明），见 docs/detailed-design.md §11。
-    system: ${FLOWFOUNDRY_SYSTEM_NAMESPACE:flowfoundry-system}
   activity-registry:
     path: ${ACTIVITY_REGISTRY_PATH:classpath:activities-registry.yaml}
   modeler:

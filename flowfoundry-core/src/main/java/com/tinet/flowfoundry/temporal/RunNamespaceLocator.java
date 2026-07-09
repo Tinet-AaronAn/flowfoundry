@@ -53,12 +53,12 @@ public class RunNamespaceLocator {
     if (cached != null && !cached.isBlank()) {
       return cached;
     }
-    String scanned = scanBusinessNamespaces(workflowId);
+    String scanned = scanKnownNamespaces(workflowId);
     if (scanned != null) {
       remember(workflowId, scanned);
       return scanned;
     }
-    return contractRegistry.localContract().temporalNamespace();
+    return contractRegistry.localContract().namespace();
   }
 
   private String readCached(String workflowId) {
@@ -69,14 +69,10 @@ public class RunNamespaceLocator {
     }
   }
 
-  private String scanBusinessNamespaces(String workflowId) {
+  private String scanKnownNamespaces(String workflowId) {
     WorkflowExecution execution =
         WorkflowExecution.newBuilder().setWorkflowId(workflowId).build();
-    java.util.Set<String> namespaces =
-        new java.util.LinkedHashSet<>(contractRegistry.businessNamespaces());
-    // 后台建模器调试运行落在系统 namespace，纳入扫描范围。
-    namespaces.add(contractRegistry.systemNamespace());
-    for (String namespace : namespaces) {
+    for (String namespace : contractRegistry.knownNamespaces()) {
       if (existsIn(namespace, execution)) {
         return namespace;
       }

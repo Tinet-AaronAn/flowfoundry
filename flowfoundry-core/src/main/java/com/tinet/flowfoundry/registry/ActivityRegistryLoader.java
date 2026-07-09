@@ -39,9 +39,8 @@ public class ActivityRegistryLoader {
   }
 
   public ActivityRegistry load() {
-    String businessPath = resolveRegistryPath();
-    ActivityRegistry core = loadOptional(CORE_REGISTRY);
-    ActivityRegistry business = loadRequired(businessPath);
+    ActivityRegistry core = loadCore();
+    ActivityRegistry business = loadBusiness();
     ActivityRegistry merged = merge(core, business);
     log.info(
         "Loaded activity registry v{} namespace={} activities={} (core={} business={})",
@@ -51,6 +50,14 @@ public class ActivityRegistryLoader {
         core == null ? 0 : core.activities().size(),
         business.activities().size());
     return merged;
+  }
+
+  public ActivityRegistry loadCore() {
+    return loadOptional(CORE_REGISTRY);
+  }
+
+  public ActivityRegistry loadBusiness() {
+    return loadRequired(resolveRegistryPath());
   }
 
   private String resolveRegistryPath() {

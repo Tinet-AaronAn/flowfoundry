@@ -33,7 +33,7 @@
 |------|------|----------|
 | Temporal | Helm | `deploy/helm/temporal/values-production.yaml` |
 | FlowFoundry 平台（企业版） | Helm | `deploy/helm/flowfoundry/values-production.yaml` |
-| 业务 Worker（如 AI 催收） | K8s Manifest | `deploy/k8s/call-campaign-worker.yaml` |
+| 业务 Worker（AI 催收示例） | K8s Manifest | `deploy/k8s/ai-collection-strategy-worker.yaml` |
 | 命名空间 | Manifest | `deploy/k8s/namespaces.yaml` |
 | Secret 模板 | Manifest | `deploy/k8s/secrets.example.yaml` |
 
@@ -68,20 +68,22 @@ helm upgrade --install temporal temporalio/temporal \
   -f deploy/helm/temporal/values-production.yaml
 ```
 
-创建业务 namespace：
+创建业务 Temporal namespace（与 Activity Registry 的 `namespace` 同名）：
 
 ```bash
 kubectl exec -n temporal deploy/temporal-admintools -- \
-  tctl --namespace call-campaign namespace register
+  tctl --namespace ai-collection-strategy namespace register
 ```
 
 ### 4. 部署 Activity Worker
 
-确保 `deploy/k8s/call-campaign-worker.yaml` 中的 **image** 指向 CI 已推送的镜像标签，例如：
+确保 `deploy/k8s/ai-collection-strategy-worker.yaml` 中的 **image** 指向 CI 已推送的镜像标签，例如：
 
 ```yaml
-image: your-registry/flowfoundry-app:1.0.0
+image: your-registry/ai-collection-strategy-worker:1.0.0
 ```
+
+Worker **不再**通过环境变量配置 `TEMPORAL_NAMESPACE` / `TEMPORAL_TASK_QUEUE`；namespace 与 task queue 由挂载的 `activities-registry.yaml` 声明。
 
 应用 Activity Registry ConfigMap 与 Worker Deployment：
 
@@ -90,7 +92,7 @@ kubectl create configmap activities-registry \
   --from-file=activities-registry.yaml=flowfoundry-app/modules/ai-collection-strategy/config/activities-registry.yaml \
   -n bpm --dry-run=client -o yaml | kubectl apply -f -
 
-kubectl apply -f deploy/k8s/call-campaign-worker.yaml
+kubectl apply -f deploy/k8s/ai-collection-strategy-worker.yaml
 ```
 
 ### 5. 部署 FlowFoundry 企业平台（可选）
@@ -111,11 +113,11 @@ helm upgrade --install flowfoundry <enterprise-chart> \
 
 ```bash
 # 示例：更新 Worker 镜像
-kubectl set image deployment/call-campaign-worker \
-  worker=your-registry/flowfoundry-app:NEW_TAG \
+kubectl set image deployment/ai-collection-strategy-worker \
+  worker=your-registry/ai-collection-strategy-worker:NEW_TAG \
   -n bpm
 
-kubectl rollout status deployment/call-campaign-worker -n bpm
+kubectl rollout status deployment/ai-collection-strategy-worker -n bpm
 ```
 
 Helm 管理的组件：
@@ -133,10 +135,10 @@ helm upgrade flowfoundry <enterprise-chart> -n bpm \
 ```bash
 kubectl get pods -n bpm
 kubectl get pods -n temporal
-kubectl logs -n bpm deploy/call-campaign-worker --tail=50
+kubectl logs -n bpm deploy/ai-collection-strategy-worker --tail=50
 ```
 
-确认 Worker 已连接 Temporal、数据库迁移（Flyway）成功、Task Queue `ai-collection-strategy` 有 poller。
+确认 Worker 已连接 Temporal、数据库迁移（Flyway）成功、Task Queue `ai-collection-strategy`（Registry `defaultTaskQueue`）有 poller。
 
 ---
 

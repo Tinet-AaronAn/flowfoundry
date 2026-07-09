@@ -65,7 +65,6 @@
               <h1 data-i18n="workflow.title">Workflow Management</h1>
               <div class="spacer"></div>
               <button onclick="createWorkflow()" data-i18n="workflow.create">New Workflow</button>
-              <button class="secondary" onclick="saveWorkflowDefinition()" data-i18n="workflow.saveVersion">Save Current Version</button>
             </div>
             <div class="workflow-filters">
               <input id="workflowSearch" class="workflow-search" data-i18n-placeholder="workflow.searchPlaceholder" placeholder="Search workflows by name or ID..." oninput="renderWorkflowList()" />
@@ -177,14 +176,13 @@
                       <th data-i18n="nsAdmin.col.id">Namespace ID</th>
                       <th data-i18n="nsAdmin.col.displayName">Display name</th>
                       <th data-i18n="nsAdmin.col.description">Description</th>
-                      <th data-i18n="nsAdmin.col.type">Type</th>
                       <th data-i18n="nsAdmin.col.created">Created</th>
                       <th data-i18n="nsAdmin.col.updated">Updated</th>
                       <th data-i18n="admin.col.actions">Actions</th>
                     </tr>
                   </thead>
                   <tbody id="adminNamespacesTable">
-                    <tr><td colspan="7" class="admin-empty">Loading...</td></tr>
+                    <tr><td colspan="6" class="admin-empty">Loading...</td></tr>
                   </tbody>
                 </table>
               </div>

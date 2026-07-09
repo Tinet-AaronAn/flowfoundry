@@ -66,7 +66,7 @@ stop_port_listener() {
 
 build_app() {
   echo "[flowfoundry] mvn package (scenario=${SCENARIO}, app-only — does not rebuild :8081 platform)..."
-  if ! (cd "$ROOT" && mvn -pl "$MAVEN_MODULE" -DskipTests package); then
+  if ! (cd "$ROOT" && mvn -pl "$MAVEN_MODULE" -am -DskipTests package); then
     echo "[flowfoundry] build failed — run ./scripts/redeploy-worker.sh first if core changed"
     exit 1
   fi
@@ -84,8 +84,6 @@ start_app() {
     --platform.activity-registry.path="file:$REGISTRY" \
     --flowfoundry.activity-registry.path="file:$REGISTRY" \
     --temporal.host="${TEMPORAL_HOST:-127.0.0.1:7233}" \
-    --temporal.namespace="${TEMPORAL_NAMESPACE:-call-campaign}" \
-    --temporal.task-queue="${TEMPORAL_TASK_QUEUE:-ai-collection-strategy}" \
     --spring.data.redis.host="${REDIS_HOST:-127.0.0.1}" \
     --spring.data.redis.port="${REDIS_PORT:-6379}"
 

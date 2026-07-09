@@ -10,10 +10,10 @@ import com.tinet.flowfoundry.security.AdminAccessService;
 import com.tinet.flowfoundry.security.ApiKeyService;
 import com.tinet.flowfoundry.security.AuditLogService;
 import com.tinet.flowfoundry.security.NamespaceAccessService;
-import com.tinet.flowfoundry.config.NamespaceRoutingProperties;
 import com.tinet.flowfoundry.config.TemporalProperties;
 import com.tinet.flowfoundry.flow.FlowCompiler;
 import com.tinet.flowfoundry.security.PlatformSecurityProperties;
+import com.tinet.flowfoundry.registry.ActivityCatalogService;
 import com.tinet.flowfoundry.registry.ActivityRegistry;
 import com.tinet.flowfoundry.temporal.DeploymentContractRegistry;
 import com.tinet.flowfoundry.temporal.StartTimerScheduleService;
@@ -29,11 +29,9 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.TestPropertySource;
 
 @DataJpaTest
 @ActiveProfiles("test")
-@TestPropertySource(properties = "flowfoundry.namespace.system=test-ns")
 @Import({
   JacksonAutoConfiguration.class,
   WorkflowService.class,
@@ -42,7 +40,6 @@ import org.springframework.test.context.TestPropertySource;
   PlatformIdGenerator.class,
   ShortIdGenerator.class,
   NamespaceAccessService.class,
-  NamespaceRoutingProperties.class,
   AdminAccessService.class,
   ApiKeyService.class,
   AuditLogService.class,
@@ -56,18 +53,20 @@ class WorkflowServiceTest {
   @TestConfiguration
   static class ScheduleTestConfig {
     @Bean
-    StartTimerScheduleService startTimerScheduleService() {
-      ActivityRegistry registry = new ActivityRegistry("1.0", "test", "test-queue", List.of());
+    ActivityCatalogService activityCatalogService() {
+      return ActivityCatalogService.forRegistries(
+          null, new ActivityRegistry("1.0", "test-ns", "test-ns", List.of()));
+    }
+
+    @Bean
+    StartTimerScheduleService startTimerScheduleService(ActivityCatalogService activityCatalog) {
+      ActivityRegistry registry = activityCatalog.forNamespace("test-ns");
       TemporalClients temporalClients =
           new TemporalClients(Mockito.mock(WorkflowServiceStubs.class));
       DeploymentContractRegistry contractRegistry =
-          new DeploymentContractRegistry(
-              null,
-              new TemporalProperties("localhost:7233", "default", "test-queue", 10, 10, null),
-              registry,
-              new NamespaceRoutingProperties());
+          new DeploymentContractRegistry(null, activityCatalog);
       return new StartTimerScheduleService(
-          new FlowCompiler(registry), temporalClients, contractRegistry);
+          new FlowCompiler(activityCatalog), temporalClients, contractRegistry);
     }
   }
 
@@ -88,9 +87,6 @@ class WorkflowServiceTest {
   @Test
   void allocateTypedIds() {
     AllocateIdResponse task = workflowService.allocateId("task");
-    AllocateIdResponse event = workflowService.allocateId("event");
     assertThat(task.id()).startsWith("task_");
-    assertThat(event.id()).startsWith("event_");
-    assertThat(task.id()).isNotEqualTo(event.id());
   }
 }

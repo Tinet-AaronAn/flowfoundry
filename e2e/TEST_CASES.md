@@ -186,7 +186,7 @@
 |----|----------|------|----------|
 | WF-01 | detects workflow API and lists workflows from backend | 启动时探测 `/api/workflows` 并渲染列表 | GET 记录存在；无 API fallback 提示 |
 | WF-02 | creates workflow via API with workflow_ prefixed id and version 1.0.0 | 新建 Workflow 走 POST API | `workflow_{8位}`；`currentVersion` 为 `1.0.0` |
-| WF-03 | saves current version model through PUT API | Save Current Version 持久化模型 | PUT `/versions/{version}`；节点名称写入 store |
+| WF-03 | saves current version model through PUT API | 画布 Save 持久化模型 | PUT `/versions/{version}`；节点名称写入 store |
 | WF-04 | creates a new version with patch increment | New Version 创建 `1.0.1` | `versions` 含新版本；POST `/versions` |
 | WF-05 | renames workflow through PATCH API | Rename 更新名称 | PATCH；列表与 store 名称一致 |
 | WF-06 | deletes workflow through DELETE API | Delete 删除 Workflow | DELETE；store 中移除 |

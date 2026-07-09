@@ -64,6 +64,9 @@
         if (!namespace) return;
         setPlatformNamespace(namespace);
         await refreshWorkflowStoreForNamespace();
+        if (typeof loadActivities === 'function') {
+          await loadActivities();
+        }
         renderNamespaceSelector();
         if (typeof clearActiveRunIfNamespaceMismatch === 'function') {
           clearActiveRunIfNamespaceMismatch(namespace);

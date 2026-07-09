@@ -3,7 +3,9 @@ package com.tinet.flowfoundry.security;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.tinet.flowfoundry.config.NamespaceRoutingProperties;
+import com.tinet.flowfoundry.registry.ActivityCatalogService;
+import com.tinet.flowfoundry.registry.ActivityRegistry;
+import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,9 +20,11 @@ class NamespaceAccessServiceTest {
 
   @BeforeEach
   void setUp() {
-    NamespaceRoutingProperties namespaceRouting = new NamespaceRoutingProperties();
-    namespaceRouting.setSystem("flowfoundry-system");
-    namespaceAccess = new NamespaceAccessService(namespaceRouting);
+    namespaceAccess =
+        new NamespaceAccessService(
+            ActivityCatalogService.forRegistries(
+                null,
+                new ActivityRegistry("1.0", "ai-collection-strategy", "ai-collection-strategy", List.of())));
     SecurityContextHolder.getContext()
         .setAuthentication(
             CallerAuthentication.forApiKey(

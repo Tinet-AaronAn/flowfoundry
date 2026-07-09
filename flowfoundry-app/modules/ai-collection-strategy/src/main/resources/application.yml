@@ -7,8 +7,7 @@ spring:
     name: ai-collection-strategy
 
 temporal:
-  namespace: ${TEMPORAL_NAMESPACE:call-campaign}
-  task-queue: ${TEMPORAL_TASK_QUEUE:ai-collection-strategy}
+  host: ${TEMPORAL_HOST:127.0.0.1:7233}
 
 platform:
   activity-registry:

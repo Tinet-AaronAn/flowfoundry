@@ -74,6 +74,7 @@
       function applyRegisteredActivityDefaults(node, activityId) {
         if (!node) return;
         node.activityType = activityId || '';
+        delete node.taskQueue;
         if (!activityId) {
           delete node.timeout;
           node.maxAttempts = 3;
@@ -87,26 +88,7 @@
         } else {
           delete node.timeout;
         }
-        if (isPlatformCoreActivity(activityId)) {
-          node.taskQueue = 'flowfoundry-platform';
-        } else if (definition?.taskQueue && !node.taskQueue) {
-          node.taskQueue = definition.taskQueue;
-        }
         syncTaskDefinitionFromNode(node);
-      }
-
-      function isPlatformCoreActivity(activityId) {
-        return activityId === 'script-runtime' || activityId === 'human-task';
-      }
-
-      function resolveNodeTaskQueue(node) {
-        const activityType = node.activityType
-          || (node.kind === 'scriptTask' ? 'script-runtime' : null)
-          || (node.kind === 'humanTask' || node.kind === 'userTask' ? 'human-task' : null);
-        if (isPlatformCoreActivity(activityType)) {
-          return 'flowfoundry-platform';
-        }
-        return node.taskQueue;
       }
 
       function updateActivityType(value) {

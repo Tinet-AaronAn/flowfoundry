@@ -6,6 +6,7 @@ import com.tinet.flowfoundry.interpreter.model.ExecutionPlan;
 import com.tinet.flowfoundry.interpreter.model.FlowFoundryTrace;
 import com.tinet.flowfoundry.interpreter.model.NodeKind;
 import com.tinet.flowfoundry.activity.ActivityTypes;
+import com.tinet.flowfoundry.registry.ActivityCatalogService;
 import com.tinet.flowfoundry.registry.ActivityRegistry;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
@@ -18,21 +19,26 @@ import org.springframework.stereotype.Service;
 @Service
 public class FlowCompiler {
 
-  private final ActivityRegistry activityRegistry;
+  private final ActivityCatalogService activityCatalog;
   private final SafeFeelCompiler safeFeelCompiler = new SafeFeelCompiler();
   private final ObjectMapper objectMapper = new ObjectMapper();
 
-  public FlowCompiler(ActivityRegistry activityRegistry) {
-    this.activityRegistry = activityRegistry;
+  public FlowCompiler(ActivityCatalogService activityCatalog) {
+    this.activityCatalog = activityCatalog;
   }
 
   public ExecutionPlan compile(FlowDefinition definition) {
+    return compile(definition, activityCatalog.localBusinessNamespace());
+  }
+
+  public ExecutionPlan compile(FlowDefinition definition, String namespace) {
     if (definition == null) {
       throw new IllegalArgumentException("Flow definition is required");
     }
     if (definition.flow() == null || blank(definition.flow().id())) {
       throw new IllegalArgumentException("flow.id is required");
     }
+    ActivityRegistry activityRegistry = activityCatalog.forNamespace(namespace);
     String flowId = definition.flow().id();
     if (definition.nodes() == null || definition.nodes().isEmpty()) {
       throw new IllegalArgumentException(
@@ -76,7 +82,8 @@ public class FlowCompiler {
       if (kind == NodeKind.END) {
         endCount++;
       }
-      ExecutionNode executionNode = compileNode(node, kind, gatewayConfigPatches);
+      ExecutionNode executionNode =
+          compileNode(node, kind, gatewayConfigPatches, activityRegistry, namespace);
       nodes.put(node.id(), executionNode);
     }
 
@@ -109,7 +116,11 @@ public class FlowCompiler {
   }
 
   private ExecutionNode compileNode(
-      FlowNode node, NodeKind kind, Map<String, Map<String, Object>> gatewayConfigPatches) {
+      FlowNode node,
+      NodeKind kind,
+      Map<String, Map<String, Object>> gatewayConfigPatches,
+      ActivityRegistry activityRegistry,
+      String namespace) {
     String activityType = node.activityType();
     Map<String, Object> config = node.config() == null ? Map.of() : new LinkedHashMap<>(node.config());
     if (kind == NodeKind.HUMAN_TASK) {
@@ -125,6 +136,15 @@ public class FlowCompiler {
       }
       if (!ActivityTypes.isCore(activityType)) {
         activityRegistry.require(activityType);
+        if (!activityCatalog.isAvailable(namespace, activityType)) {
+          throw new IllegalArgumentException(
+              "Activity '"
+                  + activityType
+                  + "' is not registered for namespace '"
+                  + namespace
+                  + "': "
+                  + node.id());
+        }
       }
       if (!blank(node.scriptCodeId())) {
         config = new LinkedHashMap<>(config);
@@ -147,7 +167,7 @@ public class FlowCompiler {
       }
     }
     if (kind == NodeKind.CHILD_WORKFLOW) {
-      config = compileChildWorkflowConfig(node, config);
+      config = compileChildWorkflowConfig(node, config, namespace);
     }
     if (kind == NodeKind.GATEWAY) {
       config = ensureGatewayConfig(node, config, gatewayConfigPatches);
@@ -164,7 +184,7 @@ public class FlowCompiler {
         node.id(),
         kind,
         activityType,
-        resolveTaskQueue(node, activityType),
+        resolveTaskQueue(node, kind, activityType, activityRegistry),
         node.timeout(),
         node.maxAttempts(),
         node.inputArgs(),
@@ -173,11 +193,30 @@ public class FlowCompiler {
         config);
   }
 
-  private String resolveTaskQueue(FlowNode node, String activityType) {
+  /**
+   * Task queue is resolved solely from Activity Registry (and child-workflow config), never from
+   * DSL {@code node.taskQueue} — that field is ignored for backward compatibility.
+   */
+  private String resolveTaskQueue(
+      FlowNode node, NodeKind kind, String activityType, ActivityRegistry activityRegistry) {
+    if (kind == NodeKind.CHILD_WORKFLOW) {
+      Object childTaskQueue = node.config() == null ? null : node.config().get("childTaskQueue");
+      if (childTaskQueue != null && !String.valueOf(childTaskQueue).isBlank()) {
+        return String.valueOf(childTaskQueue).trim();
+      }
+      return activityRegistry.defaultTaskQueue();
+    }
     if (ActivityTypes.isCore(activityType)) {
       return ActivityTypes.PLATFORM_TASK_QUEUE;
     }
-    return blank(node.taskQueue()) ? activityRegistry.defaultTaskQueue() : node.taskQueue();
+    if (blank(activityType)) {
+      return activityRegistry.defaultTaskQueue();
+    }
+    ActivityRegistry.ActivityDefinition definition = activityRegistry.require(activityType);
+    if (!blank(definition.taskQueue())) {
+      return definition.taskQueue();
+    }
+    return activityRegistry.defaultTaskQueue();
   }
 
   private Map<String, Object> ensureLoopConfig(FlowNode node, Map<String, Object> config) {
@@ -214,7 +253,7 @@ public class FlowCompiler {
   }
 
   private Map<String, Object> compileChildWorkflowConfig(
-      FlowNode node, Map<String, Object> config) {
+      FlowNode node, Map<String, Object> config, String namespace) {
     Object childWorkflowId = config.get("childWorkflowId");
     Object childWorkflowDefinition = config.get("childWorkflowDefinition");
     if ((childWorkflowId == null || String.valueOf(childWorkflowId).isBlank())
@@ -226,7 +265,7 @@ public class FlowCompiler {
     if (childWorkflowDefinition != null) {
       FlowDefinition childDefinition =
           objectMapper.convertValue(childWorkflowDefinition, FlowDefinition.class);
-      compiled.put("childExecutionPlan", compile(childDefinition));
+      compiled.put("childExecutionPlan", compile(childDefinition, namespace));
     }
     return compiled;
   }

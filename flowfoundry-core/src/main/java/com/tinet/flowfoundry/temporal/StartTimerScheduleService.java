@@ -45,14 +45,14 @@ public class StartTimerScheduleService {
   }
 
   public void syncFromDefinition(String workflowId, String namespace, FlowDefinition definition) {
-    ExecutionPlan plan = compiler.compile(definition);
+    ExecutionPlan plan = compiler.compile(definition, namespace);
     ExecutionNode start = plan.startNode();
     if (!TimerDefinitionRules.isTimerStart(start.config())) {
       pauseSchedule(workflowId);
       return;
     }
-    DeploymentContract contract = contractRegistry.resolveForRun();
-    ScheduleClient scheduleClient = temporalClients.scheduleClient(contract.temporalNamespace());
+    DeploymentContract contract = contractRegistry.resolveForNamespace(namespace);
+    ScheduleClient scheduleClient = temporalClients.scheduleClient(namespace);
     ScheduleSpec spec = StartTimerScheduleMapper.toScheduleSpec(start, Instant.now());
     String businessKeyPrefix = namespace + ":" + plan.flowId();
     ScheduleActionStartWorkflow action =
@@ -107,7 +107,7 @@ public class StartTimerScheduleService {
   }
 
   private ScheduleClient businessScheduleClient() {
-    return temporalClients.scheduleClient(contractRegistry.resolveForRun().temporalNamespace());
+    return temporalClients.scheduleClient(contractRegistry.localContract().namespace());
   }
 
   static String scheduleId(String workflowId) {

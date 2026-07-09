@@ -43,7 +43,7 @@ case "${1:-up}" in
       fi
       sleep 2
     done
-    temporal operator namespace create call-campaign --address 127.0.0.1:7233 2>/dev/null || true
+    temporal operator namespace create ai-collection-strategy --address 127.0.0.1:7233 2>/dev/null || true
     docker compose -f "$COMPOSE_FILE" ps
     echo ""
     echo "Endpoints:"

@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.tinet.flowfoundry.interpreter.model.ExecutionEdge;
 import com.tinet.flowfoundry.interpreter.model.NodeKind;
 import com.tinet.flowfoundry.activity.ActivityTypes;
+import com.tinet.flowfoundry.registry.ActivityCatalogService;
 import com.tinet.flowfoundry.registry.ActivityRegistry;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
@@ -14,8 +15,40 @@ import org.junit.jupiter.api.Test;
 
 class FlowCompilerTest {
 
-  private final FlowCompiler compiler =
-      new FlowCompiler(new ActivityRegistry("1.0", "test", "test-task-queue", List.of()));
+  private static FlowCompiler compilerFor(
+      String namespace, String taskQueue, List<ActivityRegistry.ActivityDefinition> businessActivities) {
+    ActivityRegistry core =
+        new ActivityRegistry(
+            "1.0",
+            "_core_",
+            ActivityTypes.PLATFORM_TASK_QUEUE,
+            List.of(
+                new ActivityRegistry.ActivityDefinition(
+                    ActivityTypes.SCRIPT_RUNTIME,
+                    "Script Runtime",
+                    "",
+                    ActivityTypes.PLATFORM_TASK_QUEUE,
+                    "60s",
+                    null,
+                    null,
+                    List.of(),
+                    List.of()),
+                new ActivityRegistry.ActivityDefinition(
+                    ActivityTypes.HUMAN_TASK,
+                    "Human Task",
+                    "",
+                    ActivityTypes.PLATFORM_TASK_QUEUE,
+                    "60s",
+                    null,
+                    null,
+                    List.of(),
+                    List.of())));
+    ActivityRegistry business =
+        new ActivityRegistry("1.0", namespace, taskQueue, businessActivities);
+    return new FlowCompiler(ActivityCatalogService.forRegistries(core, business));
+  }
+
+  private final FlowCompiler compiler = compilerFor("test", "test-task-queue", List.of());
 
   @Test
   void compilesWorkflowNodeAsChildWorkflow() {
@@ -382,6 +415,110 @@ class FlowCompilerTest {
 
     assertThat(plan.requireNode("Script").taskQueue()).isEqualTo(ActivityTypes.PLATFORM_TASK_QUEUE);
     assertThat(plan.requireNode("Review").taskQueue()).isEqualTo(ActivityTypes.PLATFORM_TASK_QUEUE);
+  }
+
+  @Test
+  void resolvesTaskQueueFromActivityRegistry() {
+    FlowCompiler businessCompiler =
+        compilerFor(
+            "ai-collection-strategy",
+            "ai-collection-strategy",
+            List.of(
+                new ActivityRegistry.ActivityDefinition(
+                    "import-numbers",
+                    "Import Numbers",
+                    "Import",
+                    "ai-collection-strategy",
+                    "5m",
+                    null,
+                    null,
+                    List.of(),
+                    List.of())));
+    FlowDefinition definition =
+        new FlowDefinition(
+            "1.0",
+            new FlowMetadata("ImportFlow", "Import Flow", "1.0.0"),
+            Map.of(),
+            Map.of(),
+            List.of(
+                node("Start", "START", Map.of()),
+                new FlowNode(
+                    "Import",
+                    "ACTIVITY",
+                    "Import Numbers",
+                    "serviceTask",
+                    "import-numbers",
+                    ActivityTypes.PLATFORM_TASK_QUEUE,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    Map.of()),
+                node("End", "END", Map.of())),
+            List.of(
+                new FlowEdge("Start", "Import", "default"),
+                new FlowEdge("Import", "End", "default")));
+
+    var plan = businessCompiler.compile(definition, "ai-collection-strategy");
+
+    assertThat(plan.requireNode("Import").taskQueue()).isEqualTo("ai-collection-strategy");
+  }
+
+  @Test
+  void ignoresDslTaskQueueForBusinessActivities() {
+    FlowCompiler businessCompiler =
+        compilerFor(
+            "ai-collection-strategy",
+            "ai-collection-strategy",
+            List.of(
+                new ActivityRegistry.ActivityDefinition(
+                    "import-numbers",
+                    "Import Numbers",
+                    "Import",
+                    "ai-collection-strategy",
+                    "5m",
+                    null,
+                    null,
+                    List.of(),
+                    List.of())));
+    FlowDefinition definition =
+        new FlowDefinition(
+            "1.0",
+            new FlowMetadata("ImportFlow", "Import Flow", "1.0.0"),
+            Map.of(),
+            Map.of(),
+            List.of(
+                node("Start", "START", Map.of()),
+                new FlowNode(
+                    "Import",
+                    "ACTIVITY",
+                    "Import Numbers",
+                    "serviceTask",
+                    "import-numbers",
+                    "wrong-queue-from-client",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    Map.of()),
+                node("End", "END", Map.of())),
+            List.of(
+                new FlowEdge("Start", "Import", "default"),
+                new FlowEdge("Import", "End", "default")));
+
+    var plan = businessCompiler.compile(definition, "ai-collection-strategy");
+
+    assertThat(plan.requireNode("Import").taskQueue()).isEqualTo("ai-collection-strategy");
   }
 
   @Test

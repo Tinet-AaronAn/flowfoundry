@@ -10,13 +10,13 @@ class FlowRunStatusServiceTest {
   void buildsTemporalHistoryUrlWithRunId() {
     String url =
         FlowRunStatusService.buildTemporalHistoryUrl(
-            "call-campaign",
+            "ai-collection-strategy",
             "http://127.0.0.1:8080",
             "workflow_test_abc",
             "0192abcd-efgh-ijkl-mnop-qrstuvwxyz12");
     assertThat(url)
         .isEqualTo(
-            "http://127.0.0.1:8080/namespaces/call-campaign/workflows/workflow_test_abc/0192abcd-efgh-ijkl-mnop-qrstuvwxyz12/history");
+            "http://127.0.0.1:8080/namespaces/ai-collection-strategy/workflows/workflow_test_abc/0192abcd-efgh-ijkl-mnop-qrstuvwxyz12/history");
   }
 
   @Test

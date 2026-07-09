@@ -2,7 +2,6 @@ package com.tinet.flowfoundry.temporal;
 
 import com.tinet.flowfoundry.activity.ActivityTypes;
 import com.tinet.flowfoundry.config.ConditionalOnFlowFoundryPlatform;
-import com.tinet.flowfoundry.config.NamespaceRoutingProperties;
 import com.tinet.flowfoundry.config.TemporalProperties;
 import io.temporal.worker.Worker;
 import io.temporal.worker.WorkerFactory;
@@ -19,12 +18,8 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 /**
- * 平台（flowfoundry-core {@code run-mode=platform}）专属 Worker：仅轮询 {@link
- * ActivityTypes#PLATFORM_TASK_QUEUE}，执行 {@code script-runtime}、{@code human-task} 等 core
- * Activity。业务 Worker 只轮询各自业务 Task Queue，不负责此队列。
- *
- * <p>生产运行落在业务 Temporal namespace，core Activity 仍投递到 {@code flowfoundry-platform}，因此平台
- * Worker 需在系统 namespace 与各已注册业务 namespace 上均轮询该队列。
+ * Platform Worker for core activities only ({@link ActivityTypes#PLATFORM_TASK_QUEUE}). Polls
+ * every known app namespace so core activities can run inside any workflow execution.
  */
 @Component
 @ConditionalOnFlowFoundryPlatform
@@ -34,7 +29,6 @@ public class PlatformCoreWorkerBootstrap {
 
   private final TemporalProperties properties;
   private final TemporalClients temporalClients;
-  private final NamespaceRoutingProperties namespaceRouting;
   private final DeploymentContractRegistry contractRegistry;
   private final CoreTemporalWorkerExtension coreWorkerExtension;
 
@@ -43,21 +37,17 @@ public class PlatformCoreWorkerBootstrap {
   public PlatformCoreWorkerBootstrap(
       TemporalProperties properties,
       TemporalClients temporalClients,
-      NamespaceRoutingProperties namespaceRouting,
       DeploymentContractRegistry contractRegistry,
       CoreTemporalWorkerExtension coreWorkerExtension) {
     this.properties = properties;
     this.temporalClients = temporalClients;
-    this.namespaceRouting = namespaceRouting;
     this.contractRegistry = contractRegistry;
     this.coreWorkerExtension = coreWorkerExtension;
   }
 
   @EventListener(ApplicationReadyEvent.class)
   public void startCoreWorkers() {
-    Set<String> namespaces = new LinkedHashSet<>();
-    namespaces.add(contractRegistry.systemNamespace());
-    namespaces.addAll(contractRegistry.businessNamespaces());
+    Set<String> namespaces = new LinkedHashSet<>(contractRegistry.knownNamespaces());
     for (String namespace : namespaces) {
       if (namespace == null || namespace.isBlank()) {
         continue;

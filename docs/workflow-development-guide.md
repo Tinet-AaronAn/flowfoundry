@@ -86,7 +86,7 @@ FlowFoundry 上的「流程软件」通常包含四块，缺一不可：
 3. **Temporal UI**（Docker 栈）：http://127.0.0.1:8080/
 
 4. 熟悉当前示例场景的配置：
-   - Namespace：`call-campaign`
+   - Namespace：`ai-collection-strategy`（与 `activities-registry.yaml` 一致）
    - Task Queue：`ai-collection-strategy`
    - Registry：`flowfoundry-app/modules/ai-collection-strategy/config/activities-registry.yaml`
 
@@ -116,8 +116,8 @@ FlowFoundry 上的「流程软件」通常包含四块，缺一不可：
 
 ```yaml
 version: "1.0"
-namespace: your-scenario          # 业务域标识
-defaultTaskQueue: your-scenario   # 与 application.yml 中 temporal.task-queue 一致
+namespace: your-scenario          # 唯一 namespace（FlowFoundry + Temporal + Registry 同名）
+defaultTaskQueue: your-scenario   # Worker 轮询队列（App 不再单独配置 temporal.task-queue）
 
 activities:
   - id: load-campaign
@@ -174,7 +174,7 @@ service/                          # 可选：领域服务
 
 1. 创建 `flowfoundry-app/modules/<your-scenario>/`（含 `pom.xml`、`main`、`config/`、`src/`）。
 2. 在 `flowfoundry-app/pom.xml` 的 `<modules>` 中注册。
-3. `application.yml` 引入平台配置并覆盖 Temporal：
+3. `application.yml` 引入平台配置并指定 Registry 路径：
 
    ```yaml
    spring:
@@ -186,13 +186,14 @@ service/                          # 可选：领域服务
        name: your-scenario
 
    temporal:
-     namespace: ${TEMPORAL_NAMESPACE:your-namespace}
-     task-queue: ${TEMPORAL_TASK_QUEUE:your-scenario}
+     host: ${TEMPORAL_HOST:127.0.0.1:7233}
 
    platform:
      activity-registry:
        path: ${ACTIVITY_REGISTRY_PATH:classpath:activities-registry.yaml}
    ```
+
+   **namespace 与 task queue 在 `activities-registry.yaml` 中声明**（`namespace` + `defaultTaskQueue`），Worker 启动时自动读取，无需 `temporal.namespace` / `temporal.task-queue`。
 
    启动类使用 `@EnableFlowFoundryWorker`，**不要**使用 `@EnableFlowFoundry`（后者会启动完整平台 API）。
 

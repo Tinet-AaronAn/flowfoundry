@@ -8,7 +8,7 @@ export PATH="/Applications/OrbStack.app/Contents/MacOS:/opt/homebrew/bin:$PATH"
 CAMPAIGN_ID="${1:-campaign-smoke-$(date +%s)}"
 WORKFLOW_ID="ai-collection-${CAMPAIGN_ID}"
 TEMPORAL_ADDRESS="${TEMPORAL_ADDRESS:-127.0.0.1:7233}"
-NAMESPACE="${TEMPORAL_NAMESPACE:-call-campaign}"
+NAMESPACE="${TEMPORAL_NAMESPACE:-ai-collection-strategy}"
 TASK_QUEUE="${TEMPORAL_TASK_QUEUE:-ai-collection-strategy}"
 
 echo "==> Ensure FlowFoundry app is up (worker polls $TASK_QUEUE)"

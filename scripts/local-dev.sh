@@ -108,8 +108,8 @@ start_infra() {
   wait_postgres
   wait_redis
   wait_temporal
-  temporal operator namespace describe call-campaign --address 127.0.0.1:7233 >/dev/null 2>&1 \
-    || temporal operator namespace create call-campaign --address 127.0.0.1:7233
+  temporal operator namespace describe ai-collection-strategy --address 127.0.0.1:7233 >/dev/null 2>&1 \
+    || temporal operator namespace create ai-collection-strategy --address 127.0.0.1:7233
   echo "[temporal] UI: http://127.0.0.1:8080/"
 }
 

@@ -66,12 +66,12 @@ if [[ "$MODE" == "docker" ]]; then
     REPORT+=("SKIP flowfoundry-ui (optional: docker compose --profile full up -d flowfoundry-devserver)")
   fi
   check "temporal-health" temporal operator cluster health --address 127.0.0.1:7233
-  check "namespace-call-campaign" temporal operator namespace describe call-campaign --address 127.0.0.1:7233
+  check "namespace-ai-collection-strategy" temporal operator namespace describe ai-collection-strategy --address 127.0.0.1:7233
 else
   check "compose-postgres" check_postgres
   check "redis-up" redis-cli -p "${REDIS_PORT:-6379}" ping
   check "temporal-up" temporal operator cluster health --address 127.0.0.1:7233
-  check "namespace-call-campaign" temporal operator namespace describe call-campaign --address 127.0.0.1:7233
+  check "namespace-ai-collection-strategy" temporal operator namespace describe ai-collection-strategy --address 127.0.0.1:7233
   check "app-health" check_app_health
   check "temporal-ui" check_temporal_ui
 fi

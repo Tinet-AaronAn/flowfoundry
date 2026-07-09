@@ -20,9 +20,9 @@ helm upgrade --install temporal temporalio/temporal \
   -n temporal \
   -f "$ROOT/deploy/helm/temporal/values-production.yaml"
 
-echo "==> Creating Temporal namespace: call-campaign"
+echo "==> Creating Temporal namespace: ai-collection-strategy"
 kubectl exec -n temporal deploy/temporal-admintools -- \
-  tctl --namespace call-campaign namespace register || true
+  tctl --namespace ai-collection-strategy namespace register || true
 
 echo "==> Building Activity Worker image (local)"
 cd "$ROOT"
@@ -33,7 +33,7 @@ echo "==> Deploy Activity Worker"
 kubectl create configmap activities-registry \
   --from-file=activities-registry.yaml="$ROOT/flowfoundry-app/modules/ai-collection-strategy/config/activities-registry.yaml" \
   -n bpm --dry-run=client -o yaml | kubectl apply -f -
-kubectl apply -f "$ROOT/deploy/k8s/call-campaign-worker.yaml"
+kubectl apply -f "$ROOT/deploy/k8s/ai-collection-strategy-worker.yaml"
 
 echo "==> FlowFoundry Enterprise"
 echo "    Configure license + OIDC in deploy/helm/flowfoundry/values-production.yaml"

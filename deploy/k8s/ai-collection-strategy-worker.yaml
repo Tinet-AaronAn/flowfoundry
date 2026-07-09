@@ -1,33 +1,29 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: call-campaign-worker
+  name: ai-collection-strategy-worker
   namespace: bpm
   labels:
-    app: call-campaign-worker
+    app: ai-collection-strategy-worker
 spec:
   replicas: 20
   selector:
     matchLabels:
-      app: call-campaign-worker
+      app: ai-collection-strategy-worker
   template:
     metadata:
       labels:
-        app: call-campaign-worker
+        app: ai-collection-strategy-worker
     spec:
       containers:
         - name: worker
-          image: registry.internal.example.com/call-campaign-worker:1.0.0
+          image: registry.internal.example.com/ai-collection-strategy-worker:1.0.0
           ports:
             - containerPort: 8080
               name: http
           env:
             - name: TEMPORAL_HOST
               value: temporal-frontend.temporal.svc.cluster.local:7233
-            - name: TEMPORAL_NAMESPACE
-              value: call-campaign
-            - name: TEMPORAL_TASK_QUEUE
-              value: call-campaign
             - name: TEMPORAL_MAX_CONCURRENT_ACTIVITIES
               value: "50"
             - name: REDIS_HOST
@@ -77,13 +73,13 @@ data:
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: call-campaign-worker
+  name: ai-collection-strategy-worker
   namespace: bpm
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: call-campaign-worker
+    name: ai-collection-strategy-worker
   minReplicas: 10
   maxReplicas: 50
   metrics:

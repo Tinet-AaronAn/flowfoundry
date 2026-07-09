@@ -165,8 +165,15 @@
         return workflow?.versions?.find(v => v.version === state.activeVersion);
       }
 
+      function stripLegacyNodeTaskQueues(model) {
+        for (const node of model?.nodes || []) {
+          delete node.taskQueue;
+        }
+      }
+
       async function saveWorkflowDefinition() {
         const now = new Date().toISOString();
+        stripLegacyNodeTaskQueues(state.model);
         let workflow = activeWorkflow();
         if (!workflow) {
           workflow = workflowRecordFromModel(state.model, 'draft', state.activeVersion || '1.0.0');

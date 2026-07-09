@@ -162,7 +162,7 @@
         if (!workflowId) return null;
         const temporal = window.FLOWFOUNDRY_PUBLIC_CONFIG?.temporal || {};
         const base = String(snapshot?.temporalUiBaseUrl || temporal.uiBaseUrl || 'http://127.0.0.1:8080').replace(/\/+$/, '');
-        const namespace = encodeURIComponent(snapshot?.temporalNamespace || temporal.namespace || 'default');
+        const namespace = encodeURIComponent(snapshot?.temporalNamespace || platformNamespace() || 'default');
         const wf = encodeURIComponent(workflowId);
         const runId = snapshot?.runId;
         if (runId) {

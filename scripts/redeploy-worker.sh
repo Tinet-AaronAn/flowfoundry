@@ -58,22 +58,16 @@ build_app() {
 
 start_app() {
   echo "[flowfoundry] starting platform (flowfoundry-core) on :$PLATFORM_PORT..."
-  # 平台（core）没有自己的业务 namespace：业务 workflow 落在各 app 部署契约声明的业务 namespace，
-  # 后台建模器调试运行落在系统 namespace（flowfoundry.namespace.system）。--temporal.namespace 仅是
-  # 「无任何 Worker 注册」时的中性回退默认值，不能写成某个 app 的 namespace（如 call-campaign）。
   start_java_daemon "$PIDFILE" "$LOG" java -jar "$JAR" \
     --server.port="$PLATFORM_PORT" \
     --flowfoundry.run-mode=platform \
     --flowfoundry.activity-registry.path="file:$REGISTRY" \
     --platform.activity-registry.path="file:$REGISTRY" \
-    --flowfoundry.namespace.system="${FLOWFOUNDRY_SYSTEM_NAMESPACE:-flowfoundry-system}" \
     --flowfoundry.security.api-keys[0].id=platform-admin \
     --flowfoundry.security.api-keys[0].key="${FLOWFOUNDRY_API_KEY:-local-admin-key}" \
     --flowfoundry.security.api-keys[0].admin=true \
     --flowfoundry.modeler.allow-frame-embedding=true \
     --temporal.host="${TEMPORAL_HOST:-127.0.0.1:7233}" \
-    --temporal.namespace="${TEMPORAL_NAMESPACE:-default}" \
-    --temporal.task-queue="${TEMPORAL_TASK_QUEUE:-flowfoundry-platform}" \
     --spring.data.redis.host="${REDIS_HOST:-127.0.0.1}" \
     --spring.data.redis.port="${REDIS_PORT:-6379}"
 

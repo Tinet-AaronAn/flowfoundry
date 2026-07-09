@@ -1,6 +1,6 @@
 package com.tinet.flowfoundry.security;
 
-import com.tinet.flowfoundry.config.NamespaceRoutingProperties;
+import com.tinet.flowfoundry.registry.ActivityCatalogService;
 import com.tinet.flowfoundry.workflow.NamespaceContextDto;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Optional;
@@ -18,16 +18,16 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 @Service
 public class NamespaceAccessService {
 
-  private final NamespaceRoutingProperties namespaceRouting;
+  private final ActivityCatalogService activityCatalog;
 
-  public NamespaceAccessService(NamespaceRoutingProperties namespaceRouting) {
-    this.namespaceRouting = namespaceRouting;
+  public NamespaceAccessService(ActivityCatalogService activityCatalog) {
+    this.activityCatalog = activityCatalog;
   }
 
   public Set<String> allowedNamespaces() {
     return currentCaller()
         .map(CallerAuthentication::namespaces)
-        .orElse(Set.of(platformNamespace()));
+        .orElse(Set.of(defaultNamespace()));
   }
 
   public boolean canAccess(String namespace) {
@@ -48,7 +48,7 @@ public class NamespaceAccessService {
   public String resolveActiveNamespace() {
     CallerAuthentication caller = currentCaller().orElse(null);
     if (caller != null && caller.admin() && caller.namespaces().isEmpty()) {
-      return resolveNamespaceHeader().orElse(platformNamespace());
+      return resolveNamespaceHeader().orElse(defaultNamespace());
     }
 
     Set<String> allowed = allowedNamespaces();
@@ -90,9 +90,9 @@ public class NamespaceAccessService {
     return currentCaller().map(CallerAuthentication::admin).orElse(false);
   }
 
-  /** 平台（core）固定逻辑 namespace，与 Temporal 系统 namespace 同名。 */
-  private String platformNamespace() {
-    return namespaceRouting.system();
+  /** Default namespace when the caller has not selected one (admin with access to all). */
+  private String defaultNamespace() {
+    return activityCatalog.localBusinessNamespace();
   }
 
   private Optional<String> resolveNamespaceHeader() {

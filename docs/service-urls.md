@@ -20,9 +20,8 @@
 | 用途 | 地址 |
 |------|------|
 | Temporal gRPC | 127.0.0.1:7233 |
-| Temporal namespace（示例业务模块，物理隔离） | `call-campaign` |
-| Temporal namespace（系统管理，目标设计） | `flowfoundry-system` |
-| Task queue（示例业务模块） | `ai-collection-strategy` |
+| Temporal namespace（示例业务 App） | `ai-collection-strategy` |
+| Task queue（来自 Activity Registry `defaultTaskQueue`） | `ai-collection-strategy` |
 | PostgreSQL | 127.0.0.1:5432 / 库 `flowfoundry` / 用户 `flowfoundry` |
 | Redis | 127.0.0.1:6379 |
 | Playwright E2E 静态页 | http://127.0.0.1:4173（**不是**联调入口） |
@@ -42,25 +41,30 @@
 | 数据库迁移 | `flowfoundry-core/src/main/resources/db/migration/` |
 | Activity 注册表（催收） | `flowfoundry-app/modules/ai-collection-strategy/config/activities-registry.yaml` |
 
-## 两个「namespace」概念（务必区分）
+## Namespace（统一模型）
 
-FlowFoundry 有两个都叫 namespace、但语义完全不同的概念，二者**完全解耦**，详见 [detailed-design.md §11](./detailed-design.md#11-namespace-体系设计目标设计)：
+**一个 namespace = FlowFoundry 逻辑隔离 + Temporal 物理隔离 + Activity Registry 归属**，三者同名、一一对应。
 
-| 概念 | 含义 | 取值来源 |
-|------|------|----------|
-| **逻辑 namespace**（用户可见的一等概念） | workflow 定义归属、run logs、API Keys 的统一隔离/RBAC 单位 | `workflow_definition.namespace`，请求头 `X-Platform-Namespace`（右上角 Namespace 选择器） |
-| **Temporal namespace**（物理，内部） | workflow 执行、run history 的物理隔离边界 | 使用方部署契约声明（`temporal.namespace`），值由 app 自定 |
+| 维度 | 说明 |
+|------|------|
+| **Workflow 存储** | `workflow_definition.namespace` |
+| **Run / Temporal** | Workflow 在哪个 namespace 创建，Run 就在同一 Temporal namespace |
+| **Activity Registry** | `activities-registry.yaml` 的 `namespace` + `defaultTaskQueue` |
+| **Worker** | 轮询 Registry 的 `namespace` + `defaultTaskQueue`（App 不再单独配 `temporal.task-queue`） |
+| **请求头** | `X-Platform-Namespace`（建模器右上角切换） |
 
-> 「tenant / tenantId」是逻辑 namespace 的旧称，已统一为 **namespace**（后端 `X-Tenant-Id` 仅作弃用读兼容）。
+**Activity 可见性**：当前 namespace 的 Service Task 下拉 = **Core 全局**（`script-runtime`、`human-task`）+ **本 namespace 业务 Activity**。切换 namespace 会重新加载 Activity 列表。
 
-**目标隔离模型**：`flowfoundry-system`（core 管理 + 建模器调试运行的固定 Temporal namespace） + 每个 flowfoundry-app 使用方各自独立的业务 Temporal namespace（互不可见）。
+**Core Activity 例外**：`script-runtime` / `human-task` 由平台 Worker 在 `flowfoundry-platform` 队列执行，可在任意 namespace 的 workflow 中使用。
 
-### 逻辑 namespace（一等概念）
+本地示例 App namespace：`ai-collection-strategy`（见 `activities-registry.yaml`）。
 
-- **统一作用域**：workflows、run logs、API Keys 均按右上角选中的**单个 namespace** 过滤（管理员可在 API Keys / 审计日志切换「所有 Namespace」）。
-- **请求头（规范）**：`X-Platform-Namespace: <namespace>`；兼容旧客户端：`X-Tenant-Id`（弃用，同值读兼容）。
+### 逻辑 namespace 操作
+
+- **统一作用域**：workflows、run logs、API Keys 均按右上角选中的**单个 namespace** 过滤。
+- **请求头（规范）**：`X-Platform-Namespace: <namespace>`；兼容旧客户端：`X-Tenant-Id`。
 - **API Key 授权**：非管理员 Key 在 `platform_api_key_namespace` 中配置可访问的 namespace 列表。
-- **建模器**：顶栏 Namespace 下拉切换当前 namespace；新建 Workflow 归属当前选中 namespace；Workflow 列表展示 namespace 列。
+- **建模器**：顶栏 Namespace 下拉切换当前 namespace；新建 Workflow 归属当前选中 namespace。
 - **上下文 API**：`GET /api/workflows/context` 返回 `{ namespace, allowedNamespaces, namespaceHeader }`。
 
 ## 本地调试命令

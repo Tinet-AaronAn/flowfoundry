@@ -64,7 +64,7 @@ env:
 
   # --- Temporal (required for BPMN) ---
   TEMPORAL_HOST_PORT: "temporal-frontend.temporal.svc.cluster.local:7233"
-  TEMPORAL_NAMESPACE: "call-campaign"
+  TEMPORAL_NAMESPACE: "ai-collection-strategy"
   TEMPORAL_TLS_ENABLED: "false"
   # TEMPORAL_TLS_CERT_PATH: "/etc/temporal/tls/client.pem"
   # TEMPORAL_TLS_KEY_PATH: "/etc/temporal/tls/client.key"
@@ -168,11 +168,10 @@ activityWorker:
   enabled: true
   replicaCount: 20
   image:
-    repository: registry.internal.example.com/call-campaign-worker
+    repository: registry.internal.example.com/ai-collection-strategy-worker
     tag: "1.0.0"
-  taskQueue: call-campaign
+  registryNamespace: ai-collection-strategy
   temporalHost: temporal-frontend.temporal.svc.cluster.local:7233
-  temporalNamespace: call-campaign
   resources:
     requests:
       cpu: "1"

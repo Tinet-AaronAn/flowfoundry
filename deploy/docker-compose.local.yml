@@ -57,11 +57,9 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
-        temporal operator namespace create call-campaign --address temporal:7233 2>/dev/null || true
-        temporal operator namespace create flowfoundry-system --address temporal:7233 2>/dev/null || true
-        temporal operator namespace describe call-campaign --address temporal:7233
-        temporal operator namespace describe flowfoundry-system --address temporal:7233
-        echo "namespaces call-campaign + flowfoundry-system ready"
+        temporal operator namespace create ai-collection-strategy --address temporal:7233 2>/dev/null || true
+        temporal operator namespace describe ai-collection-strategy --address temporal:7233
+        echo "namespace ai-collection-strategy ready"
     restart: "no"
 
   temporal-ui:
@@ -102,8 +100,6 @@ services:
         condition: service_completed_successfully
     environment:
       TEMPORAL_HOST: temporal:7233
-      TEMPORAL_NAMESPACE: call-campaign
-      TEMPORAL_TASK_QUEUE: ai-collection-strategy
       REDIS_HOST: redis
       REDIS_PORT: 6379
       DATABASE_URL: jdbc:postgresql://postgres:5432/flowfoundry

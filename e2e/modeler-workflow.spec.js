@@ -72,8 +72,7 @@ test.describe('FlowFoundry workflow API integration', () => {
     const nameInput = page.locator('#properties .prop-section').first().locator('input').nth(1);
     await nameInput.fill('Persisted Task Name');
     await page.waitForFunction(() => state.model.nodes.some(node => node.name === 'Persisted Task Name'));
-    await page.locator('#navWorkflows').click();
-    await page.getByRole('button', { name: 'Save Current Version' }).click();
+    await page.locator('#modelerView').getByRole('button', { name: 'Save', exact: true }).click();
 
     await expect(page.locator('#appNotice')).toContainText('Workflow saved');
     const putEntry = store.workflowApiLog.find(entry => entry.method === 'PUT' && entry.path.includes('/versions/'));
@@ -109,8 +108,8 @@ test.describe('FlowFoundry workflow API integration', () => {
     await expect(page.locator('#modelerView')).toHaveClass(/active/);
     await page.locator('#flowName').fill('Renamed Scheduler');
     await page.waitForFunction(() => state.model.name === 'Renamed Scheduler');
+    await page.locator('#modelerView').getByRole('button', { name: 'Save', exact: true }).click();
     await page.locator('#navWorkflows').click();
-    await page.getByRole('button', { name: 'Save Current Version' }).click();
 
     await expect(page.locator('#workflowTable')).toContainText('Renamed Scheduler');
     await expect(page.locator('#appNotice')).toContainText('Workflow saved');

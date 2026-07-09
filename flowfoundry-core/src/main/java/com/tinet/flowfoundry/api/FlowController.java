@@ -5,9 +5,9 @@ import com.tinet.flowfoundry.flow.FlowDefinition;
 import com.tinet.flowfoundry.interpreter.FlowInterpreterWorkflow;
 import com.tinet.flowfoundry.interpreter.model.ExecutionPlan;
 import com.tinet.flowfoundry.interpreter.model.HumanTaskCompletion;
-import com.tinet.flowfoundry.api.RunStatusResponse;
 import com.tinet.flowfoundry.interpreter.runtime.RunSource;
 import com.tinet.flowfoundry.interpreter.runtime.RunSourceResolver;
+import com.tinet.flowfoundry.registry.ActivityCatalogService;
 import com.tinet.flowfoundry.registry.ActivityRegistry;
 import com.tinet.flowfoundry.security.NamespaceAccessService;
 import com.tinet.flowfoundry.temporal.DeploymentContract;
@@ -36,7 +36,7 @@ public class FlowController {
   private final TemporalClients temporalClients;
   private final DeploymentContractRegistry contractRegistry;
   private final RunNamespaceLocator runNamespaceLocator;
-  private final ActivityRegistry activityRegistry;
+  private final ActivityCatalogService activityCatalog;
 
   private final FlowRunStatusService runStatusService;
   private final NamespaceAccessService namespaceAccess;
@@ -46,28 +46,30 @@ public class FlowController {
       TemporalClients temporalClients,
       DeploymentContractRegistry contractRegistry,
       RunNamespaceLocator runNamespaceLocator,
-      ActivityRegistry activityRegistry,
+      ActivityCatalogService activityCatalog,
       FlowRunStatusService runStatusService,
       NamespaceAccessService namespaceAccess) {
     this.compiler = compiler;
     this.temporalClients = temporalClients;
     this.contractRegistry = contractRegistry;
     this.runNamespaceLocator = runNamespaceLocator;
-    this.activityRegistry = activityRegistry;
+    this.activityCatalog = activityCatalog;
     this.runStatusService = runStatusService;
     this.namespaceAccess = namespaceAccess;
   }
 
   @GetMapping("/activities")
   public ActivityRegistry activities() {
-    namespaceAccess.requireAccess(activityRegistry.namespace());
-    return activityRegistry;
+    String namespace = namespaceAccess.resolveActiveNamespace();
+    namespaceAccess.requireAccess(namespace);
+    return activityCatalog.forNamespace(namespace);
   }
 
   @PostMapping("/flows/compile")
   public ExecutionPlan compile(@RequestBody FlowDefinition definition) {
     namespaceAccess.requireAuthenticatedNamespace();
-    return compiler.compile(definition);
+    String namespace = namespaceAccess.resolveActiveNamespace();
+    return compiler.compile(definition, namespace);
   }
 
   @PostMapping("/flows/run")
@@ -77,7 +79,7 @@ public class FlowController {
           String clientHeader) {
     namespaceAccess.requireAuthenticatedNamespace();
     String namespace = namespaceAccess.resolveActiveNamespace();
-    ExecutionPlan plan = compiler.compile(request.flow());
+    ExecutionPlan plan = compiler.compile(request.flow(), namespace);
     RunSource runSource = RunSourceResolver.resolve(request.runSource(), clientHeader);
     String businessKey =
         request.businessKey() == null || request.businessKey().isBlank()
@@ -88,15 +90,8 @@ public class FlowController {
             ? WorkflowRunId.forRun(runSource, plan.flowId())
             : requireRunWorkflowId(request.workflowId());
 
-    DeploymentContract contract = contractRegistry.resolveForRun();
-    // 后台建模器发起的调试运行（web-modeler）落到预留的系统 namespace，与业务生产 run logs 隔离；
-    // 生产运行落到使用方业务 namespace。两者共用同一业务 Task Queue，由使用方 Worker 同时轮询。
-    // 注意：这里的 temporalNamespace 是 Temporal 物理隔离单位，与上面的逻辑 namespace（RBAC / workflow 归属）无关。
-    String temporalNamespace =
-        runSource.usesStubActivities()
-            ? contractRegistry.systemNamespace()
-            : contract.temporalNamespace();
-    WorkflowClient workflowClient = temporalClients.workflowClient(temporalNamespace);
+    DeploymentContract contract = contractRegistry.resolveForNamespace(namespace);
+    WorkflowClient workflowClient = temporalClients.workflowClient(namespace);
     FlowInterpreterWorkflow workflow =
         workflowClient.newWorkflowStub(
             FlowInterpreterWorkflow.class,
@@ -108,7 +103,7 @@ public class FlowController {
     WorkflowExecution execution =
         WorkflowClient.start(
             workflow::run, plan, businessKey, safeMap(request.input()), runSource.wireValue());
-    runNamespaceLocator.remember(workflowId, temporalNamespace);
+    runNamespaceLocator.remember(workflowId, namespace);
     return new RunResponse(
         workflowId, execution.getRunId(), businessKey, runSource.wireValue(), plan);
   }

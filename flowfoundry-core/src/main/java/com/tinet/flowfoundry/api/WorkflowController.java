@@ -1,6 +1,7 @@
 package com.tinet.flowfoundry.api;
 
 import com.tinet.flowfoundry.security.NamespaceAccessService;
+import com.tinet.flowfoundry.temporal.DeploymentContractRegistry;
 import com.tinet.flowfoundry.security.NamespaceAdminService;
 import com.tinet.flowfoundry.workflow.NamespaceContextDto;
 import com.tinet.flowfoundry.workflow.WorkflowContracts.AllocateIdRequest;
@@ -34,14 +35,17 @@ public class WorkflowController {
   private final WorkflowService workflowService;
   private final NamespaceAccessService namespaceAccess;
   private final NamespaceAdminService namespaceAdminService;
+  private final DeploymentContractRegistry contractRegistry;
 
   public WorkflowController(
       WorkflowService workflowService,
       NamespaceAccessService namespaceAccess,
-      NamespaceAdminService namespaceAdminService) {
+      NamespaceAdminService namespaceAdminService,
+      DeploymentContractRegistry contractRegistry) {
     this.workflowService = workflowService;
     this.namespaceAccess = namespaceAccess;
     this.namespaceAdminService = namespaceAdminService;
+    this.contractRegistry = contractRegistry;
   }
 
   @GetMapping("/context")
@@ -50,11 +54,10 @@ public class WorkflowController {
     if (!namespaceAccess.isAdmin()) {
       return base;
     }
-    // 管理员可访问全部 namespace：把已登记与 workflow 定义里出现过的 namespace 并入允许集，
-    // 使右上角选择器能列出并切换所有 namespace。
     java.util.SortedSet<String> known = new java.util.TreeSet<>(base.allowedNamespaces());
     known.addAll(namespaceAdminService.registeredNamespaceIds());
     known.addAll(workflowService.knownNamespaces());
+    known.addAll(contractRegistry.knownNamespaces());
     return new NamespaceContextDto(base.namespace(), known, base.namespaceHeader());
   }
 

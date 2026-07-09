@@ -7,7 +7,7 @@ export PATH="/opt/homebrew/bin:/Applications/OrbStack.app/Contents/MacOS:$PATH"
 
 BASE_URL="${BASE_URL:-http://127.0.0.1:8081}"
 TEMPORAL_ADDRESS="${TEMPORAL_ADDRESS:-127.0.0.1:7233}"
-NAMESPACE="${TEMPORAL_NAMESPACE:-call-campaign}"
+NAMESPACE="${TEMPORAL_NAMESPACE:-ai-collection-strategy}"
 TASK_QUEUE="${TEMPORAL_TASK_QUEUE:-ai-collection-strategy}"
 WF_ID="${1:-workflow_runtime_smoke_$(date +%s)}"
 CAMPAIGN_ID="${2:-campaign-runtime-$(date +%s)}"

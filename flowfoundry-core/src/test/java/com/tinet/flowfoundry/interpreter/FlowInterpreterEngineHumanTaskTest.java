@@ -10,6 +10,7 @@ import com.tinet.flowfoundry.flow.FlowMetadata;
 import com.tinet.flowfoundry.flow.FlowNode;
 import com.tinet.flowfoundry.interpreter.model.ExecutionPlan;
 import com.tinet.flowfoundry.interpreter.runtime.VariableStore;
+import com.tinet.flowfoundry.registry.ActivityCatalogService;
 import com.tinet.flowfoundry.registry.ActivityRegistry;
 import java.util.List;
 import java.util.Map;
@@ -18,7 +19,9 @@ import org.junit.jupiter.api.Test;
 class FlowInterpreterEngineHumanTaskTest {
 
   private final FlowCompiler compiler =
-      new FlowCompiler(new ActivityRegistry("1.0", "test", "test-task-queue", List.of()));
+      new FlowCompiler(
+          ActivityCatalogService.forRegistries(
+              null, new ActivityRegistry("1.0", "test", "test-task-queue", List.of())));
 
   @Test
   void humanTaskInvokesActivityAndWaitsForCompletion() throws Exception {

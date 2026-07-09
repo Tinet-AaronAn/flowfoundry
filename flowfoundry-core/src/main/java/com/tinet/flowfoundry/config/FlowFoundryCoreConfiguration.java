@@ -1,6 +1,7 @@
 package com.tinet.flowfoundry.config;
 
 import com.tinet.flowfoundry.config.ConditionalOnFlowFoundryPlatform;
+import com.tinet.flowfoundry.registry.ActivityCatalogService;
 import com.tinet.flowfoundry.registry.ActivityRegistry;
 import com.tinet.flowfoundry.registry.ActivityRegistryLoader;
 import com.tinet.flowfoundry.security.PlatformSecurityProperties;
@@ -26,5 +27,10 @@ public class FlowFoundryCoreConfiguration {
   @Bean
   ActivityRegistry activityRegistry(ActivityRegistryLoader loader) {
     return loader.load();
+  }
+
+  @Bean
+  ActivityCatalogService activityCatalogService(ActivityRegistryLoader loader) {
+    return new ActivityCatalogService(loader);
   }
 }

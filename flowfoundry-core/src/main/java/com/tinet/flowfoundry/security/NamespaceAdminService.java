@@ -1,6 +1,5 @@
 package com.tinet.flowfoundry.security;
 
-import com.tinet.flowfoundry.config.NamespaceRoutingProperties;
 import com.tinet.flowfoundry.security.AdminContracts.CreateNamespaceRequest;
 import com.tinet.flowfoundry.security.AdminContracts.NamespaceDto;
 import com.tinet.flowfoundry.security.AdminContracts.UpdateNamespaceRequest;
@@ -18,21 +17,18 @@ public class NamespaceAdminService {
   private final PlatformApiKeyRepository apiKeyRepository;
   private final AuditLogService auditLogService;
   private final AdminAccessService adminAccessService;
-  private final NamespaceRoutingProperties namespaceRouting;
 
   public NamespaceAdminService(
       PlatformNamespaceRepository repository,
       WorkflowDefinitionRepository workflowRepository,
       PlatformApiKeyRepository apiKeyRepository,
       AuditLogService auditLogService,
-      AdminAccessService adminAccessService,
-      NamespaceRoutingProperties namespaceRouting) {
+      AdminAccessService adminAccessService) {
     this.repository = repository;
     this.workflowRepository = workflowRepository;
     this.apiKeyRepository = apiKeyRepository;
     this.auditLogService = auditLogService;
     this.adminAccessService = adminAccessService;
-    this.namespaceRouting = namespaceRouting;
   }
 
   @Transactional(readOnly = true)
@@ -177,9 +173,7 @@ public class NamespaceAdminService {
   }
 
   private void requireMutable(String namespaceId) {
-    if (namespaceRouting.system().equals(namespaceId)) {
-      throw new IllegalArgumentException("System namespace cannot be modified: " + namespaceId);
-    }
+    // All registered namespaces are user-managed under the unified namespace model.
   }
 
   private PlatformNamespaceEntity requireNamespace(String namespaceId) {
@@ -189,12 +183,11 @@ public class NamespaceAdminService {
   }
 
   private NamespaceDto toDto(PlatformNamespaceEntity entity) {
-    boolean system = namespaceRouting.system().equals(entity.getId());
     return new NamespaceDto(
         entity.getId(),
         entity.getDisplayName(),
         entity.getDescription(),
-        system,
+        false,
         entity.getCreatedAt(),
         entity.getUpdatedAt());
   }

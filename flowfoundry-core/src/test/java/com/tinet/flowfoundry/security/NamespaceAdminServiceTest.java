@@ -3,13 +3,13 @@ package com.tinet.flowfoundry.security;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.tinet.flowfoundry.config.NamespaceRoutingProperties;
 import com.tinet.flowfoundry.security.AdminContracts.CreateNamespaceRequest;
 import com.tinet.flowfoundry.security.AdminContracts.UpdateNamespaceRequest;
 import com.tinet.flowfoundry.workflow.WorkflowDefinitionEntity;
 import com.tinet.flowfoundry.workflow.WorkflowDefinitionRepository;
 import com.tinet.flowfoundry.workflow.WorkflowStatus;
 import java.time.Instant;
+import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -22,7 +22,6 @@ import org.springframework.test.context.ActiveProfiles;
 @ActiveProfiles("test")
 @Import({
   NamespaceAdminService.class,
-  NamespaceRoutingProperties.class,
   AdminAccessService.class,
   PlatformSecurityProperties.class,
   AuditLogService.class
@@ -34,18 +33,18 @@ class NamespaceAdminServiceTest {
   @Autowired private PlatformApiKeyRepository apiKeyRepository;
 
   @BeforeEach
-  void seedSystemNamespace() {
-    namespaceAdminService.ensureRegistered("test-ns", "Test System", "System namespace");
+  void seedNamespace() {
+    namespaceAdminService.ensureRegistered("test-ns", "Test NS", "Test namespace");
   }
 
   @Test
   void createsAndListsNamespace() {
     var created =
         namespaceAdminService.create(
-            new CreateNamespaceRequest("call-campaign", "Call Campaign", "Outbound calls"));
-    assertThat(created.id()).isEqualTo("call-campaign");
-    assertThat(created.displayName()).isEqualTo("Call Campaign");
-    assertThat(namespaceAdminService.list()).extracting("id").contains("call-campaign");
+            new CreateNamespaceRequest("demo-app", "Demo App", "Second namespace"));
+    assertThat(created.id()).isEqualTo("demo-app");
+    assertThat(created.displayName()).isEqualTo("Demo App");
+    assertThat(namespaceAdminService.list()).extracting("id").contains("demo-app", "ai-collection-strategy");
   }
 
   @Test
@@ -58,20 +57,10 @@ class NamespaceAdminServiceTest {
   }
 
   @Test
-  void rejectsUpdatingSystemNamespace() {
-    assertThatThrownBy(
-            () ->
-                namespaceAdminService.update(
-                    "test-ns", new UpdateNamespaceRequest("Renamed", "desc")))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("System namespace");
-  }
-
-  @Test
-  void rejectsDeletingSystemNamespace() {
-    assertThatThrownBy(() -> namespaceAdminService.delete("test-ns"))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("System namespace");
+  void allowsUpdatingRegisteredNamespace() {
+    var updated =
+        namespaceAdminService.update("test-ns", new UpdateNamespaceRequest("Renamed", "desc"));
+    assertThat(updated.displayName()).isEqualTo("Renamed");
   }
 
   @Test
