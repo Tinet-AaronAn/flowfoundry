@@ -12,7 +12,7 @@
 
 - 平台管理页：http://127.0.0.1:8081/
 - 业务 iframe 壳：http://127.0.0.1:8082/app/workflow-admin.html（嵌入 :8081 建模器）
-- 平台 JAR：`flowfoundry-core/target/flowfoundry-core-1.0.3-exec.jar`
+- 平台 JAR：`flowfoundry-core/target/flowfoundry-core-1.0.4-exec.jar`
 - 业务 Worker JAR：`examples/ai-collection-strategy/target/*.jar`（或独立 App 仓库）
 
 ## 严格分层

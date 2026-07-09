@@ -33,14 +33,14 @@
 | 内容 | 路径 |
 |------|------|
 | 平台内核 | `flowfoundry-core/` |
-| 场景启动类（催收示例） | `flowfoundry-app/modules/ai-collection-strategy/.../AiCollectionStrategyApplication.java` |
-| 场景 JAR 产物 | `flowfoundry-app/modules/ai-collection-strategy/target/ai-collection-strategy-demo-1.0.3.jar` |
+| 场景启动类（催收示例） | `examples/ai-collection-strategy/.../AiCollectionStrategyApplication.java` |
+| 场景 JAR 产物 | `examples/ai-collection-strategy/target/ai-collection-strategy-demo-1.0.4.jar` |
 | 平台共享配置 | `flowfoundry-core/src/main/resources/application-flowfoundry-platform.yml` |
 | 建模器静态资源 | `flowfoundry-core/src/main/resources/static/` |
 | 前端 SDK | `flowfoundry-core/.../static/assets/js/flowfoundry-modeler-sdk.js` |
 | 平台 SDK 注解 | `EnableFlowFoundry`（平台）、`EnableFlowFoundryWorker`（业务 Worker） |
 | 数据库迁移 | `flowfoundry-core/src/main/resources/db/migration/` |
-| Activity 注册表（催收） | `flowfoundry-app/modules/ai-collection-strategy/config/activities-registry.yaml` |
+| Activity 注册表（催收） | `examples/ai-collection-strategy/config/activities-registry.yaml` |
 
 ## Namespace（统一模型）
 

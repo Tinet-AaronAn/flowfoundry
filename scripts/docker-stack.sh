@@ -64,7 +64,7 @@ case "${1:-up}" in
   rebuild)
     ensure_docker
     echo "[compose] rebuilding worker image (integration only)..."
-    (cd "$ROOT" && mvn -q -pl flowfoundry-app/modules/ai-collection-strategy -am -DskipTests package)
+    (cd "$ROOT" && mvn -q -pl examples/ai-collection-strategy -am -DskipTests package)
     docker compose -f "$COMPOSE_FILE" build --no-cache worker
     docker compose -f "$COMPOSE_FILE" up -d worker
     ;;

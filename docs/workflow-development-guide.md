@@ -93,7 +93,7 @@ FlowFoundry 上的「流程软件」通常包含四块，缺一不可：
 **方式 A（推荐）**：从官方示例复制结构
 
 ```bash
-# 从平台仓库复制示例骨架（当前路径 flowfoundry-app/modules/，迁移后为 examples/）
+# 从平台仓库复制示例骨架（examples/）
 cp -r flowfoundry/examples/ai-collection-strategy my-scenario-app
 cd my-scenario-app
 # 改 groupId、包名、application.name、registry namespace
@@ -128,7 +128,7 @@ my-scenario-app/
 
 ```xml
 <properties>
-  <flowfoundry.version>1.0.3</flowfoundry.version>
+  <flowfoundry.version>1.0.4</flowfoundry.version>
 </properties>
 
 <dependencyManagement>
