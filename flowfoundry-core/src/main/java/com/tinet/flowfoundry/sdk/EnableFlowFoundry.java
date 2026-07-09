@@ -12,15 +12,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Import;
 
 /**
- * 在平台或单体应用启动类上标注，引入 FlowFoundry 平台（建模器、REST API、Workflow 持久化、Temporal Worker）。
- *
- * <p>业务场景 Worker 请使用 {@link EnableFlowFoundryWorker}，通过 {@code flowfoundry-core :8081} 访问平台 HTTP。
- *
- * <pre>{@code
- * @SpringBootApplication(scanBasePackages = "com.tinet.flowfoundry")
- * @EnableFlowFoundry
- * public class FlowFoundryCoreApplication { ... }
- * }</pre>
+ * Platform boot only ({@code flowfoundry-core}). Business Worker apps use {@link EnableFlowFoundryWorker}.
  */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)

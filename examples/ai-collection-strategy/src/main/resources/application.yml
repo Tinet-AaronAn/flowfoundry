@@ -1,0 +1,23 @@
+spring:
+  config:
+    import:
+      - classpath:application-flowfoundry-sdk.yml
+      - classpath:application-flowfoundry-worker.yml
+  application:
+    name: ai-collection-strategy
+
+temporal:
+  host: ${TEMPORAL_HOST:127.0.0.1:7233}
+
+flowfoundry:
+  platform:
+    base-url: ${FLOWFOUNDRY_PLATFORM_URL:http://127.0.0.1:8081}
+    api-key: ${FLOWFOUNDRY_API_KEY:}
+    namespace: ${FLOWFOUNDRY_NAMESPACE:ai-collection-strategy}
+  bff:
+    enabled: true
+    base-path: /app/api/flowfoundry
+
+platform:
+  activity-registry:
+    path: ${ACTIVITY_REGISTRY_PATH:classpath:activities-registry.yaml}

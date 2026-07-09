@@ -2,19 +2,22 @@
 
 本文面向 **flowfoundry-app 业务场景开发者**：说明如何用 FlowFoundry 平台交付一套可编排、可运行、可联调的工作流软件。
 
-**适用读者**：在 `flowfoundry-app/modules/` 下新增或维护业务场景的后端工程师；需要与建模器、Temporal 联调的 FDE / 全栈开发者。
+**适用读者**：维护独立业务 App 仓库的后端工程师；需要与建模器、Temporal 联调的 FDE / 全栈开发者。
+
+> **架构背景**：业务 App 应在**独立 Git 仓库**开发，通过 **`flowfoundry-sdk` + `flowfoundry-sdk-client`** 依赖平台能力；**所有对平台 HTTP 的调用必须由 App 后端经 SDK Client 发出**，业务前端只访问 App 同源 BFF。运行时 Worker 对接 **`flowfoundry-core`**。本仓库 `examples/` 保留 1 个官方示例。详见 [flowfoundry-sdk-design.md](./flowfoundry-sdk-design.md)。
 
 **相关文档**（按需深入）：
 
 | 文档 | 用途 |
 |------|------|
-| [project-structure.md](./project-structure.md) | 仓库目录与分层 |
+| [flowfoundry-sdk-design.md](./flowfoundry-sdk-design.md) | **SDK 与独立仓库架构设计（评审稿）** |
+| [project-structure.md](./project-structure.md) | 平台仓库目录与分层 |
 | [local-development.md](./local-development.md) | 本地环境、redeploy、排错 |
 | [service-urls.md](./service-urls.md) | 端口与路径权威表 |
 | [entity-naming.md](./entity-naming.md) | 画布 → DSL → 解释器命名对照 |
 | [detailed-design.md](./detailed-design.md) | API、持久化、节点语义 |
 | [business-orchestration-architecture.md](./business-orchestration-architecture.md) | 平台定位与架构背景 |
-| [flowfoundry-app/modules/ai-collection-strategy/README.md](../flowfoundry-app/modules/ai-collection-strategy/README.md) | 催收 Demo 目录说明 |
+| [examples/ai-collection-strategy/README.md](../examples/ai-collection-strategy/README.md) | 官方示例场景 |
 
 ---
 
@@ -37,7 +40,12 @@ FlowFoundry 上的「流程软件」通常包含四块，缺一不可：
 | 开发者（Activity） | 外部系统调用、幂等、错误归一化、结构化入出参 | 改平台解释器、改 core 通用节点 |
 | 平台（flowfoundry-core） | 编译、解释器、建模器、Registry 合并、通用 Activity | 具体业务规则 |
 
-**严格分层**：业务逻辑只写在 `flowfoundry-app/modules/<场景>/`；**不要**把业务 Activity、示例流程写进 `flowfoundry-core/`。
+**严格分层**：
+
+- 业务逻辑写在**你的独立 App 仓库**中。
+- 通过 **`flowfoundry-sdk-bom`** 引入 `flowfoundry-sdk` + `flowfoundry-sdk-client`，**禁止**依赖 `flowfoundry-core`。
+- **禁止**业务前端直连平台 `:8081/api/*`；须经 App BFF → SDK Client。
+- **不要**把业务 Activity 写进 `flowfoundry-core/`。
 
 ---
 
@@ -45,50 +53,263 @@ FlowFoundry 上的「流程软件」通常包含四块，缺一不可：
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
-│  建模器 http://127.0.0.1:8081/                               │
-│  画布 model_json → Flow DSL → ExecutionPlan                  │
+│  业务前端 / iframe 壳（:8082 同源）                            │
+│  只请求 /app/api/flowfoundry/*                               │
 └───────────────────────────┬─────────────────────────────────┘
-                            │ POST /api/flows/run
+                            │ App BFF
+                            ▼
+┌─────────────────────────────────────────────────────────────┐
+│  你的 App 后端                                                │
+│  flowfoundry-sdk-client → flowfoundry-core :8081             │
+│  flowfoundry-sdk Worker → Temporal Activity                   │
+└───────────────────────────┬─────────────────────────────────┘
+                            │ Temporal（解释器调度 Activity）
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
 │  flowfoundry-core：FlowInterpreterWorkflowImpl               │
-│  按 ExecutionPlan 调度 Activity / Timer / Gateway / 子流程    │
-└───────────────────────────┬─────────────────────────────────┘
-                            │ dynamic-activity-router
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│  flowfoundry-app/modules/<场景>/                             │
-│  XxxActivityRouter → XxxActivitiesImpl | XxxActivitiesStub   │
-└───────────────────────────┬─────────────────────────────────┘
-                            │ Temporal Activity
-                            ▼
-                     外部系统 / DB / 消息 / 人工待办
+└─────────────────────────────────────────────────────────────┘
 ```
 
-**参考实现**：`flowfoundry-app/modules/ai-collection-strategy/`（AI 催收多轮外呼）。
+建模器 iframe 仍从平台加载 `embed.html`，但其 **`apiBase` 必须指向 App BFF**，不得指向 `:8081/api`。
+
+**三件套的职责**：
+
+| Artifact | 谁维护 | 你的关系 |
+|----------|--------|----------|
+| `flowfoundry-core` | 平台团队 | 本地 / 测试 / 生产**已部署**；你不对其源码负责 |
+| `flowfoundry-sdk-bom` | 平台团队发布至 GitHub Packages | **import** 统一版本 |
+| `flowfoundry-sdk` | 平台团队发布 | Worker 扩展点、`@EnableFlowFoundryWorker` |
+| `flowfoundry-sdk-client` | 平台团队发布 | **平台 HTTP 唯一通道**（App 后端调用） |
+| 你的 App 仓库 | 业务团队 | Activity、Registry、Worker、BFF、可选 iframe 壳 |
+
+**参考实现**：本仓库 `examples/ai-collection-strategy/`（AI 催收多轮外呼）；亦可复制为独立仓库起点。
 
 ---
 
-## 3. 标准开发流程（推荐顺序）
+## 3. 新建业务 App 仓库
+
+### 3.1 推荐起点
+
+**方式 A（推荐）**：从官方示例复制结构
+
+```bash
+# 从平台仓库复制示例骨架（当前路径 flowfoundry-app/modules/，迁移后为 examples/）
+cp -r flowfoundry/examples/ai-collection-strategy my-scenario-app
+cd my-scenario-app
+# 改 groupId、包名、application.name、registry namespace
+```
+
+**方式 B**：使用 Maven archetype（Phase 2 提供）
+
+```bash
+mvn archetype:generate \
+  -DarchetypeGroupId=com.tinet.flowfoundry \
+  -DarchetypeArtifactId=flowfoundry-app-archetype \
+  -DgroupId=com.example -DartifactId=my-scenario-app
+```
+
+### 3.2 标准目录
+
+```text
+my-scenario-app/
+├── pom.xml
+├── config/activities-registry.yaml
+├── Dockerfile
+└── src/main/java/.../
+    ├── MyScenarioApplication.java      # @EnableFlowFoundryWorker
+    ├── MyActivities.java / Impl / Stub
+    ├── MyActivityRouter.java
+    └── MyWorkerExtension.java
+```
+
+### 3.3 Maven 依赖（BOM + SDK + Client）
+
+在 `pom.xml` 中 **import BOM**，再声明 SDK 与 Client（版本由 BOM 管理）：
+
+```xml
+<properties>
+  <flowfoundry.version>1.0.3</flowfoundry.version>
+</properties>
+
+<dependencyManagement>
+  <dependencies>
+    <dependency>
+      <groupId>com.tinet.flowfoundry</groupId>
+      <artifactId>flowfoundry-sdk-bom</artifactId>
+      <version>${flowfoundry.version}</version>
+      <type>pom</type>
+      <scope>import</scope>
+    </dependency>
+  </dependencies>
+</dependencyManagement>
+
+<dependencies>
+  <dependency>
+    <groupId>com.tinet.flowfoundry</groupId>
+    <artifactId>flowfoundry-sdk</artifactId>
+  </dependency>
+  <dependency>
+    <groupId>com.tinet.flowfoundry</groupId>
+    <artifactId>flowfoundry-sdk-client</artifactId>
+  </dependency>
+</dependencies>
+
+<!-- repositories：从 GitHub Packages 解析，见 flowfoundry-sdk-design.md §7 -->
+```
+
+> `flowfoundry.version` 须与已部署平台 **minor 版本**一致。发布坐标：`https://maven.pkg.github.com/Tinet-AaronAn/flowfoundry`
+
+### 3.4 application.yml
+
+```yaml
+spring:
+  config:
+    import:
+      - classpath:application-flowfoundry-sdk.yml
+      - classpath:application-flowfoundry-worker.yml
+  application:
+    name: my-scenario
+
+temporal:
+  host: ${TEMPORAL_HOST:127.0.0.1:7233}
+
+flowfoundry:
+  platform:
+    base-url: ${FLOWFOUNDRY_PLATFORM_URL:http://127.0.0.1:8081}
+    api-key: ${FLOWFOUNDRY_API_KEY:}
+    namespace: ${FLOWFOUNDRY_NAMESPACE:my-scenario}
+  bff:
+    enabled: true
+    base-path: /app/api/flowfoundry
+
+platform:
+  activity-registry:
+    path: ${ACTIVITY_REGISTRY_PATH:classpath:activities-registry.yaml}
+```
+
+**namespace 与 task queue** 在 `activities-registry.yaml` 中声明。`flowfoundry.platform.api-key` **仅服务端**，不得写入前端。
+
+启动类使用 `@EnableFlowFoundryWorker`；启用 BFF 时增加 `@EnableFlowFoundryPlatformClient`（Phase 1 实现后的注解名，以 SDK 为准）。
+
+### 3.5 Namespace 前置条件（必读）
+
+Namespace 是平台侧管理的隔离单位（Workflow 存储、Temporal 物理隔离、Activity Registry 归属三者同名）。**App 不能自主注册、随意新增平台 namespace**；开发与联调前须先满足下列条件。
+
+#### 谁可以创建 namespace
+
+| 方式 | 谁操作 | 说明 |
+|------|--------|------|
+| 平台后台 **Namespaces** 页 / Admin API | 平台管理员 | **正式入口**。`POST /api/admin/namespaces` 需 admin API Key |
+| 平台启动 bootstrap | 平台进程（`:8081`） | 见下文「平台 bootstrap」；仅保证当前加载的 Registry 对应 namespace 已入库 |
+| App Worker / SDK | — | **无**自助创建能力。Worker 只上报 DeploymentContract（Redis 心跳），不写平台 namespace 表 |
+
+#### 开发前检查清单
+
+1. **在平台登记 namespace**（生产 / 共享环境）：管理员在 http://127.0.0.1:8081/ → **Namespaces** 新建，ID 与后续 `activities-registry.yaml` 的 `namespace` **完全一致**。
+2. **配置 API Key 权限**：非 admin Key 只能访问 `platform_api_key_namespace` 中授权的 namespace；App 的 `flowfoundry.platform.api-key` 须能访问该 namespace。admin Key（如本地 `local-admin-key`）可访问全部。
+3. **App 侧声明同一名字**：`activities-registry.yaml` 的 `namespace` / `defaultTaskQueue`，以及 `flowfoundry.platform.namespace`（或 `FLOWFOUNDRY_NAMESPACE`）与平台登记值一致。
+4. **Temporal 物理 namespace**：生产环境还需在 Temporal 集群注册同名 namespace（见 [production-deployment.md](./production-deployment.md)）；本地 Docker 栈通常已由脚本处理示例 namespace。
+
+#### 平台 bootstrap 是什么
+
+指 **flowfoundry-core（平台 `:8081`）启动完成后**自动执行的初始化，不是 App 启动逻辑。
+
+实现类：`NamespaceBootstrapRunner`（监听 `ApplicationReadyEvent`）。它读取平台当前加载的业务 `activities-registry.yaml` 的 `namespace`，若平台库中尚无该记录，则调用 `ensureRegistered` 写入一条。
+
+因此本地联调时，若用 `ACTIVITY_REGISTRY_PATH=.../your-registry.yaml` 重启平台，常会「跟着 Registry 自动出现」对应 namespace，不必每次手点「新建」。这是**平台侧便利**，不代表 App 可以随意扩容 namespace。
+
+```text
+正式环境推荐顺序：
+  管理员创建 Namespace → 授权 API Key → App 按同名写 Registry / 起 Worker
+
+本地联调常见顺序：
+  写好 activities-registry.yaml → ACTIVITY_REGISTRY_PATH=... redeploy 平台
+  → 平台 bootstrap 自动 ensureRegistered → 再启动 App Worker
+```
+
+**不要混淆**：
+
+| 动作 | 是否创建平台 namespace |
+|------|----------------------|
+| 在 yaml 里写 `namespace: my-scenario` | 否（仅声明） |
+| App 启动并发布 DeploymentContract | 否（只告诉平台「我在该 namespace 上干活」） |
+| 平台 bootstrap / 管理员后台创建 | 是 |
+
+统一模型细节见 [service-urls.md](./service-urls.md#namespace统一模型)。
+
+### 3.6 前端与 BFF 约束
+
+| 场景 | 正确做法 |
+|------|----------|
+| 拉取 public-config | `GET /app/api/flowfoundry/platform/public-config`（BFF 代理） |
+| 建模器 `apiBase` | 同源 BFF 前缀，如 `/app/api/flowfoundry` |
+| 外部系统按已保存版本启动 | 平台 `POST /api/workflows/{workflowId}/versions/{version}/run`（API Key + Namespace；仅 `active`） |
+| 业务系统触发 Run（自有封装） | 调 App 自有 API → 内部 `FlowFoundryPlatformClient.startWorkflowVersion()` 或 `runFlow()` |
+| 平台 API Key | 环境变量注入 App，**不下发浏览器** |
+
+**按已保存版本启动（对外推荐）**：
+
+```http
+POST /api/workflows/{workflowId}/versions/{version}/run
+X-Api-Key: <key>
+X-Platform-Namespace: <namespace>
+Content-Type: application/json
+
+{ "input": { }, "businessKey": "optional", "runWorkflowId": "optional-temporal-id" }
+```
+
+约束：definition 与 version 均为 `active`；`runSource` 固定为 `production`。建模器联调仍用 `POST /api/flows/run`（可带完整 DSL + `web-modeler`）。
+
+**SDK 公开 API 入口**（Worker）：
+
+| 类型 | 类 |
+|------|-----|
+| 启动注解 | `@EnableFlowFoundryWorker` |
+| Activity 路由 | `BusinessActivityRouter`、`DualModeActivityHandler` |
+| Worker 注册 | `TemporalWorkerExtension` |
+| 幂等 | `IdempotentActivityExecutor` |
+
+**SDK 公开 API 入口**（Client）：
+
+| 类型 | 类 |
+|------|-----|
+| 客户端 | `FlowFoundryPlatformClient` |
+| 配置 | `FlowFoundryPlatformProperties`、`@EnableFlowFoundryPlatformClient` |
+| BFF（可选） | SDK 内置 `FlowFoundryPlatformBffController` |
+
+---
+
+## 4. 标准开发流程（推荐顺序）
 
 ### 阶段 A：环境与基线
 
-1. **首次启动**（见 [local-development.md](./local-development.md)）：
+1. **平台侧基础设施**（在 flowfoundry 平台仓库或共享 Docker 环境）：
 
    ```bash
-   chmod +x scripts/local-dev.sh scripts/redeploy-worker.sh scripts/check-progress.sh
-   ./scripts/local-dev.sh up
-   ./scripts/check-progress.sh    # 期望 ALL_GREEN
+   ./scripts/local-dev.sh up          # Temporal + Redis + Postgres
+   ./scripts/redeploy-worker.sh       # 平台 :8081
    ```
 
-2. **固定联调入口**：http://127.0.0.1:8081/（不是 E2E 的 `:4173`）。
+2. **确认 Namespace 已就绪**（见 [§3.5](#35-namespace-前置条件必读)）：
 
-3. **Temporal UI**（Docker 栈）：http://127.0.0.1:8080/
+   - **生产 / 共享环境**：管理员先在平台 **Namespaces** 页创建目标 namespace，并为 App 使用的 API Key 授权该 namespace。
+   - **本地联调**：下一步用 `ACTIVITY_REGISTRY_PATH` 指向你的 Registry 后重启平台即可；平台 bootstrap 会按 yaml 中的 `namespace` 自动 `ensureRegistered`。也可先在后台手动新建，再启动 App。
 
-4. 熟悉当前示例场景的配置：
-   - Namespace：`ai-collection-strategy`（与 `activities-registry.yaml` 一致）
-   - Task Queue：`ai-collection-strategy`
-   - Registry：`flowfoundry-app/modules/ai-collection-strategy/config/activities-registry.yaml`
+3. **指向你的 Registry**（平台加载业务 Activity 定义）：
+
+   ```bash
+   ACTIVITY_REGISTRY_PATH=file:/absolute/path/to/my-scenario-app/config/activities-registry.yaml \
+     ./scripts/redeploy-worker.sh
+   ```
+
+4. **启动你的 Worker**（在 App 仓库；`FLOWFOUNDRY_NAMESPACE` / Registry `namespace` 须与平台登记一致）：
+
+   ```bash
+   mvn -DskipTests package
+   java -jar target/my-scenario-app-*.jar --server.port=8082
+   ```
+
+5. **联调入口**：http://127.0.0.1:8081/（建模器，右上角切换到你的 namespace）；Temporal UI：http://127.0.0.1:8080/
 
 ### 阶段 B：业务能力设计
 
@@ -112,23 +333,20 @@ FlowFoundry 上的「流程软件」通常包含四块，缺一不可：
 
 ### 阶段 C：注册 Activity（Registry）
 
-在业务模块的 `config/activities-registry.yaml` 中声明（示例见 ai-collection-strategy）。
+在 App 仓库的 `config/activities-registry.yaml` 中声明：
 
 ```yaml
 version: "1.0"
-namespace: your-scenario          # 唯一 namespace（FlowFoundry + Temporal + Registry 同名）
-defaultTaskQueue: your-scenario   # Worker 轮询队列（App 不再单独配置 temporal.task-queue）
+namespace: your-scenario
+defaultTaskQueue: your-scenario
 
 activities:
   - id: load-campaign
     name: 加载活动
-    description: 校验配置并加载批次
     taskQueue: your-scenario
     timeout: 60s
     retry:
       maximumAttempts: 5
-      nonRetryableErrors:
-        - CampaignNotFoundException
     input:
       - { name: campaignId, type: string, required: true }
     output:
@@ -140,12 +358,12 @@ activities:
 
 **注意**：
 
-- 平台 core 已提供 `script-runtime`、`human-task`（见 `flowfoundry-core/.../core-activities-registry.yaml`），运行时与业务 Registry **合并**展示，无需重复注册。
-- 修改 Registry 后必须 `./scripts/redeploy-worker.sh`（平台加载业务 yaml），建模器才会在下拉框看到新 Activity；若改了 Activity 实现还需 `./scripts/redeploy-app.sh`。
+- 平台 core 已提供 `script-runtime`、`human-task`，运行时与业务 Registry **合并**展示，无需重复注册。
+- 修改 Registry 后须让平台重新加载（`redeploy-worker.sh` 或设置 `ACTIVITY_REGISTRY_PATH` 后重启 :8081）；若改了 Activity 实现则重启你的 Worker。
 
 ### 阶段 D：实现 Activity 代码
 
-在 `flowfoundry-app/modules/<场景>/src/main/java/.../` 按以下结构组织（复制 ai-collection-strategy 即可）：
+按以下结构组织（复制 `examples/ai-collection-strategy` 即可）：
 
 ```text
 YourScenarioApplication.java      # main，@EnableFlowFoundryWorker
@@ -158,66 +376,43 @@ model/                            # 入出参 POJO
 service/                          # 可选：领域服务
 ```
 
+**SDK 公开 API 入口**（均来自 `flowfoundry-sdk` / `flowfoundry-sdk-client`）：
+
+| 类型 | 类 |
+|------|-----|
+| 启动注解 | `@EnableFlowFoundryWorker` |
+| Activity 路由 | `BusinessActivityRouter`、`DualModeActivityHandler` |
+| Worker 注册 | `TemporalWorkerExtension` |
+| 幂等 | `IdempotentActivityExecutor` |
+| 平台 HTTP | `FlowFoundryPlatformClient` |
+| 联调上下文 | `ActivityExecutionContext`、`RunSource` |
+
 **Router 要点**（`AiCollectionActivityRouter` 为范本）：
 
 1. `supports(activityType)` 返回本模块支持的 id 集合。
 2. `execute(activityType, input)` 用 `switch` 分发到接口方法。
-3. 通过 `selectActivities(input)` 在 **Impl / Stub** 间切换（继承 `DualModeActivityHandler`）。
+3. 通过 `selectActivities(input)` 在 **Impl / Stub** 间切换。
 
 **Temporal 接口命名**：`@ActivityMethod(name = "...")` 必须与 Registry 的 `id` **完全一致**。
 
-**Worker 扩展**：在 `register(Worker worker)` 中注册本场景需要的 Workflow 实现类与 Activity 实现（若除动态解释器外还有手写 Workflow）。
-
-### 阶段 E：场景模块与配置
-
-**新建场景**（复制 `ai-collection-strategy` 目录）：
-
-1. 创建 `flowfoundry-app/modules/<your-scenario>/`（含 `pom.xml`、`main`、`config/`、`src/`）。
-2. 在 `flowfoundry-app/pom.xml` 的 `<modules>` 中注册。
-3. `application.yml` 引入平台配置并指定 Registry 路径：
-
-   ```yaml
-   spring:
-     config:
-       import:
-         - classpath:application-flowfoundry-platform.yml
-         - classpath:application-flowfoundry-worker.yml
-     application:
-       name: your-scenario
-
-   temporal:
-     host: ${TEMPORAL_HOST:127.0.0.1:7233}
-
-   platform:
-     activity-registry:
-       path: ${ACTIVITY_REGISTRY_PATH:classpath:activities-registry.yaml}
-   ```
-
-   **namespace 与 task queue 在 `activities-registry.yaml` 中声明**（`namespace` + `defaultTaskQueue`），Worker 启动时自动读取，无需 `temporal.namespace` / `temporal.task-queue`。
-
-   启动类使用 `@EnableFlowFoundryWorker`，**不要**使用 `@EnableFlowFoundry`（后者会启动完整平台 API）。
-
-4. `pom.xml` 将 `config/activities-registry.yaml` 打进 classpath（见示例模块 `<build><resources>`）。
-
-**构建**：
+### 阶段 E：构建与本地运行
 
 ```bash
-mvn -pl flowfoundry-app/modules/your-scenario -am -DskipTests package
-SCENARIO=your-scenario ./scripts/redeploy-worker.sh   # 平台 Registry
-SCENARIO=your-scenario ./scripts/redeploy-app.sh      # Worker
+# 在 App 仓库
+mvn -DskipTests package
+java -jar target/my-scenario-app-*.jar --server.port=8082
+
+# 健康检查
+curl --noproxy '*' http://127.0.0.1:8082/actuator/health
 ```
+
+`pom.xml` 将 `config/activities-registry.yaml` 打进 classpath（见示例 `<build><resources>`）。
 
 ### 阶段 F：在建模器上编排流程
 
 1. 打开 http://127.0.0.1:8081/ ，进入 **Modeler** 视图。
-2. 创建 Workflow，从 Palette 拖入节点（见 [entity-naming.md](./entity-naming.md) §2.1）：
-   - **Service Task**：属性里选择 Registry 中的 `activityType`，配置输入映射。
-   - **Human Task**：`flowFoundryHumanTask.mode` = `managed`（暂停等 Signal）或 `offline`（仅标注）。
-   - **Script Task**：平台 `script-runtime`，用于复杂业务规则计算；结果写入变量后，由 Gateway 出边上的 FEEL 条件选路。
-   - **Gateway**：边上写 Safe FEEL 条件。
-   - **Intermediate Event**：定时等待（Timer）。
-   - **Child Workflow**：引用已发布子流程，运行为 Temporal Child Workflow — 见 [child-workflow-design.md](./child-workflow-design.md)。
-3. **保存 / 发布**版本（`model_json` 不可变；改动画布应升 patch 版本）。
+2. 创建 Workflow，从 Palette 拖入节点（见 [entity-naming.md](./entity-naming.md) §2.1）。
+3. **保存 / 发布**版本。
 4. 在 **Runtime** 视图点击 **Run** 做联调。
 
 **编译校验**：Service Task 的 `activityType` 必须在 Registry 中存在，否则 compile 失败。
@@ -226,80 +421,79 @@ SCENARIO=your-scenario ./scripts/redeploy-app.sh      # Worker
 
 | 运行方式 | runSource | Activity 行为 |
 |----------|-----------|---------------|
-| 建模器 Runtime **Run** | `web-modeler` + 请求头 `X-FlowFoundry-Client: web-modeler` | Workflow 真实执行；Activity 走 **Stub**（无外部副作用） |
-| 对外 `POST /api/flows/run` | 强制 `production` | 始终 **Impl**（忽略客户端 stub 标记） |
-
-Stub 适用场景：长轮询 Activity（`wait-*-completion`）、依赖外部回调的步骤——联调时立即返回成功态，便于跑通全链路。
+| 建模器 Runtime **Run** | `web-modeler` | Workflow 真实执行；Activity 走 **Stub** |
+| 对外 `POST /api/flows/run` | `production` | 始终 **Impl** |
 
 **排查路径**：
 
-- 应用日志：`.local/run/worker.log`
-- Temporal UI：http://127.0.0.1:8080/ 查看 Workflow History
-- 健康检查：`curl --noproxy '*' http://127.0.0.1:8081/actuator/health`
+- Worker 日志：App 进程 stdout / 容器日志
+- Temporal UI：http://127.0.0.1:8080/
+- 平台健康：`curl --noproxy '*' http://127.0.0.1:8081/actuator/health`
 
 ### 阶段 H：测试
 
 | 层级 | 做法 |
 |------|------|
 | 单元测试 | Router 分发、Impl 业务逻辑（参考 `AiCollectionActivityRouterTest`） |
-| 平台测试 | `mvn -pl flowfoundry-core test`（改 core 时） |
-| 解释器 E2E | `./scripts/runtime-test.sh`（动态 FlowInterpreter 流程） |
-| 场景冒烟 | `./scripts/smoke-test.sh`（手写 Demo Workflow，若有） |
-| 建模器 E2E | `npm run test:e2e`（静态 `:4173`，**不替代** 8081 联调） |
+| 场景冒烟 | App 仓库内 `mvn test`；可选 `./scripts/smoke-test.sh` 对接 staging 平台 |
+| 解释器 E2E | 平台仓库 `./scripts/runtime-test.sh`（验证动态 FlowInterpreter） |
+| 建模器 E2E | 平台仓库 `npm run test:e2e`（`:4173`，**不替代** 8081 联调） |
 
 ### 阶段 I：部署
 
-- **本地调试**：`./scripts/local-dev.sh up` + `./scripts/redeploy-worker.sh`，见 [local-development.md](./local-development.md)。
-- **生产部署**：K8s / Helm，镜像由 CI 推送，见 [production-deployment.md](./production-deployment.md)。
-- 生产环境使用 **production** RunSource；Stub 仅用于建模器联调。
+- **Worker 镜像**：App 仓库 `Dockerfile` 构建，部署到 K8s（与平台 Worker 分离）。
+- **Registry**：ConfigMap 或 `file:` 挂载到**平台 Pod** 与 **Worker Pod**（路径一致）。
+- **生产 RunSource**：`production`；Stub 仅用于建模器联调。
+
+详见 [production-deployment.md](./production-deployment.md) 与 [flowfoundry-sdk-design.md §7](./flowfoundry-sdk-design.md#7-ci--发布)。
 
 ---
 
-## 4. 日常改代码 checklist
+## 5. 日常改代码 checklist
 
-每次修改 `flowfoundry-core/`、`flowfoundry-app/` 或 `modules/` 下**任意** Java 或 `static/` 前端后：
+**改 App 仓库（Activity / Registry / Worker）**：
 
 ```bash
-./scripts/redeploy-worker.sh
-./scripts/redeploy-app.sh      # 改了业务 Activity / Worker 时
-curl --noproxy '*' http://127.0.0.1:8081/actuator/health   # 应为 UP
-curl --noproxy '*' http://127.0.0.1:8082/actuator/health   # 应为 UP
+mvn -DskipTests package && java -jar target/*.jar ...
+curl --noproxy '*' http://127.0.0.1:8082/actuator/health   # UP
 ```
 
-然后在浏览器**强制刷新** http://127.0.0.1:8081/
+**改 Registry yaml**：
 
-> 静态资源打包在 JAR 内，**没有热更新**。只刷新浏览器不会生效。
+```bash
+# 在平台侧重启或 redeploy，使 :8081 重新加载
+ACTIVITY_REGISTRY_PATH=file:/path/to/your/config/activities-registry.yaml \
+  ./scripts/redeploy-worker.sh
+```
+
+**改平台 core（仅平台团队）**：在 flowfoundry 平台仓库执行 `redeploy-worker.sh`，并确认 SDK 版本与 App `pom.xml` 对齐。
 
 ---
 
-## 5. 新增 Activity 速查清单
+## 6. 新增 Activity 速查清单
 
-- [ ] 在 `config/activities-registry.yaml` 增加条目（id、input、output、timeout、retry、idempotency）
+- [ ] 平台已登记目标 namespace，且 API Key 已授权（见 [§3.5](#35-namespace-前置条件必读)）
+- [ ] 在 `config/activities-registry.yaml` 增加条目（`namespace` 与平台登记一致）
 - [ ] 在 `XxxActivities` 接口增加 `@ActivityMethod(name = "同一 id")`
 - [ ] 在 `XxxActivitiesImpl` / `XxxActivitiesStub` 实现方法
 - [ ] 在 `XxxActivityRouter.supports` / `execute` 中注册分发
 - [ ] 补充单元测试
-- [ ] `./scripts/redeploy-worker.sh`（Registry）与 `./scripts/redeploy-app.sh`（Activity 代码）
-- [ ] 建模器 Service Task 下拉验证 + Runtime Run 跑通
-- [ ] （可选）Temporal UI 确认 Activity 调度与重试符合预期
+- [ ] 平台侧重载 Registry；重启 Worker
+- [ ] 建模器切换到该 namespace 后，Service Task 下拉验证 + Runtime Run 跑通
 
 ---
 
-## 6. 两种交付路径
+## 7. 两种交付路径
 
 ### 路径 1：画布驱动（主流）
-
-适合标准化、可配置、需业务人员参与编排的流程。
 
 ```text
 Registry → 建模器编排 → 编译 ExecutionPlan → FlowInterpreterWorkflow 执行
 ```
 
-开发者主要交付 **Registry + Activity**；流程结构由画布维护并存入 PostgreSQL。
+开发者主要交付 **Registry + Activity**；流程结构由画布维护并存入平台 PostgreSQL。
 
 ### 路径 2：代码驱动（FDE / 深度定制）
-
-适合复杂定制、强 Temporal 原生语义、或画布表达力不足的场景。
 
 ```text
 手写 Workflow Interface/Impl + Activity
@@ -308,64 +502,61 @@ Registry → 建模器编排 → 编译 ExecutionPlan → FlowInterpreterWorkflo
   → WorkerExtension 注册
 ```
 
-两条路径共享 **Activity Registry** 与 **Deployment Contract**（namespace、task queue、配置），见 [business-orchestration-architecture.md](./business-orchestration-architecture.md) §3.7。
+两条路径共享 **Activity Registry** 与 **DeploymentContract**（namespace、task queue），见 [business-orchestration-architecture.md](./business-orchestration-architecture.md) §3.7。
 
 ---
 
-## 7. 常见误区
+## 8. 常见误区
 
 | 误区 | 正确做法 |
 |------|----------|
-| 在 `flowfoundry-core` 写业务 Activity | 只写 `flowfoundry-app/modules/<场景>/` |
-| 改 Registry 后不 redeploy | 必须 package + 重启 8081 |
-| 用 `npm run test:e2e` 代替 8081 联调 | E2E 不经过 Spring Boot / Temporal |
-| 画布上写 HTTP 重试、幂等逻辑 | 放进 Activity Impl |
-| 对外 API 期望走 Stub | 仅建模器 Run 双条件触发 Stub |
-| Temporal UI 用 8233（Docker 环境） | Docker 栈用 **8080**（见 [service-urls.md](./service-urls.md)） |
-| Generic Task 直接 Run | 须改为 Service / Human / Script Task |
+| 在 `pom.xml` 依赖 `flowfoundry-core` | import **`flowfoundry-sdk-bom`**，依赖 sdk + sdk-client |
+| 前端 `fetch('http://:8081/api/...')` | 前端只调 **App BFF**；后端用 **`FlowFoundryPlatformClient`** |
+| 在 `flowfoundry-core` 写业务 Activity | 写在你的 **App 仓库** |
+| 改 Registry 后只重启 Worker | 平台 :8081 也须加载新 Registry |
+| 使用 `@EnableFlowFoundry` 启动业务 Worker | 使用 **`@EnableFlowFoundryWorker`** |
+| SDK 版本与平台不一致 | BOM 的 `flowfoundry.version` 对齐平台 minor 版本 |
+| App 在 yaml 写新 `namespace` 就当已开通 | 须先由**平台管理员创建**（或本地靠平台 bootstrap）；App **不能**自助注册 |
+| Worker 启动 = 平台 namespace 已登记 | Worker 只发 DeploymentContract；namespace 表由平台管理 |
+| 用未授权该 namespace 的 API Key 调平台 | 为 Key 授权目标 namespace，或使用 admin Key |
 
 ---
 
-## 8. 扩展阅读：节点如何映射到 Temporal
+## 9. 扩展阅读：节点如何映射到 Temporal
 
 | 画布元素 | 运行时 |
 |----------|--------|
 | Service Task | `ACTIVITY`，Registry `activityType` → Router |
 | Human Task | `ACTIVITY` + `human-task`；managed 时 Workflow 等 Signal |
-| Script Task | `ACTIVITY` + `script-runtime` |
+| Script Task | `ACTIVITY` + `script-runtime`（**平台 Worker** 执行） |
 | Gateway | 解释器按 Safe FEEL 选边 |
-| Intermediate Event (timer) | `TimerEvaluator` + `Workflow.newTimer`（`duration` / `date`；web-modeler 联调可跳过 Timer）— 见 [timer-design.md](./timer-design.md) |
-| Child Workflow | Temporal Child Workflow（同步子 `FlowInterpreterWorkflow`）— 见 [child-workflow-design.md](./child-workflow-design.md) |
+| Intermediate Event (timer) | `TimerEvaluator` + `Workflow.newTimer` |
+| Child Workflow | Temporal Child Workflow |
 
-完整对照表见 [entity-naming.md](./entity-naming.md)、[timer-design.md](./timer-design.md)、[child-workflow-design.md](./child-workflow-design.md) 与 [detailed-design.md](./detailed-design.md) §4.7。
+完整对照表见 [entity-naming.md](./entity-naming.md)、[timer-design.md](./timer-design.md)、[child-workflow-design.md](./child-workflow-design.md)。
 
 ---
 
-## 9. 获取代码结构帮助（graphify，可选）
+## 10. 在本仓库内开发示例（平台贡献者）
 
-仓库可维护 `graphify-out/` 知识图谱，用于查跨模块依赖与架构关系：
+若你正在维护 **flowfoundry 平台仓库**内的官方示例，开发与联调方式与独立仓库相同，区别仅在于：
+
+- 示例位于 `examples/ai-collection-strategy/`。
+- 使用 `./scripts/redeploy-app.sh` 一键构建并启动 :8082。
+- 示例 `pom.xml` 同样只依赖 `flowfoundry-sdk`（迁移完成后）。
 
 ```bash
-# 首次或大范围变更后
-/graphify .
-
-# 日常改代码后（仅 AST，无 API 成本）
-graphify update .
-
-# 查询
-graphify query "CallCampaignActivitiesImpl 连接了哪些模块？"
-graphify path "FlowController" "FlowInterpreterWorkflowImpl"
+./scripts/redeploy-worker.sh
+SCENARIO=ai-collection-strategy ./scripts/redeploy-app.sh
 ```
-
-Cursor 项目若已安装 `.cursor/rules/graphify.mdc`，Agent 会优先用图谱 orient 再读代码。详见 graphify 文档与 `graphify-out/GRAPH_REPORT.md`。
 
 ---
 
-## 10. 下一步
+## 11. 下一步
 
-1. 通读示例模块：`flowfoundry-app/modules/ai-collection-strategy/`
-2. 本地跑通：建模器 Run → Temporal UI 看 History → `./scripts/runtime-test.sh`
-3. 按 §5 清单新增一个试点 Activity
-4. 需要新场景时复制模块目录并在 `flowfoundry-app/pom.xml` 注册
+1. 阅读 [flowfoundry-sdk-design.md](./flowfoundry-sdk-design.md) 了解拆分方案与迁移阶段
+2. 通读示例：`examples/ai-collection-strategy/`
+3. 复制示例为你的独立 App 仓库，按 §6 清单新增试点 Activity
+4. 本地跑通：建模器 Run → Temporal UI 看 History
 
 有问题先查 [local-development.md](./local-development.md) 与 [service-urls.md](./service-urls.md)；平台行为细节以 [detailed-design.md](./detailed-design.md) 为准。

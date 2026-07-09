@@ -40,6 +40,7 @@
         if (!id) return false;
         if (state.currentView === 'modeler') return true;
         if (isRunStatusDialogOpen()) return true;
+        if (typeof isRunTimelineOpen === 'function' && isRunTimelineOpen()) return true;
         return false;
       }
 
@@ -128,6 +129,37 @@
         });
       }
 
+      function updateRunStatusFlowFoundryLogs() {
+        const pre = $('runStatusFlowFoundryLogJson');
+        if (!pre) return;
+        const snapshot = state.runtimeSnapshot;
+        const events = snapshot?.executionLogs;
+        const nodeRuns = snapshot?.nodeRuns;
+        if ((Array.isArray(events) && events.length) || (Array.isArray(nodeRuns) && nodeRuns.length)) {
+          pre.textContent = pretty({
+            executionLogs: events || [],
+            nodeRuns: nodeRuns || []
+          });
+          return;
+        }
+        pre.textContent = pretty({
+          executionLogs: [],
+          nodeRuns: [],
+          note: t('runtime.flowFoundryHistoryEmpty')
+        });
+      }
+
+      function copyRunStatusFlowFoundryLogs() {
+        const text = $('runStatusFlowFoundryLogJson')?.textContent?.trim();
+        if (!text) {
+          message(t('message.copyEmpty'), 'warning');
+          return;
+        }
+        navigator.clipboard?.writeText(text)
+          .then(() => message(t('message.copiedToClipboard')))
+          .catch(() => message(t('message.copyFailed'), 'error'));
+      }
+
       function copyRunStatusTemporalLogs() {
         const text = $('runStatusLogJson')?.textContent?.trim();
         if (!text) {
@@ -143,6 +175,7 @@
         const id = activeWorkflowRunId();
         if ($('runStatusWorkflowId')) $('runStatusWorkflowId').value = id || '';
         updateRunStatusCompiledPlan();
+        updateRunStatusFlowFoundryLogs();
         updateRunStatusTemporalLogs();
         updateRunStatusTemporalUiLink();
       }
@@ -186,6 +219,7 @@
         if (!backdrop) return;
         $('runStatusRefreshBtn')?.addEventListener('click', () => refreshRunStatusDialog());
         $('runStatusLogCopyBtn')?.addEventListener('click', () => copyRunStatusTemporalLogs());
+        $('runStatusFlowFoundryLogCopyBtn')?.addEventListener('click', () => copyRunStatusFlowFoundryLogs());
         $('runStatusCloseBtn')?.addEventListener('click', () => closeRunStatusDialog());
         backdrop.addEventListener('click', event => {
           if (event.target === backdrop) closeRunStatusDialog();

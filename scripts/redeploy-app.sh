@@ -10,8 +10,8 @@ source "$ROOT/scripts/lib/java-daemon.sh"
 SCENARIO="${SCENARIO:-ai-collection-strategy}"
 APP_PORT="${APP_PORT:-8082}"
 PLATFORM_URL="${FLOWFOUNDRY_PLATFORM_URL:-http://127.0.0.1:8081}"
-MAVEN_MODULE="flowfoundry-app/modules/${SCENARIO}"
-SCENARIO_DIR="$ROOT/flowfoundry-app/modules/${SCENARIO}"
+SCENARIO_DIR="${SCENARIO_DIR:-$ROOT/examples/${SCENARIO}}"
+MAVEN_MODULE="${MAVEN_MODULE:-examples/${SCENARIO}}"
 JAR="$SCENARIO_DIR/target/ai-collection-strategy-demo-1.0.3.jar"
 RUN_DIR="$ROOT/.local/run"
 LOG="$RUN_DIR/app.log"
@@ -81,6 +81,9 @@ start_app() {
   start_java_daemon "$PIDFILE" "$LOG" java -jar "$JAR" \
     --server.port="$APP_PORT" \
     --flowfoundry.run-mode=worker \
+    --flowfoundry.platform.base-url="${PLATFORM_URL}" \
+    --flowfoundry.platform.api-key="${FLOWFOUNDRY_API_KEY:-}" \
+    --flowfoundry.platform.namespace="${FLOWFOUNDRY_NAMESPACE:-ai-collection-strategy}" \
     --platform.activity-registry.path="file:$REGISTRY" \
     --flowfoundry.activity-registry.path="file:$REGISTRY" \
     --temporal.host="${TEMPORAL_HOST:-127.0.0.1:7233}" \
@@ -110,4 +113,4 @@ echo ""
 echo "业务 Worker 部署完成（Worker 模式，平台 API 在 ${PLATFORM_URL}）："
 echo "  iframe 业务壳: http://127.0.0.1:$APP_PORT/app/workflow-admin.html"
 echo "  平台建模器:    ${PLATFORM_URL}/"
-echo "场景模块: flowfoundry-app/modules/${SCENARIO}"
+echo "场景模块: examples/${SCENARIO}"

@@ -212,6 +212,94 @@ class FlowCompilerTest {
     var plan = compiler.compile(definition);
 
     assertThat(plan.requireNode("Gateway").kind()).isEqualTo(NodeKind.GATEWAY);
+    @SuppressWarnings("unchecked")
+    Map<String, Object> gatewayTrace =
+        (Map<String, Object>) plan.requireNode("Gateway").config().get("flowFoundryTrace");
+    assertThat(gatewayTrace)
+        .containsEntry("nodeId", "Gateway")
+        .containsEntry("nodeName", "Gateway")
+        .containsEntry("activityType", "exclusive");
+  }
+
+  @Test
+  void compilesNamedGatewayAndChildWorkflowTrace() {
+    FlowDefinition child =
+        new FlowDefinition(
+            "1.0",
+            new FlowMetadata("ChildFlow", "Child Workflow", "1.0.0"),
+            Map.of(),
+            Map.of(),
+            List.of(node("Start", "START", Map.of()), node("End", "END", Map.of())),
+            List.of(new FlowEdge("Start", "End", "default")));
+    FlowDefinition definition =
+        new FlowDefinition(
+            "1.0",
+            new FlowMetadata("NamedTraceFlow", "Named Trace Flow", "1.0.0"),
+            Map.of(),
+            Map.of(),
+            List.of(
+                node("Start", "START", Map.of()),
+                new FlowNode(
+                    "Gw_Split",
+                    "GATEWAY",
+                    "Risk Split",
+                    "exclusiveGateway",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    Map.of("gatewayKind", "exclusive")),
+                new FlowNode(
+                    "Child_Call",
+                    "CHILD_WORKFLOW",
+                    "Call Child",
+                    "workflow",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    Map.of(
+                        "childWorkflowId", "ChildFlow",
+                        "childWorkflowName", "Child Workflow",
+                        "childWorkflowVersion", "1.0.0",
+                        "childWorkflowDefinition", child)),
+                node("End", "END", Map.of())),
+            List.of(
+                new FlowEdge("Start", "Gw_Split", "default"),
+                new FlowEdge("Gw_Split", "Child_Call", "default"),
+                new FlowEdge("Child_Call", "End", "default")));
+
+    var plan = compiler.compile(definition);
+
+    @SuppressWarnings("unchecked")
+    Map<String, Object> gatewayTrace =
+        (Map<String, Object>) plan.requireNode("Gw_Split").config().get("flowFoundryTrace");
+    @SuppressWarnings("unchecked")
+    Map<String, Object> childTrace =
+        (Map<String, Object>) plan.requireNode("Child_Call").config().get("flowFoundryTrace");
+
+    assertThat(gatewayTrace)
+        .containsEntry("nodeName", "Risk Split")
+        .containsEntry("canvasKind", "exclusiveGateway")
+        .containsEntry("activityType", "exclusive");
+    assertThat(childTrace)
+        .containsEntry("nodeName", "Call Child")
+        .containsEntry("canvasKind", "workflow")
+        .containsEntry("activityType", "child-workflow");
   }
 
   @Test

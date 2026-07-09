@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>com.tinet.flowfoundry</groupId>
+    <artifactId>flowfoundry-parent</artifactId>
+    <version>1.0.3</version>
+  </parent>
+
+  <artifactId>flowfoundry-sdk-parent</artifactId>
+  <packaging>pom</packaging>
+  <name>flowfoundry-sdk-parent</name>
+  <description>FlowFoundry SDK aggregator (BOM + worker + client)</description>
+
+  <modules>
+    <module>flowfoundry-sdk-bom</module>
+    <module>flowfoundry-sdk</module>
+    <module>flowfoundry-sdk-client</module>
+  </modules>
+
+  <distributionManagement>
+    <repository>
+      <id>github</id>
+      <url>https://maven.pkg.github.com/Tinet-AaronAn/flowfoundry</url>
+    </repository>
+  </distributionManagement>
+</project>

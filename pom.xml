@@ -19,8 +19,9 @@
   <description>FlowFoundry platform — parent aggregator</description>
 
   <modules>
+    <module>flowfoundry-sdk</module>
     <module>flowfoundry-core</module>
-    <module>flowfoundry-app</module>
+    <module>examples</module>
   </modules>
 
   <properties>

@@ -20,6 +20,11 @@
 
   <dependencies>
     <dependency>
+      <groupId>com.tinet.flowfoundry</groupId>
+      <artifactId>flowfoundry-sdk</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-security</artifactId>
     </dependency>

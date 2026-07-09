@@ -1,5 +1,7 @@
 package com.tinet.flowfoundry.api;
 
+import com.tinet.flowfoundry.contract.FlowApiContracts.RunResponse;
+import com.tinet.flowfoundry.contract.FlowApiContracts.StartSavedWorkflowRequest;
 import com.tinet.flowfoundry.security.NamespaceAccessService;
 import com.tinet.flowfoundry.temporal.DeploymentContractRegistry;
 import com.tinet.flowfoundry.security.NamespaceAdminService;
@@ -11,6 +13,7 @@ import com.tinet.flowfoundry.workflow.WorkflowContracts.CreateWorkflowVersionReq
 import com.tinet.flowfoundry.workflow.WorkflowContracts.SaveWorkflowVersionRequest;
 import com.tinet.flowfoundry.workflow.WorkflowContracts.UpdateWorkflowRequest;
 import com.tinet.flowfoundry.workflow.WorkflowContracts.WorkflowRecordDto;
+import com.tinet.flowfoundry.workflow.WorkflowRunService;
 import com.tinet.flowfoundry.workflow.WorkflowService;
 import com.tinet.flowfoundry.workflow.WorkflowContracts.WorkflowVersionDto;
 import java.util.List;
@@ -33,16 +36,19 @@ import org.springframework.web.bind.annotation.RestController;
 public class WorkflowController {
 
   private final WorkflowService workflowService;
+  private final WorkflowRunService workflowRunService;
   private final NamespaceAccessService namespaceAccess;
   private final NamespaceAdminService namespaceAdminService;
   private final DeploymentContractRegistry contractRegistry;
 
   public WorkflowController(
       WorkflowService workflowService,
+      WorkflowRunService workflowRunService,
       NamespaceAccessService namespaceAccess,
       NamespaceAdminService namespaceAdminService,
       DeploymentContractRegistry contractRegistry) {
     this.workflowService = workflowService;
+    this.workflowRunService = workflowRunService;
     this.namespaceAccess = namespaceAccess;
     this.namespaceAdminService = namespaceAdminService;
     this.contractRegistry = contractRegistry;
@@ -77,6 +83,14 @@ public class WorkflowController {
   public WorkflowVersionDto getVersion(
       @PathVariable String workflowId, @PathVariable String version) {
     return workflowService.getVersion(workflowId, version);
+  }
+
+  @PostMapping("/{workflowId}/versions/{version}/run")
+  public RunResponse startVersion(
+      @PathVariable String workflowId,
+      @PathVariable String version,
+      @RequestBody(required = false) StartSavedWorkflowRequest request) {
+    return workflowRunService.startSavedVersion(workflowId, version, request);
   }
 
   @PostMapping

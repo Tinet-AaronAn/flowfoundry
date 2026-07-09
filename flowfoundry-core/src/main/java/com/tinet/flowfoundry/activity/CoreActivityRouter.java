@@ -1,11 +1,12 @@
 package com.tinet.flowfoundry.activity;
 
+import com.tinet.flowfoundry.activity.CoreActivityRouterDelegate;
 import java.util.Map;
 import org.springframework.stereotype.Component;
 
 /** Routes core activities that ship with flowfoundry-core. */
 @Component
-public class CoreActivityRouter {
+public class CoreActivityRouter implements CoreActivityRouterDelegate {
 
   private final ScriptRuntimeActivity scriptRuntimeActivity;
   private final HumanTaskActivity humanTaskActivity;

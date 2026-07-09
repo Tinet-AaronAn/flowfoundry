@@ -83,6 +83,7 @@
         maxScale: 1.5,
         viewportLocked: false,
         minimap: null,
+        lastFitCanvasSize: null,
         panX: 0,
         panY: 0,
         history: [],

@@ -1,0 +1,29 @@
+# Minimal infrastructure for flowfoundry-sdk Worker + Client (no platform DB).
+spring:
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 3000ms
+
+temporal:
+  host: ${TEMPORAL_HOST:localhost:7233}
+  max-concurrent-activities: ${TEMPORAL_MAX_CONCURRENT_ACTIVITIES:50}
+  max-concurrent-workflows: ${TEMPORAL_MAX_CONCURRENT_WORKFLOWS:100}
+
+flowfoundry:
+  run-mode: worker
+  platform:
+    base-url: ${FLOWFOUNDRY_PLATFORM_URL:http://127.0.0.1:8081}
+    api-key: ${FLOWFOUNDRY_API_KEY:}
+    namespace: ${FLOWFOUNDRY_NAMESPACE:}
+    connect-timeout: ${FLOWFOUNDRY_PLATFORM_CONNECT_TIMEOUT:5s}
+    read-timeout: ${FLOWFOUNDRY_PLATFORM_READ_TIMEOUT:30s}
+  bff:
+    enabled: ${FLOWFOUNDRY_BFF_ENABLED:true}
+    base-path: ${FLOWFOUNDRY_BFF_BASE_PATH:/app/api/flowfoundry}
+
+platform:
+  activity-registry:
+    path: ${ACTIVITY_REGISTRY_PATH:classpath:activities-registry.yaml}

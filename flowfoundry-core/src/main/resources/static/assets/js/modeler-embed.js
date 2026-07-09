@@ -133,8 +133,9 @@
         }
 
         await loadScriptCatalog();
-        await loadEmbedWorkflowStore();
+        // Apply chrome first so currentView/layout are ready before openWorkflow/fitView.
         applyEmbedChrome();
+        await loadEmbedWorkflowStore();
         renderAll();
         scheduleFitView();
         notifyEmbedParent('ready', {

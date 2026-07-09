@@ -103,7 +103,9 @@
       function applyViewLayout() {
         const inModeler = state.currentView === 'modeler';
         $('app')?.classList.toggle('modeler-view', inModeler);
-        renderNamespaceSelector();
+        if (typeof renderNamespaceSelector === 'function') {
+          renderNamespaceSelector();
+        }
       }
 
       function switchView(view) {
@@ -137,7 +139,9 @@
           scheduleFitView();
           if (shouldPollRuntime()) startRuntimePolling();
         } else {
-          if (!isRunStatusDialogOpen()) stopRuntimePolling();
+          if (!isRunStatusDialogOpen() && !(typeof isRunTimelineOpen === 'function' && isRunTimelineOpen())) {
+            stopRuntimePolling();
+          }
         }
       }
 

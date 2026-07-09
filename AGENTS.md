@@ -7,22 +7,22 @@
 | 角色 | 端口 | 说明 |
 |------|------|------|
 | **flowfoundry-core（平台）** | **8081** | 建模器、Workflow API、Activity Registry（含业务 yaml）、API Keys |
-| **flowfoundry-app 场景（Worker）** | **8082** | Temporal Worker + iframe 业务壳；**不提供** `/api/*` 平台接口 |
+| **flowfoundry-app 场景（Worker）** | **8082** | Temporal Worker + iframe 业务壳 + App BFF；平台 API 经 SDK Client |
 | **Temporal UI** | 8080 | 见 [docs/service-urls.md](docs/service-urls.md) |
 
 - 平台管理页：http://127.0.0.1:8081/
 - 业务 iframe 壳：http://127.0.0.1:8082/app/workflow-admin.html（嵌入 :8081 建模器）
 - 平台 JAR：`flowfoundry-core/target/flowfoundry-core-1.0.3-exec.jar`
-- 业务 Worker JAR：`flowfoundry-app/modules/<场景>/target/*.jar`
+- 业务 Worker JAR：`examples/ai-collection-strategy/target/*.jar`（或独立 App 仓库）
 
 ## 严格分层
 
 - **flowfoundry-core**：建模器 + API + 解释器 + 扩展点；`flowfoundry.run-mode=platform`
-- **flowfoundry-app/modules/**：业务 Activity + `@EnableFlowFoundryWorker`；`flowfoundry.run-mode=worker`
+- **examples/ai-collection-strategy/**：官方示例；独立 App 仓库使用 `flowfoundry-sdk` + `flowfoundry-sdk-client`
 
 ## 改代码后必须重新部署
 
-修改 `flowfoundry-core/`、`flowfoundry-app/` 或 `flowfoundry-app/modules/` 内任意文件后，**在结束任务前**必须：
+修改 `flowfoundry-core/`、`flowfoundry-sdk/` 或 `examples/` 内任意文件后，**在结束任务前**必须：
 
 1. 确保 `./scripts/local-dev.sh infra` 或 `up` 已拉起 Docker 基础设施
 2. 运行 `./scripts/redeploy-worker.sh`（平台 :8081）与 `./scripts/redeploy-app.sh`（Worker :8082）

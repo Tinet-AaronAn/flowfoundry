@@ -312,6 +312,60 @@
       <pre id="jsonContent"></pre>
     </div>
 
+    <div class="app-dialog-backdrop" id="runTimelineBackdrop" aria-hidden="true">
+      <div class="app-dialog app-dialog-run-timeline" role="dialog" aria-modal="true" aria-labelledby="runTimelineTitle">
+        <div class="run-timeline-header">
+          <div class="run-timeline-header-main">
+            <div class="run-timeline-title-row">
+              <span class="pill" id="runTimelineStatusPill">—</span>
+              <h3 id="runTimelineTitle" class="run-timeline-workflow-id" title="">Execution</h3>
+            </div>
+            <div class="run-timeline-meta" id="runTimelineMeta"></div>
+          </div>
+          <div class="run-timeline-header-actions">
+            <button type="button" class="secondary" id="runTimelineRefreshBtn" data-i18n="runs.timeline.refresh">Refresh</button>
+            <button type="button" class="secondary" id="runTimelineOpenModelerBtn" data-i18n="runs.openModeler">Open Modeler</button>
+            <a class="secondary run-timeline-action-link" id="runTimelineTemporalLink" href="#" target="_blank" rel="noopener noreferrer" hidden data-i18n="modeler.openTemporalUi">Open in Temporal UI</a>
+            <button type="button" id="runTimelineCloseBtn" data-i18n="runs.timeline.close">Close</button>
+          </div>
+        </div>
+
+        <div class="run-timeline-summary" id="runTimelineSummary"></div>
+
+        <div class="run-timeline-io" id="runTimelineIo">
+          <section class="run-timeline-io-panel">
+            <div class="run-timeline-io-heading">
+              <h4 data-i18n="runs.timeline.input">Input</h4>
+              <button type="button" class="secondary run-timeline-copy-btn" id="runTimelineCopyInputBtn" data-i18n="json.copy">Copy</button>
+            </div>
+            <pre class="run-timeline-io-json" id="runTimelineInputJson"></pre>
+          </section>
+          <section class="run-timeline-io-panel">
+            <div class="run-timeline-io-heading">
+              <h4 data-i18n="runs.timeline.result">Result</h4>
+              <button type="button" class="secondary run-timeline-copy-btn" id="runTimelineCopyResultBtn" data-i18n="json.copy">Copy</button>
+            </div>
+            <pre class="run-timeline-io-json" id="runTimelineResultJson"></pre>
+          </section>
+        </div>
+
+        <section class="run-timeline-history">
+          <div class="run-timeline-history-toolbar">
+            <h4 class="run-timeline-history-title" data-i18n="runs.timeline.eventHistory">Event History</h4>
+            <div class="run-timeline-view-tabs" role="tablist">
+              <button type="button" class="run-timeline-view-tab active" data-view="compact" data-i18n="runs.timeline.view.compact">Compact</button>
+              <button type="button" class="run-timeline-view-tab" data-view="feed" data-i18n="runs.timeline.view.feed">Feed</button>
+              <button type="button" class="run-timeline-view-tab" data-view="json" data-i18n="runs.timeline.view.json">JSON</button>
+            </div>
+            <button type="button" class="secondary run-timeline-sort-btn" id="runTimelineSortBtn" data-sort="asc">Asc</button>
+          </div>
+          <div class="run-timeline-body" id="runTimelineBody">
+            <div class="run-timeline-empty help" data-i18n="runs.timeline.empty">No execution events yet.</div>
+          </div>
+        </section>
+      </div>
+    </div>
+
     <div class="app-dialog-backdrop" id="runStatusBackdrop" aria-hidden="true">
       <div class="app-dialog app-dialog-run-status" role="dialog" aria-modal="true" aria-labelledby="runStatusTitle">
         <h3 id="runStatusTitle" data-i18n="modeler.runStatusTitle">Run Status</h3>
@@ -334,6 +388,16 @@
             <div class="runtime-status run-status-modal-panel" id="runStatusModalPanel">
               <div class="help" data-i18n="runtime.statusEmpty">Run a workflow or enter a Workflow ID to sync execution status from Temporal.</div>
             </div>
+          </section>
+
+          <section class="run-status-section run-status-section-grow">
+            <div class="run-status-section-heading">
+              <h4 class="run-status-section-title" data-i18n="modeler.runStatusFlowFoundryLogs">FlowFoundry Execution Logs</h4>
+              <div class="run-status-section-actions">
+                <button type="button" class="secondary run-status-action-btn" id="runStatusFlowFoundryLogCopyBtn" data-i18n="json.copy">Copy</button>
+              </div>
+            </div>
+            <pre class="run-status-log" id="runStatusFlowFoundryLogJson"></pre>
           </section>
 
           <section class="run-status-section run-status-section-grow">

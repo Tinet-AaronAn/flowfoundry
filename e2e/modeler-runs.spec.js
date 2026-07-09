@@ -34,6 +34,20 @@ test.describe('FlowFoundry execution runs', () => {
     await expect(page.locator('#propertiesPanel')).toBeHidden();
 
     await page.locator('#runsTable .runs-exec-link').click();
+    await expect(page.locator('#runTimelineBackdrop')).toHaveClass(/open/);
+    await expect(page.locator('#runTimelineTitle')).toContainText(workflowId);
+    await expect(page.locator('#runTimelineBody .run-timeline-gantt-row')).toHaveCount(3);
+    await expect(page.locator('#runTimelineBody')).toContainText('Import number batch');
+    await expect(page.locator('#runTimelineBody')).toContainText('Owner approval');
+    await expect(page.locator('#runTimelineIo')).toBeVisible();
+    await expect(page.locator('#modelerView')).not.toHaveClass(/active/);
+
+    await page.locator('.run-timeline-view-tab[data-view="feed"]').click();
+    await expect(page.locator('#runTimelineBody .run-timeline-feed-item')).toHaveCount(5);
+    await expect(page.locator('#runTimelineBody')).toContainText('Node completed');
+
+    await page.locator('#runTimelineOpenModelerBtn').click();
+    await expect(page.locator('#runTimelineBackdrop')).not.toHaveClass(/open/);
     await expect(page.locator('#modelerView')).toHaveClass(/active/);
     await expect(page.locator('#workflowId')).toHaveValue(workflowId);
   });

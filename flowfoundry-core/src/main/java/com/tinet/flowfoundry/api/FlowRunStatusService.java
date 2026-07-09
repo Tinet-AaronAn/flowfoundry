@@ -1,6 +1,11 @@
 package com.tinet.flowfoundry.api;
 
 import com.tinet.flowfoundry.config.TemporalProperties;
+import com.tinet.flowfoundry.contract.ChildWorkflowRunSummary;
+import com.tinet.flowfoundry.contract.RunStatusResponse;
+import com.tinet.flowfoundry.run.FlowRunContracts.FlowNodeRunDto;
+import com.tinet.flowfoundry.run.FlowRunContracts.FlowRunEventDto;
+import com.tinet.flowfoundry.run.FlowRunService;
 import com.tinet.flowfoundry.temporal.RunNamespaceLocator;
 import com.tinet.flowfoundry.temporal.TemporalClients;
 import com.tinet.flowfoundry.interpreter.FlowInterpreterWorkflow;
@@ -32,14 +37,17 @@ public class FlowRunStatusService {
   private final TemporalClients temporalClients;
   private final RunNamespaceLocator runNamespaceLocator;
   private final TemporalProperties temporalProperties;
+  private final FlowRunService flowRunService;
 
   public FlowRunStatusService(
       TemporalClients temporalClients,
       RunNamespaceLocator runNamespaceLocator,
-      TemporalProperties temporalProperties) {
+      TemporalProperties temporalProperties,
+      FlowRunService flowRunService) {
     this.temporalClients = temporalClients;
     this.runNamespaceLocator = runNamespaceLocator;
     this.temporalProperties = temporalProperties;
+    this.flowRunService = flowRunService;
   }
 
   public RunStatusResponse getRunStatus(String workflowId) {
@@ -78,6 +86,15 @@ public class FlowRunStatusService {
     String historyUrl = buildTemporalHistoryUrl(namespace, uiBaseUrl, workflowId, execution.getRunId());
     List<ChildWorkflowRunSummary> pendingChildWorkflows =
         summarizePendingChildWorkflows(describe, namespace, uiBaseUrl);
+    flowRunService.syncRunStatus(
+        workflowId,
+        execution.getRunId(),
+        temporalStatusName,
+        status,
+        failureMessage,
+        failureType);
+    List<FlowRunEventDto> executionLogs = flowRunService.listEvents(workflowId);
+    List<FlowNodeRunDto> nodeRuns = flowRunService.listNodeRuns(workflowId);
     return new RunStatusResponse(
         workflowId,
         execution.getRunId(),
@@ -100,7 +117,9 @@ public class FlowRunStatusService {
         namespace,
         uiBaseUrl,
         historyUrl,
-        pendingChildWorkflows);
+        pendingChildWorkflows,
+        executionLogs,
+        nodeRuns);
   }
 
   private List<ChildWorkflowRunSummary> summarizePendingChildWorkflows(

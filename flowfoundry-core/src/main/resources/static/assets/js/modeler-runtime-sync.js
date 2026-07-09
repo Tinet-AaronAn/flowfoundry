@@ -20,6 +20,9 @@
           }
           await queryRunState(id, { silent: true, skipJsonPanel: true });
           if (isRunStatusDialogOpen()) refreshRunStatusSections();
+          if (typeof isRunTimelineOpen === 'function' && isRunTimelineOpen()) {
+            renderRunTimeline(state.runtimeSnapshot, id);
+          }
           if (isTerminalRunStatus(state.runtimeSnapshot?.status)) {
             stopRuntimePolling();
           }

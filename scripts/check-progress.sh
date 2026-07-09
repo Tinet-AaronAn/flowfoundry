@@ -46,9 +46,9 @@ check "temporal-cli" command -v temporal >/dev/null
 check "docker" docker info >/dev/null
 check "orbstack" test -d /Applications/OrbStack.app
 
-check "app-compile" bash -c "cd '$ROOT' && mvn -q -pl flowfoundry-app/modules/ai-collection-strategy -am -DskipTests package"
-check "app-jar" test -f "$ROOT/flowfoundry-app/modules/ai-collection-strategy/target/ai-collection-strategy-demo-1.0.3.jar"
-check "demo-registry" test -f "$ROOT/flowfoundry-app/modules/ai-collection-strategy/config/activities-registry.yaml"
+check "app-compile" bash -c "cd '$ROOT' && mvn -q -pl examples/ai-collection-strategy -am -DskipTests package"
+check "app-jar" test -f "$ROOT/examples/ai-collection-strategy/target/ai-collection-strategy-demo-1.0.3.jar"
+check "demo-registry" test -f "$ROOT/examples/ai-collection-strategy/config/activities-registry.yaml"
 bash "$ROOT/scripts/verify-docs.sh" >/dev/null && REPORT+=("OK   doc-paths") || { REPORT+=("FAIL doc-paths"); FAIL=1; }
 check "helm-temporal" test -f "$ROOT/deploy/helm/temporal/values-production.yaml"
 check "helm-flowfoundry" test -f "$ROOT/deploy/helm/flowfoundry/values-production.yaml"

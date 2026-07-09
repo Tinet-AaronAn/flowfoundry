@@ -45,4 +45,28 @@ class FlowFoundryTraceTest {
     assertThat(trace.nodeName()).isEqualTo("Owner approval");
     assertThat(trace.canvasKind()).isEqualTo("humanTask");
   }
+
+  @Test
+  void fallsBackToChildWorkflowNameWhenTraceMissing() {
+    ExecutionNode node =
+        new ExecutionNode(
+            "Child_Call",
+            NodeKind.CHILD_WORKFLOW,
+            null,
+            "default",
+            null,
+            null,
+            null,
+            null,
+            null,
+            Map.of(
+                "childWorkflowId", "ChildFlow",
+                "childWorkflowName", "Child Workflow"));
+
+    FlowFoundryTrace trace = FlowFoundryTrace.fromNode(node);
+
+    assertThat(trace.nodeId()).isEqualTo("Child_Call");
+    assertThat(trace.nodeName()).isEqualTo("Child Workflow");
+    assertThat(trace.activityType()).isEqualTo("child-workflow");
+  }
 }

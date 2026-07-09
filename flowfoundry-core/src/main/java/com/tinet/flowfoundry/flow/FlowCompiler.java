@@ -393,9 +393,6 @@ public class FlowCompiler {
 
   private Map<String, Object> ensureTrace(
       FlowNode node, NodeKind kind, String activityType, Map<String, Object> config) {
-    if (kind == NodeKind.START || kind == NodeKind.END || kind == NodeKind.GATEWAY) {
-      return config;
-    }
     Map<String, Object> compiled = new LinkedHashMap<>(config);
     Map<String, Object> trace = new LinkedHashMap<>();
     trace.put("nodeId", node.id());
@@ -403,16 +400,41 @@ public class FlowCompiler {
     if (!blank(node.canvasKind())) {
       trace.put("canvasKind", node.canvasKind().trim());
     }
-    if (!blank(activityType)) {
-      trace.put("activityType", activityType);
-    } else if (kind == NodeKind.INTERMEDIATE_EVENT) {
-      Object subtype = compiled.get("eventSubtype");
-      trace.put("activityType", subtype == null ? "timer" : String.valueOf(subtype));
-    } else if (kind == NodeKind.CHILD_WORKFLOW) {
-      trace.put("activityType", "child-workflow");
+    String resolvedActivity = resolveTraceActivityType(kind, activityType, compiled);
+    if (!blank(resolvedActivity)) {
+      trace.put("activityType", resolvedActivity);
     }
     compiled.put(FlowFoundryTrace.CONFIG_KEY, trace);
     return compiled;
+  }
+
+  private static String resolveTraceActivityType(
+      NodeKind kind, String activityType, Map<String, Object> config) {
+    if (!blank(activityType)) {
+      return activityType;
+    }
+    if (kind == NodeKind.INTERMEDIATE_EVENT) {
+      Object subtype = config.get("eventSubtype");
+      return subtype == null || String.valueOf(subtype).isBlank()
+          ? "timer"
+          : String.valueOf(subtype).trim();
+    }
+    if (kind == NodeKind.CHILD_WORKFLOW) {
+      return "child-workflow";
+    }
+    if (kind == NodeKind.GATEWAY) {
+      Object gatewayKind = config.get("gatewayKind");
+      return gatewayKind == null || String.valueOf(gatewayKind).isBlank()
+          ? "gateway"
+          : String.valueOf(gatewayKind).trim();
+    }
+    if (kind == NodeKind.START) {
+      return "start";
+    }
+    if (kind == NodeKind.END) {
+      return "end";
+    }
+    return null;
   }
 
   private Map<String, Object> ensureIntermediateEventConfig(

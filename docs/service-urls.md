@@ -7,7 +7,8 @@
 | 用途 | 地址 | 说明 |
 |------|------|------|
 | **平台管理（flowfoundry-core）** | http://127.0.0.1:8081/ | 建模器、Workflow API、Activity Registry（含业务 yaml）；`redeploy-worker.sh` |
-| **业务 Worker（flowfoundry-app）** | http://127.0.0.1:8082/ | Temporal Worker + iframe 壳；**无** `/api/*`；`redeploy-app.sh` |
+| **业务 Worker（flowfoundry-app）** | http://127.0.0.1:8082/ | Temporal Worker + iframe 壳 + **App BFF**；**无**直连平台的 `/api/*` |
+| **App BFF（平台 API 代理）** | http://127.0.0.1:8082/app/api/flowfoundry/ | 业务前端唯一平台 API 入口；后端经 `flowfoundry-sdk-client` 转发至 :8081 |
 | **iframe 嵌入建模器** | http://127.0.0.1:8081/modeler/embed.html | 由 :8082 业务壳 iframe 引用 |
 | **业务壳页面** | http://127.0.0.1:8082/app/workflow-admin.html | 催收场景演示 |
 | **Temporal UI** | http://127.0.0.1:8080/ | Docker 容器 `temporal-ui` |
@@ -66,6 +67,17 @@
 - **API Key 授权**：非管理员 Key 在 `platform_api_key_namespace` 中配置可访问的 namespace 列表。
 - **建模器**：顶栏 Namespace 下拉切换当前 namespace；新建 Workflow 归属当前选中 namespace。
 - **上下文 API**：`GET /api/workflows/context` 返回 `{ namespace, allowedNamespaces, namespaceHeader }`。
+- **按已保存版本启动（对外）**：`POST /api/workflows/{workflowId}/versions/{version}/run`（需 API Key + Namespace；仅 `active`；`runSource=production`）。
+
+### Namespace 如何产生（App 开发者）
+
+| 方式 | 说明 |
+|------|------|
+| **管理员创建（正式）** | 平台 **Namespaces** 页或 Admin API；App **不能**自助注册 |
+| **平台 bootstrap（本地便利）** | 平台 `:8081` 启动时，`NamespaceBootstrapRunner` 按当前加载的业务 Registry 的 `namespace` 做 `ensureRegistered` |
+| **App Worker 上报** | 仅 Redis DeploymentContract（`namespace` + `taskQueue`），**不**写入平台 namespace 表 |
+
+App 开发前置与检查清单见 [workflow-development-guide.md §3.5](./workflow-development-guide.md#35-namespace-前置条件必读)。
 
 ## 本地调试命令
 

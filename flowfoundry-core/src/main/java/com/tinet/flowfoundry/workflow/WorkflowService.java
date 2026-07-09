@@ -82,6 +82,7 @@ public class WorkflowService {
 
   @Transactional(readOnly = true)
   public WorkflowVersionDto getVersion(String workflowId, String version) {
+    requireDefinition(workflowId);
     return mapper.toVersionDto(requireVersion(workflowId, VersionNumbering.ensureValid(version)));
   }
 

@@ -57,7 +57,9 @@
         select.innerHTML = allowed
           .map(id => `<option value="${escapeAttr(id)}" ${id === current ? 'selected' : ''}>${escapeHtml(id)}</option>`)
           .join('');
-        setNamespaceSelectorVisible(allowed.length > 1);
+        // Always show on workflow pages (workflows / modeler / runs); hide only on
+        // global SYSTEM views (namespaces / API keys) via isGlobalAdminView above.
+        setNamespaceSelectorVisible(true);
       }
 
       async function setActiveNamespace(namespace) {

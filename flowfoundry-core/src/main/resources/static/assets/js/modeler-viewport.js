@@ -86,16 +86,31 @@
         const canvas = $('canvas');
         if (!canvas || !canvas.clientWidth || !canvas.clientHeight) return;
         const bounds = modelContentBounds();
-        const viewW = Math.max(canvas.clientWidth, 320);
-        const viewH = Math.max(canvas.clientHeight, 240);
+        const viewW = canvas.clientWidth;
+        const viewH = canvas.clientHeight;
         const scaleX = viewW / bounds.width;
         const scaleY = viewH / bounds.height;
         const next = clampScale(Math.min(scaleX, scaleY) * 0.92);
         state.scale = next;
         state.panX = (viewW - bounds.width * next) / 2 - bounds.left * next;
         state.panY = (viewH - bounds.height * next) / 2 - bounds.top * next;
+        state.lastFitCanvasSize = { w: viewW, h: viewH };
         applyViewportTransform();
         renderMinimap();
+      }
+
+      function canvasReadyForFit(canvas) {
+        // Embed/iframe layouts often paint a tiny canvas first; wait for a usable size.
+        return canvas && canvas.clientWidth >= 160 && canvas.clientHeight >= 160;
+      }
+
+      function shouldRefitAfterResize(canvas) {
+        if (!canvasReadyForFit(canvas)) return false;
+        const last = state.lastFitCanvasSize;
+        if (!last || last.w < 160 || last.h < 160) return true;
+        const grewW = canvas.clientWidth > last.w * 1.35 || canvas.clientWidth - last.w > 120;
+        const grewH = canvas.clientHeight > last.h * 1.35 || canvas.clientHeight - last.h > 120;
+        return grewW || grewH;
       }
 
       function scheduleFitView(attempt = 0) {
@@ -103,7 +118,7 @@
         const modelerView = $('modelerView');
         const canvas = $('canvas');
         if (!modelerView?.classList.contains('active') || !canvas) return;
-        if ((!canvas.clientWidth || !canvas.clientHeight) && attempt < 24) {
+        if (!canvasReadyForFit(canvas) && attempt < 48) {
           requestAnimationFrame(() => scheduleFitView(attempt + 1));
           return;
         }
@@ -319,18 +334,21 @@
           document.addEventListener('mouseup', onUp);
         });
 
+        const onViewportHostResize = () => {
+          if (shouldRefitAfterResize(canvas)) {
+            scheduleFitView();
+            return;
+          }
+          renderMinimap();
+          updateMinimapViewport();
+        };
+
         if (typeof ResizeObserver !== 'undefined') {
-          const observer = new ResizeObserver(() => {
-            renderMinimap();
-            updateMinimapViewport();
-          });
+          const observer = new ResizeObserver(onViewportHostResize);
           observer.observe(canvas);
           observer.observe(minimap);
         } else {
-          window.addEventListener('resize', () => {
-            renderMinimap();
-            updateMinimapViewport();
-          });
+          window.addEventListener('resize', onViewportHostResize);
         }
 
         applyViewportLockState();
