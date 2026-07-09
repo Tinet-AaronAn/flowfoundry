@@ -34,7 +34,7 @@
 |------|------|
 | 平台内核 | `flowfoundry-core/` |
 | 场景启动类（催收示例） | `flowfoundry-app/modules/ai-collection-strategy/.../AiCollectionStrategyApplication.java` |
-| 场景 JAR 产物 | `flowfoundry-app/modules/ai-collection-strategy/target/ai-collection-strategy-demo-1.0.2.jar` |
+| 场景 JAR 产物 | `flowfoundry-app/modules/ai-collection-strategy/target/ai-collection-strategy-demo-1.0.3.jar` |
 | 平台共享配置 | `flowfoundry-core/src/main/resources/application-flowfoundry-platform.yml` |
 | 建模器静态资源 | `flowfoundry-core/src/main/resources/static/` |
 | 前端 SDK | `flowfoundry-core/.../static/assets/js/flowfoundry-modeler-sdk.js` |

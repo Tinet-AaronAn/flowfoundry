@@ -76,7 +76,7 @@ flowfoundry-app                               ← 仅聚合 modules，无代码
 | `Dockerfile` | 生产镜像 |
 
 构建：`mvn -pl flowfoundry-app/modules/ai-collection-strategy -am package`  
-产物：`flowfoundry-app/modules/ai-collection-strategy/target/ai-collection-strategy-demo-1.0.2.jar`
+产物：`flowfoundry-app/modules/ai-collection-strategy/target/ai-collection-strategy-demo-1.0.3.jar`
 
 详见 [flowfoundry-app/modules/ai-collection-strategy/README.md](../flowfoundry-app/modules/ai-collection-strategy/README.md)。
 
