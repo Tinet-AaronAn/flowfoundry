@@ -177,6 +177,7 @@
         'runs.timeline.event.WORKFLOW_FAILED': 'Workflow failed',
         'runs.timeline.event.NODE_ENTERED': 'Node entered',
         'runs.timeline.event.NODE_COMPLETED': 'Node completed',
+        'runs.timeline.event.NODE_FINISHED': 'Node finished',
         'runs.timeline.event.NODE_FAILED': 'Node failed',
         'runs.timeline.event.GATEWAY_ROUTED': 'Gateway routed',
         'runs.timeline.event.TIMER_WAITING': 'Timer waiting',

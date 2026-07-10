@@ -47,13 +47,13 @@ class FlowRunServiceTest {
             "workflow_test_demo_001",
             "default",
             2,
-            FlowRunEventType.NODE_ENTERED,
+            FlowRunEventType.NODE_FINISHED,
             "Task_A",
             "Task A",
             "ACTIVITY",
             "script-runtime",
-            "RUNNING",
-            Map.of()));
+            "COMPLETED",
+            Map.of("startedAtEpochMs", 1_700_000_000_000L, "completedAtEpochMs", 1_700_000_010_000L)));
 
     flowRunService.recordEvent(
         new FlowRunEventCommand(
@@ -108,13 +108,13 @@ class FlowRunServiceTest {
             "workflow_test_demo_002",
             "default",
             1,
-            FlowRunEventType.NODE_ENTERED,
+            FlowRunEventType.NODE_FINISHED,
             "Task_B",
             "Task B",
             "ACTIVITY",
             "script-runtime",
-            "RUNNING",
-            Map.of());
+            "COMPLETED",
+            Map.of("startedAtEpochMs", 1_700_000_000_000L, "completedAtEpochMs", 1_700_000_005_000L));
     flowRunService.recordEvent(command);
     flowRunService.recordEvent(command);
 

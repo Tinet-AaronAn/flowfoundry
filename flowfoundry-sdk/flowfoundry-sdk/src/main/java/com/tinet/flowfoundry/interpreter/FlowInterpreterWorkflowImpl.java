@@ -149,7 +149,11 @@ public class FlowInterpreterWorkflowImpl implements FlowInterpreterWorkflow {
         }
         Workflow.setCurrentDetails(trace.workflowDetailsLine());
         if (runEvents != null) {
-          runEvents.nodeEntered(node);
+          if (node.requiredKind() == NodeKind.START) {
+            runEvents.nodePassedThrough(node);
+          } else {
+            runEvents.beginNode(node);
+          }
         }
       }
 
@@ -158,15 +162,10 @@ public class FlowInterpreterWorkflowImpl implements FlowInterpreterWorkflow {
         if (runEvents == null || node == null) {
           return;
         }
-        if (node.requiredKind() == NodeKind.END) {
-          runEvents.nodeCompleted(node, detail);
+        if (node.requiredKind() == NodeKind.GATEWAY || node.requiredKind() == NodeKind.START) {
           return;
         }
-        if (node.requiredKind() == NodeKind.GATEWAY
-            || node.requiredKind() == NodeKind.START) {
-          return;
-        }
-        runEvents.nodeCompleted(node, detail);
+        runEvents.finishNode(node, "COMPLETED", detail);
       }
 
       @Override
@@ -203,9 +202,6 @@ public class FlowInterpreterWorkflowImpl implements FlowInterpreterWorkflow {
         if (durationMs <= 0 || runSource.usesStubActivities()) {
           return;
         }
-        if (runEvents != null) {
-          runEvents.timerWaiting(node, durationMs);
-        }
         Workflow.newTimer(
                 Duration.ofMillis(durationMs),
                 TimerOptions.newBuilder()
@@ -214,7 +210,7 @@ public class FlowInterpreterWorkflowImpl implements FlowInterpreterWorkflow {
                     .build())
             .get();
         if (runEvents != null) {
-          runEvents.timerFired(node);
+          runEvents.timerFired(node, durationMs);
         }
       }
 
@@ -225,9 +221,6 @@ public class FlowInterpreterWorkflowImpl implements FlowInterpreterWorkflow {
         String childBusinessKey = businessKey + "/" + node.id();
         String childWorkflowId =
             WorkflowRunId.forChildWorkflow(runSource, childPlan.flowId(), childBusinessKey);
-        if (runEvents != null) {
-          runEvents.childWorkflowStarted(node, childWorkflowId);
-        }
         FlowInterpreterWorkflow child =
             Workflow.newChildWorkflowStub(
                 FlowInterpreterWorkflow.class,
@@ -237,7 +230,7 @@ public class FlowInterpreterWorkflowImpl implements FlowInterpreterWorkflow {
                     .build());
         Object result = child.run(childPlan, childBusinessKey, childInput, runSource.wireValue());
         if (runEvents != null) {
-          runEvents.childWorkflowCompleted(node, summarizeResult(result));
+          runEvents.childWorkflowCompleted(node, childWorkflowId, summarizeResult(result));
         }
         return result;
       }
@@ -249,9 +242,6 @@ public class FlowInterpreterWorkflowImpl implements FlowInterpreterWorkflow {
         }
         waitingHumanTaskNodeId = node.id();
         status = InterpreterStatus.WAITING_HUMAN_TASK;
-        if (runEvents != null) {
-          runEvents.humanTaskWaiting(node);
-        }
         Workflow.await(
             () ->
                 pendingHumanTaskCompletion != null

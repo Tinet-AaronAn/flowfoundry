@@ -10,6 +10,7 @@ import com.tinet.flowfoundry.interpreter.model.ExecutionPlan;
 import com.tinet.flowfoundry.interpreter.model.HumanTaskCompletion;
 import com.tinet.flowfoundry.registry.ActivityRegistry;
 import com.tinet.flowfoundry.run.FlowRunContracts.FlowRunListPage;
+import com.tinet.flowfoundry.run.FlowRunEventCommand;
 import com.tinet.flowfoundry.workflow.NamespaceContextDto;
 import com.tinet.flowfoundry.workflow.WorkflowContracts.AllocateIdRequest;
 import com.tinet.flowfoundry.workflow.WorkflowContracts.AllocateIdResponse;
@@ -65,6 +66,8 @@ public interface FlowFoundryPlatformClient {
   RunStatusResponse getRunStatus(String workflowId);
 
   void completeHumanTask(String workflowId, HumanTaskCompletion completion);
+
+  void recordRunEvent(FlowRunEventCommand command);
 
   /** @deprecated exposed for advanced clients; prefer typed methods above */
   default List<ChildWorkflowRunSummary> unsupportedChildSummaries() {

@@ -178,6 +178,7 @@
         'runs.timeline.event.WORKFLOW_FAILED': '工作流失败',
         'runs.timeline.event.NODE_ENTERED': '进入节点',
         'runs.timeline.event.NODE_COMPLETED': '节点完成',
+        'runs.timeline.event.NODE_FINISHED': '节点执行完成',
         'runs.timeline.event.NODE_FAILED': '节点失败',
         'runs.timeline.event.GATEWAY_ROUTED': '网关路由',
         'runs.timeline.event.TIMER_WAITING': '定时等待',

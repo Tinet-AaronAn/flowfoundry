@@ -12,7 +12,7 @@ temporal:
 flowfoundry:
   platform:
     base-url: ${FLOWFOUNDRY_PLATFORM_URL:http://127.0.0.1:8081}
-    api-key: ${FLOWFOUNDRY_API_KEY:}
+    api-key: ${FLOWFOUNDRY_API_KEY:local-admin-key}
     namespace: ${FLOWFOUNDRY_NAMESPACE:ai-collection-strategy}
   bff:
     enabled: true

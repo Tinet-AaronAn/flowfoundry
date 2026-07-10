@@ -13,6 +13,7 @@ import com.tinet.flowfoundry.interpreter.runtime.RunSourceResolver;
 import com.tinet.flowfoundry.registry.ActivityCatalogService;
 import com.tinet.flowfoundry.registry.ActivityRegistry;
 import com.tinet.flowfoundry.run.FlowRunContracts;
+import com.tinet.flowfoundry.run.FlowRunEventCommand;
 import com.tinet.flowfoundry.run.FlowRunOrchestrator;
 import com.tinet.flowfoundry.run.FlowRunService;
 import com.tinet.flowfoundry.security.NamespaceAccessService;
@@ -123,5 +124,15 @@ public class FlowController {
         .workflowClient(namespace)
         .newWorkflowStub(FlowInterpreterWorkflow.class, workflowId)
         .completeHumanTask(completion);
+  }
+
+  @PostMapping("/flows/runs/events")
+  public void recordRunEvent(@RequestBody FlowRunEventCommand command) {
+    namespaceAccess.requireAuthenticatedNamespace();
+    if (command == null || command.workflowId() == null || command.workflowId().isBlank()) {
+      return;
+    }
+    requireRunWorkflowId(command.workflowId());
+    flowRunService.recordEvent(command);
   }
 }

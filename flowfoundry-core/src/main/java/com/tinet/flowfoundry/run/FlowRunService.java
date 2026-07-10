@@ -276,6 +276,20 @@ public class FlowRunService {
       nodeRun.setLastDetailJson(command.detailJson());
     }
     FlowRunEventType type = safeEventType(command.eventType());
+    Map<String, Object> detail = FlowRunJson.readDetailMap(command.detailJson());
+    if (type == FlowRunEventType.NODE_FINISHED) {
+      Instant started = epochMsFromDetail(detail, "startedAtEpochMs", occurredAt);
+      Instant completed = epochMsFromDetail(detail, "completedAtEpochMs", occurredAt);
+      if (nodeRun.getStartedAt() == null) {
+        nodeRun.setStartedAt(started);
+      }
+      nodeRun.setCompletedAt(completed);
+      if (command.status() != null) {
+        nodeRun.setStatus(command.status());
+      } else {
+        nodeRun.setStatus("COMPLETED");
+      }
+    }
     if (type == FlowRunEventType.NODE_ENTERED
         || type == FlowRunEventType.HUMAN_TASK_WAITING
         || type == FlowRunEventType.TIMER_WAITING) {
@@ -297,6 +311,18 @@ public class FlowRunService {
       }
     }
     nodeRunRepository.save(nodeRun);
+  }
+
+  private static Instant epochMsFromDetail(
+      Map<String, Object> detail, String key, Instant fallback) {
+    if (detail == null || detail.isEmpty()) {
+      return fallback;
+    }
+    Object raw = detail.get(key);
+    if (raw instanceof Number number) {
+      return Instant.ofEpochMilli(number.longValue());
+    }
+    return fallback;
   }
 
   private static FlowRunEventType safeEventType(String raw) {

@@ -77,7 +77,7 @@
 | **平台 bootstrap（本地便利）** | 平台 `:8081` 启动时，`NamespaceBootstrapRunner` 按当前加载的业务 Registry 的 `namespace` 做 `ensureRegistered` |
 | **App Worker 上报** | 仅 Redis DeploymentContract（`namespace` + `taskQueue`），**不**写入平台 namespace 表 |
 
-App 开发前置与检查清单见 [workflow-development-guide.md §3.5](./workflow-development-guide.md#35-namespace-前置条件必读)。
+App 开发前置与检查清单见 [workflow-development-guide.md §4.5](./workflow-development-guide.md#45-namespace-前置条件必读)。
 
 ## 本地调试命令
 

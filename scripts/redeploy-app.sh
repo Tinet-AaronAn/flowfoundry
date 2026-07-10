@@ -82,7 +82,7 @@ start_app() {
     --server.port="$APP_PORT" \
     --flowfoundry.run-mode=worker \
     --flowfoundry.platform.base-url="${PLATFORM_URL}" \
-    --flowfoundry.platform.api-key="${FLOWFOUNDRY_API_KEY:-}" \
+    --flowfoundry.platform.api-key="${FLOWFOUNDRY_API_KEY:-local-admin-key}" \
     --flowfoundry.platform.namespace="${FLOWFOUNDRY_NAMESPACE:-ai-collection-strategy}" \
     --platform.activity-registry.path="file:$REGISTRY" \
     --flowfoundry.activity-registry.path="file:$REGISTRY" \

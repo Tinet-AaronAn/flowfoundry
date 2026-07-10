@@ -122,7 +122,7 @@ flowfoundry-core                           examples/ai-collection-strategy
 
 ## 独立 flowfoundry-app 仓库（业务团队）
 
-业务交付物**不在本仓库**。标准结构见 [workflow-development-guide.md](workflow-development-guide.md) §3 与 [flowfoundry-sdk-design.md §4](flowfoundry-sdk-design.md#4-独立-flowfoundry-app-仓库标准结构)。
+业务交付物**不在本仓库**。标准结构见 [workflow-development-guide.md](workflow-development-guide.md) §4 与 [flowfoundry-sdk-design.md §4](flowfoundry-sdk-design.md#4-独立-flowfoundry-app-仓库标准结构)。
 
 ---
 

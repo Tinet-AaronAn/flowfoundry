@@ -34,6 +34,18 @@ public final class FlowRunJson {
     }
   }
 
+  @SuppressWarnings("unchecked")
+  public static Map<String, Object> readDetailMap(String detailJson) {
+    if (detailJson == null || detailJson.isBlank()) {
+      return Map.of();
+    }
+    try {
+      return MAPPER.readValue(detailJson, Map.class);
+    } catch (JsonProcessingException e) {
+      return Map.of();
+    }
+  }
+
   public static String truncate(String value) {
     if (value == null || value.isBlank()) {
       return value;

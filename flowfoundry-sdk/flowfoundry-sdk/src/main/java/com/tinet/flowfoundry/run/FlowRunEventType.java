@@ -6,6 +6,8 @@ public enum FlowRunEventType {
   WORKFLOW_FAILED,
   NODE_ENTERED,
   NODE_COMPLETED,
+  /** Single lifecycle event per node (enter + complete merged). */
+  NODE_FINISHED,
   NODE_FAILED,
   GATEWAY_ROUTED,
   TIMER_WAITING,

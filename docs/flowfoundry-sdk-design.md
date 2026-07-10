@@ -49,7 +49,7 @@ flowfoundry/
 2. **SDK 是唯一契约**：Worker 扩展点、Registry schema、**平台 HTTP 契约**均通过 SDK 暴露。
 3. **BFF 边界**：业务前端 → App 后端（同源）→ SDK Client → 平台 `:8081`；不暴露平台 API Key 给浏览器。
 4. **运行时仍通过 Temporal 协作**：App Worker 与平台解释器共享 namespace / task queue。
-5. **Namespace 由平台管理**：App 在 Registry / 配置中声明同名 namespace，但不能自助创建平台 namespace；须管理员先登记（或本地依赖平台 bootstrap）。详见 [workflow-development-guide.md §3.5](./workflow-development-guide.md#35-namespace-前置条件必读)。
+5. **Namespace 由平台管理**：App 在 Registry / 配置中声明同名 namespace，但不能自助创建平台 namespace；须管理员先登记（或本地依赖平台 bootstrap）。详见 [workflow-development-guide.md §4.5](./workflow-development-guide.md#45-namespace-前置条件必读)。
 6. **渐进迁移**：monorepo 内先拆模块并验证，再发布 GitHub Packages。
 
 ---

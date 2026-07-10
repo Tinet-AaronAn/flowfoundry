@@ -6,7 +6,11 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 
 @AutoConfiguration
-@ComponentScan(basePackageClasses = FlowFoundryPlatformBffController.class)
+@ComponentScan(
+    basePackageClasses = {
+      FlowFoundryPlatformBffController.class,
+      com.tinet.flowfoundry.run.RemoteFlowRunRecorder.class
+    })
 @EnableConfigurationProperties({FlowFoundryPlatformProperties.class, FlowFoundryBffProperties.class})
 public class FlowFoundryPlatformClientAutoConfiguration {
 

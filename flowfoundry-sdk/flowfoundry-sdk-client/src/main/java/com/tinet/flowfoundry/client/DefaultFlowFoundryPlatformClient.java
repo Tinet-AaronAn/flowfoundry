@@ -9,6 +9,7 @@ import com.tinet.flowfoundry.interpreter.model.ExecutionPlan;
 import com.tinet.flowfoundry.interpreter.model.HumanTaskCompletion;
 import com.tinet.flowfoundry.registry.ActivityRegistry;
 import com.tinet.flowfoundry.run.FlowRunContracts.FlowRunListPage;
+import com.tinet.flowfoundry.run.FlowRunEventCommand;
 import com.tinet.flowfoundry.workflow.NamespaceContextDto;
 import com.tinet.flowfoundry.workflow.WorkflowContracts.AllocateIdRequest;
 import com.tinet.flowfoundry.workflow.WorkflowContracts.AllocateIdResponse;
@@ -209,6 +210,16 @@ class DefaultFlowFoundryPlatformClient implements FlowFoundryPlatformClient {
         .post()
         .uri("/api/flows/runs/{workflowId}/human-task", workflowId)
         .body(completion)
+        .retrieve()
+        .toBodilessEntity();
+  }
+
+  @Override
+  public void recordRunEvent(FlowRunEventCommand command) {
+    restClient
+        .post()
+        .uri("/api/flows/runs/events")
+        .body(command)
         .retrieve()
         .toBodilessEntity();
   }

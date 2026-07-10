@@ -123,6 +123,22 @@
         return Number.isFinite(ms) ? ms : null;
       }
 
+      function parseDetailEpochMs(detailJson, key) {
+        if (!detailJson || !key) return null;
+        try {
+          const detail = typeof detailJson === 'string' ? JSON.parse(detailJson) : detailJson;
+          const raw = detail?.[key];
+          if (typeof raw === 'number' && Number.isFinite(raw)) return raw;
+          if (typeof raw === 'string' && raw.trim() !== '') {
+            const parsed = Number(raw);
+            return Number.isFinite(parsed) ? parsed : null;
+          }
+        } catch {
+          return null;
+        }
+        return null;
+      }
+
       function formatClockTime(value, withMs = false) {
         const ms = parseInstantMs(value);
         if (ms == null) return '—';
@@ -295,17 +311,24 @@
 
         const occurredMs = parseInstantMs(ev.occurredAt);
         const startedMs = parseInstantMs(step.startedAt);
-        if (occurredMs != null && (startedMs == null || occurredMs < startedMs)) {
+        const detailStartedMs = parseDetailEpochMs(ev.detailJson, 'startedAtEpochMs');
+        if (detailStartedMs != null && (startedMs == null || detailStartedMs < startedMs)) {
+          step.startedAt = new Date(detailStartedMs).toISOString();
+        } else if (occurredMs != null && (startedMs == null || occurredMs < startedMs)) {
           step.startedAt = ev.occurredAt;
         }
 
+        const detailCompletedMs = parseDetailEpochMs(ev.detailJson, 'completedAtEpochMs');
         const isTerminalEvent = type.includes('COMPLETED')
           || type.includes('FAILED')
           || type.includes('FIRED')
-          || type === 'GATEWAY_ROUTED';
+          || type === 'GATEWAY_ROUTED'
+          || type === 'NODE_FINISHED';
         if (isTerminalEvent) {
           const completedMs = parseInstantMs(step.completedAt);
-          if (occurredMs != null && (completedMs == null || occurredMs > completedMs)) {
+          if (detailCompletedMs != null && (completedMs == null || detailCompletedMs > completedMs)) {
+            step.completedAt = new Date(detailCompletedMs).toISOString();
+          } else if (occurredMs != null && (completedMs == null || occurredMs > completedMs)) {
             step.completedAt = ev.occurredAt;
           }
           if (!step.fromNodeRun || !step.status || normalizeTimelineStatus(step.status) === 'running') {

@@ -1,6 +1,5 @@
 package com.tinet.flowfoundry.interpreter.runtime;
 
-import com.tinet.flowfoundry.activity.ActivityTypes;
 import com.tinet.flowfoundry.interpreter.model.ExecutionNode;
 import com.tinet.flowfoundry.interpreter.model.ExecutionPlan;
 import com.tinet.flowfoundry.interpreter.model.FlowFoundryTrace;
@@ -10,16 +9,19 @@ import com.tinet.flowfoundry.run.FlowRunEventCommand;
 import com.tinet.flowfoundry.run.FlowRunEventType;
 import com.tinet.flowfoundry.run.FlowRunJson;
 import com.tinet.flowfoundry.run.FlowRunRecorder;
-import io.temporal.activity.ActivityOptions;
+import io.temporal.activity.LocalActivityOptions;
 import io.temporal.common.RetryOptions;
 import io.temporal.workflow.Async;
+import io.temporal.workflow.Promise;
 import io.temporal.workflow.Workflow;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Emits FlowFoundry-scoped run events via platform Temporal Activity. */
+/** Emits FlowFoundry-scoped run events via platform Local Activity (worker → platform HTTP). */
 public final class WorkflowRunEventEmitter {
 
   private final String workflowId;
@@ -27,6 +29,8 @@ public final class WorkflowRunEventEmitter {
   private final String namespace;
   private final String runSource;
   private final ExecutionPlan plan;
+  private final Map<String, Long> nodeStartedAtEpochMs = new HashMap<>();
+  private final List<Promise<Void>> pending = new ArrayList<>();
   private int sequence;
 
   public WorkflowRunEventEmitter(
@@ -54,6 +58,7 @@ public final class WorkflowRunEventEmitter {
         InterpreterStatus.COMPLETED.name(),
         null,
         null);
+    awaitPending();
   }
 
   public void workflowFailed(String failureMessage, String failureType) {
@@ -62,23 +67,52 @@ public final class WorkflowRunEventEmitter {
         InterpreterStatus.FAILED.name(),
         failureMessage,
         failureType);
+    awaitPending();
   }
 
-  public void nodeEntered(ExecutionNode node) {
-    emit(
-        FlowRunEventType.NODE_ENTERED,
-        node,
-        "RUNNING",
-        Map.of("kind", nodeKind(node)));
+  /** Records node start time; a single {@link FlowRunEventType#NODE_FINISHED} is emitted on finish. */
+  public void beginNode(ExecutionNode node) {
+    if (node == null || node.id() == null) {
+      return;
+    }
+    nodeStartedAtEpochMs.put(node.id(), Workflow.currentTimeMillis());
   }
 
-  public void nodeCompleted(ExecutionNode node, Map<String, Object> detail) {
-    emit(FlowRunEventType.NODE_COMPLETED, node, "COMPLETED", detail);
+  /** Instant pass-through nodes (e.g. Start) emit one merged lifecycle event. */
+  public void nodePassedThrough(ExecutionNode node) {
+    if (node == null) {
+      return;
+    }
+    long now = Workflow.currentTimeMillis();
+    Map<String, Object> detail = new LinkedHashMap<>();
+    detail.put("kind", nodeKind(node));
+    detail.put("startedAtEpochMs", now);
+    detail.put("completedAtEpochMs", now);
+    emit(FlowRunEventType.NODE_FINISHED, node, "COMPLETED", detail);
+  }
+
+  public void finishNode(ExecutionNode node, String status, Map<String, Object> detail) {
+    if (node == null) {
+      return;
+    }
+    Map<String, Object> merged = new LinkedHashMap<>();
+    if (detail != null) {
+      merged.putAll(detail);
+    }
+    Long started = nodeStartedAtEpochMs.remove(node.id());
+    long completed = Workflow.currentTimeMillis();
+    if (started != null) {
+      merged.putIfAbsent("startedAtEpochMs", started);
+    }
+    merged.putIfAbsent("completedAtEpochMs", completed);
+    if (!merged.containsKey("kind")) {
+      merged.put("kind", nodeKind(node));
+    }
+    emit(FlowRunEventType.NODE_FINISHED, node, status, merged);
   }
 
   public void nodeFailed(ExecutionNode node, String message) {
-    emit(
-        FlowRunEventType.NODE_FAILED,
+    finishNode(
         node,
         "FAILED",
         message == null ? Map.of() : Map.of("message", message));
@@ -92,42 +126,23 @@ public final class WorkflowRunEventEmitter {
         Map.of("targets", targetNodeIds));
   }
 
-  public void timerWaiting(ExecutionNode node, long durationMs) {
-    emit(
-        FlowRunEventType.TIMER_WAITING,
+  public void timerFired(ExecutionNode node, long durationMs) {
+    finishNode(
         node,
-        "WAITING",
+        "COMPLETED",
         Map.of("durationMs", durationMs));
   }
 
-  public void timerFired(ExecutionNode node) {
-    emit(FlowRunEventType.TIMER_FIRED, node, "COMPLETED", Map.of());
-  }
-
-  public void humanTaskWaiting(ExecutionNode node) {
-    emit(FlowRunEventType.HUMAN_TASK_WAITING, node, "WAITING", Map.of());
-  }
-
   public void humanTaskCompleted(ExecutionNode node, String outcome) {
-    emit(
-        FlowRunEventType.HUMAN_TASK_COMPLETED,
+    finishNode(
         node,
         "COMPLETED",
         outcome == null ? Map.of() : Map.of("outcome", outcome));
   }
 
-  public void childWorkflowStarted(ExecutionNode node, String childWorkflowId) {
+  public void childWorkflowCompleted(ExecutionNode node, String childWorkflowId, Object resultSummary) {
     Map<String, Object> detail = new LinkedHashMap<>();
     detail.put("childWorkflowId", childWorkflowId);
-    String childName = childWorkflowDisplayName(node);
-    if (childName != null) {
-      detail.put("childWorkflowName", childName);
-    }
-    emit(FlowRunEventType.CHILD_WORKFLOW_STARTED, node, "RUNNING", detail);
-  }
-
-  public void childWorkflowCompleted(ExecutionNode node, Object resultSummary) {
-    Map<String, Object> detail = new LinkedHashMap<>();
     String childName = childWorkflowDisplayName(node);
     if (childName != null) {
       detail.put("childWorkflowName", childName);
@@ -135,7 +150,7 @@ public final class WorkflowRunEventEmitter {
     if (resultSummary != null) {
       detail.put("result", resultSummary);
     }
-    emit(FlowRunEventType.CHILD_WORKFLOW_COMPLETED, node, "COMPLETED", detail);
+    finishNode(node, "COMPLETED", detail);
   }
 
   private void emitTerminal(
@@ -206,24 +221,32 @@ public final class WorkflowRunEventEmitter {
   }
 
   private void dispatch(FlowRunEventCommand command) {
-    Async.procedure(
-        () -> {
-          try {
-            recorder().recordEvent(command);
-          } catch (Exception e) {
-            Workflow.getLogger(WorkflowRunEventEmitter.class)
-                .warn("Failed to record flow run event {}", command.eventType(), e);
-          }
-        });
+    pending.add(
+        Async.procedure(
+            () -> {
+              try {
+                recorder().recordEvent(command);
+              } catch (Exception e) {
+                Workflow.getLogger(WorkflowRunEventEmitter.class)
+                    .warn("Failed to record flow run event {}", command.eventType(), e);
+              }
+            }));
+  }
+
+  private void awaitPending() {
+    if (pending.isEmpty()) {
+      return;
+    }
+    Promise.allOf(pending.toArray(Promise[]::new)).get();
+    pending.clear();
   }
 
   private static FlowRunRecorder recorder() {
-    return Workflow.newActivityStub(
+    return Workflow.newLocalActivityStub(
         FlowRunRecorder.class,
-        ActivityOptions.newBuilder()
-            .setTaskQueue(ActivityTypes.PLATFORM_TASK_QUEUE)
-            .setStartToCloseTimeout(Duration.ofSeconds(15))
-            .setRetryOptions(RetryOptions.newBuilder().setMaximumAttempts(5).build())
+        LocalActivityOptions.newBuilder()
+            .setStartToCloseTimeout(Duration.ofSeconds(5))
+            .setRetryOptions(RetryOptions.newBuilder().setMaximumAttempts(3).build())
             .build());
   }
 
