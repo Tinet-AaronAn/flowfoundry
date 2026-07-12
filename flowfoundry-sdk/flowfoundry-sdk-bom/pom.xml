@@ -28,6 +28,11 @@
         <version>${project.version}</version>
       </dependency>
       <dependency>
+        <groupId>com.tinet.flowfoundry</groupId>
+        <artifactId>flowfoundry-plugin-runner</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
         <groupId>io.temporal</groupId>
         <artifactId>temporal-sdk</artifactId>
         <version>${temporal.version}</version>

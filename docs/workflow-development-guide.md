@@ -1,6 +1,6 @@
 # FlowFoundry 流程软件开发指南
 
-本文面向 **flowfoundry-app 业务场景开发者**：说明如何用 FlowFoundry 平台交付一套可编排、可运行、可联调的工作流软件。
+本文面向 **业务 App / 插件开发者**：说明如何用 FlowFoundry 平台交付一套可编排、可运行、可联调的工作流软件。
 
 **适用读者**：维护独立业务 App 仓库的后端工程师；需要与建模器、Temporal 联调的 FDE / 全栈开发者。
 
@@ -18,6 +18,8 @@
 | [detailed-design.md](./detailed-design.md) | API、持久化、节点语义 |
 | [business-orchestration-architecture.md](./business-orchestration-architecture.md) | 平台定位与架构背景 |
 | [examples/ai-collection-strategy/README.md](../examples/ai-collection-strategy/README.md) | 官方示例场景 |
+| [plugin-development-guide.md](./plugin-development-guide.md) | **插件包开发**（平台托管 Worker） |
+| [plugin-runtime-design.md](./plugin-runtime-design.md) | 插件运行时架构设计 |
 
 ---
 
@@ -46,6 +48,10 @@ FlowFoundry 上的「流程软件」通常包含四块，缺一不可：
 - 通过 **`flowfoundry-sdk-bom`** 引入 `flowfoundry-sdk` + `flowfoundry-sdk-client`，**禁止**依赖 `flowfoundry-core`。
 - **禁止**业务前端直连平台 `:8081/api/*`；须经 App BFF → SDK Client。
 - **不要**把业务 Activity 写进 `flowfoundry-core/`。
+
+### 1.1 插件模式（可选）
+
+若业务**不需要**独立 `:8082` Worker、iframe 壳或 BFF，可把同一套 `Router` + `WorkerExtension` + registry 打成**插件包**，由平台 K8s runner 托管。交付物与联调步骤见 [plugin-development-guide.md](./plugin-development-guide.md)。Worker App 模式与插件模式可并存于官方示例，但联调时勿同时 poll 同一 task queue。
 
 ---
 
@@ -134,22 +140,13 @@ FlowFoundry 经 **Temporal** 执行画布：每个 Service Task 对应一次 **A
 
 ### 4.1 推荐起点
 
-**方式 A（推荐）**：从官方示例复制结构
+从官方示例复制结构：
 
 ```bash
-# 从平台仓库复制示例骨架（examples/）
+# 从平台仓库复制示例骨架
 cp -r flowfoundry/examples/ai-collection-strategy my-scenario-app
 cd my-scenario-app
 # 改 groupId、包名、application.name、registry namespace
-```
-
-**方式 B**：使用 Maven archetype（Phase 2 提供）
-
-```bash
-mvn archetype:generate \
-  -DarchetypeGroupId=com.tinet.flowfoundry \
-  -DarchetypeArtifactId=flowfoundry-app-archetype \
-  -DgroupId=com.example -DartifactId=my-scenario-app
 ```
 
 ### 4.2 标准目录
@@ -588,7 +585,7 @@ Registry → 建模器编排 → 编译 ExecutionPlan → FlowInterpreterWorkflo
 
 - 示例位于 `examples/ai-collection-strategy/`。
 - 使用 `./scripts/redeploy-app.sh` 一键构建并启动 :8082。
-- 示例 `pom.xml` 同样只依赖 `flowfoundry-sdk`（迁移完成后）。
+- 示例 `pom.xml` 仅依赖 `flowfoundry-sdk` + `flowfoundry-sdk-client`（版本由 BOM 管理）。
 
 ```bash
 ./scripts/redeploy-worker.sh
@@ -599,9 +596,10 @@ SCENARIO=ai-collection-strategy ./scripts/redeploy-app.sh
 
 ## 12. 下一步
 
-1. 阅读 [flowfoundry-sdk-design.md](./flowfoundry-sdk-design.md) 了解拆分方案与迁移阶段
-2. 通读示例：`examples/ai-collection-strategy/`
-3. 复制示例为你的独立 App 仓库，按 §7 清单新增试点 Activity
-4. 本地跑通：建模器 Run → Temporal UI 看 History
+1. 阅读 [flowfoundry-sdk-design.md](./flowfoundry-sdk-design.md) 了解 SDK 分层与 BFF 边界
+2. 若只需 Worker、不需独立 App：阅读 [plugin-development-guide.md](./plugin-development-guide.md)
+3. 通读示例：`examples/ai-collection-strategy/`
+4. 复制示例为你的独立 App 仓库，按 §7 清单新增试点 Activity
+5. 本地跑通：建模器 Run → Temporal UI 看 History
 
 有问题先查 [local-development.md](./local-development.md) 与 [service-urls.md](./service-urls.md)；平台行为细节以 [detailed-design.md](./detailed-design.md) 为准。

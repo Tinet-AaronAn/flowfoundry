@@ -135,7 +135,7 @@ Flyway 迁移：`flowfoundry-core/src/main/resources/db/migration/V1__workflow_s
 | `platform_id_registry` | **全平台元素 ID 池**（workflow / task / event / gateway 等前缀 ID 的唯一登记） |
 
 
-业务 Activity 实现、注册表、催收逻辑等落在 `flowfoundry-app/modules/`（各场景可独立 `main` 启动）；**platform** 持久化只服务「流程设计器 + Workflow CRUD API」，保证建模侧 ID 与版本数据可靠、不冲突。
+业务 Activity 实现、注册表、催收逻辑等落在 **独立业务 App 仓库**或本仓库 `examples/`（各场景可独立 `main` 启动，或打成插件包）；**platform** 持久化只服务「流程设计器 + Workflow CRUD API」，保证建模侧 ID 与版本数据可靠、不冲突。
 
 平台默认配置在 `flowfoundry-core/.../application-flowfoundry-platform.yml`（数据源、Redis、Temporal host 等）；各场景 `application.yml` 通过 `spring.config.import` 引入平台配置，并指定 Activity Registry 路径。**namespace 与 task queue 仅来自 Registry**，App 不再单独配置 `temporal.namespace` / `temporal.task-queue`。
 
@@ -1308,7 +1308,7 @@ Compiler 保证每个 Human Task 节点写入：
 
 业务人员不直接面对 Temporal Activity 名称的技术细节，而是：
 
-1. 开发者在 **Activity Registry**（业务模块配置，如 `flowfoundry-app/modules/ai-collection-strategy/config/activities-registry.yaml`）注册能力：`id`、`name`、`taskQueue`、`timeout`、幂等等。业务模块打包时将该 yaml 放入 classpath；本地 `redeploy-worker.sh` 与 Docker/K8s 优先 `file:` 读取该文件。
+1. 开发者在 **Activity Registry**（业务模块配置，如 `examples/ai-collection-strategy/config/activities-registry.yaml`）注册能力：`id`、`name`、`taskQueue`、`timeout`、幂等等。业务模块打包时将该 yaml 放入 classpath；平台 `redeploy-worker.sh` 在插件模式下加载 `activities-registry-platform-plugin.yaml`，业务 registry 来自已上传插件；Worker App 模式由 `:8082` 进程 classpath 提供。
 2. 建模器加载 `/api/activities`，在 Service Task 属性里**下拉选择**已注册 `activityType`。
 
 **平台 Activity**（`flowfoundry-core` 实现，与业务 Registry 合并展示）不放在业务模块：

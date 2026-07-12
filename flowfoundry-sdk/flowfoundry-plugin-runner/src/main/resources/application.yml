@@ -1,0 +1,34 @@
+spring:
+  config:
+    import:
+      - classpath:application-flowfoundry-sdk.yml
+      - classpath:application-flowfoundry-worker.yml
+  application:
+    name: flowfoundry-plugin-runner
+
+server:
+  port: ${PLUGIN_RUNNER_PORT:8080}
+
+flowfoundry:
+  run-mode: worker
+  activity-registry:
+    path: classpath:activities-registry.yaml
+  plugin:
+    scan-packages: ${FLOWFOUNDRY_PLUGIN_SCAN_PACKAGES:}
+
+temporal:
+  host: ${TEMPORAL_HOST:127.0.0.1:7233}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+logging:
+  level:
+    com.tinet.flowfoundry: INFO

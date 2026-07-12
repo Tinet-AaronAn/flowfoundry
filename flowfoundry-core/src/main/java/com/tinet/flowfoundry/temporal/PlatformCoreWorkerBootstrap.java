@@ -3,6 +3,8 @@ package com.tinet.flowfoundry.temporal;
 import com.tinet.flowfoundry.activity.ActivityTypes;
 import com.tinet.flowfoundry.config.ConditionalOnFlowFoundryPlatform;
 import com.tinet.flowfoundry.config.TemporalProperties;
+import io.grpc.Status;
+import io.grpc.StatusRuntimeException;
 import io.temporal.worker.Worker;
 import io.temporal.worker.WorkerFactory;
 import io.temporal.worker.WorkerOptions;
@@ -57,22 +59,32 @@ public class PlatformCoreWorkerBootstrap {
   }
 
   private void startCoreWorker(String namespace) {
-    WorkerFactory factory =
-        WorkerFactory.newInstance(temporalClients.workflowClient(namespace));
-    WorkerOptions workerOptions =
-        WorkerOptions.newBuilder()
-            .setMaxConcurrentActivityExecutionSize(properties.maxConcurrentActivities())
-            .build();
+    try {
+      WorkerFactory factory =
+          WorkerFactory.newInstance(temporalClients.workflowClient(namespace));
+      WorkerOptions workerOptions =
+          WorkerOptions.newBuilder()
+              .setMaxConcurrentActivityExecutionSize(properties.maxConcurrentActivities())
+              .build();
 
-    Worker worker = factory.newWorker(ActivityTypes.PLATFORM_TASK_QUEUE, workerOptions);
-    coreWorkerExtension.register(worker);
-    factory.start();
-    factories.add(factory);
-    log.info(
-        "Platform core-activity worker started host={} namespace={} taskQueue={}",
-        properties.host(),
-        namespace,
-        ActivityTypes.PLATFORM_TASK_QUEUE);
+      Worker worker = factory.newWorker(ActivityTypes.PLATFORM_TASK_QUEUE, workerOptions);
+      coreWorkerExtension.register(worker);
+      factory.start();
+      factories.add(factory);
+      log.info(
+          "Platform core-activity worker started host={} namespace={} taskQueue={}",
+          properties.host(),
+          namespace,
+          ActivityTypes.PLATFORM_TASK_QUEUE);
+    } catch (StatusRuntimeException e) {
+      if (e.getStatus() != null && Status.Code.NOT_FOUND.equals(e.getStatus().getCode())) {
+        log.warn(
+            "Skipping platform core worker for namespace={}: Temporal namespace not found",
+            namespace);
+        return;
+      }
+      throw e;
+    }
   }
 
   @PreDestroy

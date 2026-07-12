@@ -15,7 +15,7 @@
 | PostgreSQL / Redis / Temporal | Docker | 5432 / 6379 / 7233 | 基础设施 |
 | Temporal UI | Docker | 8080 | 运维 UI |
 | **flowfoundry-core** | 宿主机 `java -jar` | **8081** | 平台 HTTP（建模器、API、Registry） |
-| **flowfoundry-app 场景** | 宿主机 `java -jar` | **8082** | Temporal Worker + iframe 业务壳 |
+| **示例 Worker App** | 宿主机 `java -jar` | **8082** | `examples/ai-collection-strategy`：Temporal Worker + iframe 业务壳 |
 
 - 平台启动：`./scripts/redeploy-worker.sh`（默认加载 `SCENARIO=ai-collection-strategy` 的业务 Registry）
 - Worker 启动：`./scripts/redeploy-app.sh`（`flowfoundry.run-mode=worker`，不提供 `/api/*`）
@@ -45,8 +45,9 @@
 | 建模器 HTML | `flowfoundry-core/src/main/resources/static/index.html` |
 | 前端 JS / CSS | `flowfoundry-core/src/main/resources/static/assets/` |
 | 平台 API / 解释器 | `flowfoundry-core/src/main/java/com/tinet/flowfoundry/` |
-| 可运行入口 | `flowfoundry-app/modules/ai-collection-strategy/` |
-| 业务 Activity | `flowfoundry-app/modules/` |
+| 可运行入口 | `examples/ai-collection-strategy/` |
+| 业务 Activity | `examples/ai-collection-strategy/` |
+| 插件 runner | `flowfoundry-sdk/flowfoundry-plugin-runner/` |
 | 数据库迁移 | `flowfoundry-core/src/main/resources/db/migration/` |
 | E2E 用例 | `e2e/` |
 
@@ -77,7 +78,7 @@ chmod +x scripts/local-dev.sh scripts/check-progress.sh scripts/redeploy-worker.
 
 ## 改代码后的标准流程（必做）
 
-每次修改 `flowfoundry-core/`、`flowfoundry-app/` 或 `flowfoundry-app/modules/` 下任意文件后：
+每次修改 `flowfoundry-core/`、`flowfoundry-sdk/` 或 `examples/` 下任意文件后：
 
 ```bash
 ./scripts/redeploy-worker.sh    # 平台 :8081（含业务 Activity Registry）
@@ -102,8 +103,47 @@ chmod +x scripts/local-dev.sh scripts/check-progress.sh scripts/redeploy-worker.
 | `./scripts/local-dev.sh status` | 运行 `check-progress.sh` |
 | `./scripts/redeploy-worker.sh` | 重启平台 :8081（含业务 Registry） |
 | `./scripts/redeploy-app.sh` | 重启业务 Worker :8082 |
+| `./scripts/plugin-runtime-dev.sh` | 构建 runner 镜像并以 **插件运行时模式** 重启平台（见下节） |
+| `./scripts/build-ai-collection-plugin.sh` | 构建官方示例插件 jar（`-plugin` classifier） |
+| `./scripts/build-plugin-runner-image.sh` | 构建 `flowfoundry-plugin-runner:local` 镜像 |
 
 ---
+
+## 插件运行时模式（P2/P3，可选）
+
+与「平台 :8081 + 业务 Worker :8082」并存。启用后业务 Activity / typed workflow 由 **K8s 内 plugin runner Pod** 承载，平台通过 `KubernetesRuntime` 对账 Deployment。
+
+**插件开发完整指南**：[plugin-development-guide.md](./plugin-development-guide.md)（打包、描述符、上传、验收）。
+
+**前提**：本机 Docker Desktop / OrbStack 已启用 Kubernetes；Temporal / Redis 等基础设施已 `up`。
+
+```bash
+./scripts/local-dev.sh infra          # 若尚未启动
+./scripts/plugin-runtime-dev.sh       # 构建 runner 镜像 + 以 FLOWFOUNDRY_PLUGIN_RUNTIME_ENABLED=true 部署 :8081
+./scripts/build-ai-collection-plugin.sh
+
+# 上传并启动（API Key 默认 local-admin-key）
+PLUGIN_JAR=$(./scripts/build-ai-collection-plugin.sh)
+curl -X POST -H "X-API-Key: local-admin-key" -F "file=@$PLUGIN_JAR" \
+  http://127.0.0.1:8081/api/admin/plugins
+curl -X POST -H "X-API-Key: local-admin-key" \
+  http://127.0.0.1:8081/api/admin/plugins/ai-collection-strategy/1.0.4/start
+
+# 观察
+kubectl get deploy,pods -n flowfoundry-plugins
+curl -H "X-API-Key: local-admin-key" \
+  http://127.0.0.1:8081/api/admin/plugins/ai-collection-strategy/1.0.4
+```
+
+要点：
+
+- 插件模式使用 `activities-registry-platform-plugin.yaml`（无内置业务 Activity）；业务 registry 来自已上传插件。
+- Runner Pod 通过 `host.docker.internal` 访问本机 Temporal（`:7233`）、平台（`:8081`）与 Redis。
+- 扩缩容：`PUT /api/admin/plugins/{id}/scale`，body `{"replicas":N}`。
+- 管理页面：平台侧栏 **Plugins**（`modeler-plugins.js`）支持上传、启停、扩缩容、重载、日志查看。
+- 若同时运行 `:8082` 业务 Worker，Temporal 上会出现重复 poller；联调插件时建议**不启动** `redeploy-app.sh`。
+
+环境变量见 `application-flowfoundry-platform.yml` 中 `flowfoundry.plugins.runtime.*`。
 
 ## Docker 全栈（仅集成验证）
 

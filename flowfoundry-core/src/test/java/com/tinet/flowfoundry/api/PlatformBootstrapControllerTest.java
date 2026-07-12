@@ -36,7 +36,7 @@ class PlatformBootstrapControllerTest {
     flowFoundry.setModeler(modeler);
 
     TemporalProperties temporal =
-        new TemporalProperties("127.0.0.1:7233", 50, 100, "http://127.0.0.1:8080");
+        new TemporalProperties("127.0.0.1:7233", 50, 100, "http://127.0.0.1:8080", null);
 
     mockMvc =
         MockMvcBuilders.standaloneSetup(
@@ -85,7 +85,7 @@ class PlatformBootstrapControllerTest {
                     security,
                     activityCatalog,
                     new FlowFoundryProperties(),
-                    new TemporalProperties("127.0.0.1:7233", 50, 100, null),
+                    new TemporalProperties("127.0.0.1:7233", 50, 100, null, null),
                     new StaticAssetVersion(Optional.empty())))
             .build();
 

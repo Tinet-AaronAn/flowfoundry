@@ -102,7 +102,7 @@ class PlatformSecurityIntegrationTest {
                         new ActivityRegistry(
                             "1.0", "ai-collection-strategy", "ai-collection-strategy", List.of())),
                     new FlowFoundryProperties(),
-                    new TemporalProperties("127.0.0.1:7233", 50, 100, null),
+                    new TemporalProperties("127.0.0.1:7233", 50, 100, null, null),
                     new StaticAssetVersion(Optional.empty())))
             .build();
 

@@ -3,9 +3,13 @@ package com.tinet.flowfoundry.security;
 import com.tinet.flowfoundry.security.AdminContracts.CreateNamespaceRequest;
 import com.tinet.flowfoundry.security.AdminContracts.NamespaceDto;
 import com.tinet.flowfoundry.security.AdminContracts.UpdateNamespaceRequest;
+import com.tinet.flowfoundry.temporal.TemporalAdminService;
+import com.tinet.flowfoundry.temporal.TemporalClusterBootstrapRunner;
+import com.tinet.flowfoundry.temporal.TemporalClusterRepository;
 import com.tinet.flowfoundry.workflow.WorkflowDefinitionRepository;
 import java.time.Instant;
 import java.util.List;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,18 +21,24 @@ public class NamespaceAdminService {
   private final PlatformApiKeyRepository apiKeyRepository;
   private final AuditLogService auditLogService;
   private final AdminAccessService adminAccessService;
+  private final TemporalClusterRepository temporalClusterRepository;
+  private final ObjectProvider<TemporalAdminService> temporalAdminService;
 
   public NamespaceAdminService(
       PlatformNamespaceRepository repository,
       WorkflowDefinitionRepository workflowRepository,
       PlatformApiKeyRepository apiKeyRepository,
       AuditLogService auditLogService,
-      AdminAccessService adminAccessService) {
+      AdminAccessService adminAccessService,
+      TemporalClusterRepository temporalClusterRepository,
+      ObjectProvider<TemporalAdminService> temporalAdminService) {
     this.repository = repository;
     this.workflowRepository = workflowRepository;
     this.apiKeyRepository = apiKeyRepository;
     this.auditLogService = auditLogService;
     this.adminAccessService = adminAccessService;
+    this.temporalClusterRepository = temporalClusterRepository;
+    this.temporalAdminService = temporalAdminService;
   }
 
   @Transactional(readOnly = true)
@@ -62,6 +72,7 @@ public class NamespaceAdminService {
     entity.setId(namespaceId);
     entity.setDisplayName(requireDisplayName(request.displayName(), namespaceId));
     entity.setDescription(trimToNull(request.description()));
+    entity.setTemporalClusterId(resolveTemporalClusterId(request.temporalClusterId()));
     entity.setCreatedAt(now);
     entity.setUpdatedAt(now);
     PlatformNamespaceEntity saved = repository.save(entity);
@@ -80,6 +91,10 @@ public class NamespaceAdminService {
             null,
             "displayName=" + saved.getDisplayName(),
             null));
+    TemporalAdminService temporal = temporalAdminService.getIfAvailable();
+    if (temporal != null) {
+      temporal.registerTemporalNamespaceIfConfigured(namespaceId);
+    }
     return toDto(saved);
   }
 
@@ -95,6 +110,9 @@ public class NamespaceAdminService {
     }
     if (request.description() != null) {
       entity.setDescription(trimToNull(request.description()));
+    }
+    if (request.temporalClusterId() != null) {
+      entity.setTemporalClusterId(resolveTemporalClusterId(request.temporalClusterId()));
     }
     entity.setUpdatedAt(now);
     PlatformNamespaceEntity saved = repository.save(entity);
@@ -183,11 +201,20 @@ public class NamespaceAdminService {
   }
 
   private NamespaceDto toDto(PlatformNamespaceEntity entity) {
+    String runtimeStatus = null;
+    TemporalAdminService temporal = temporalAdminService.getIfAvailable();
+    if (temporal != null) {
+      runtimeStatus = temporal.runtimeStatusForNamespace(entity.getId());
+    }
     return new NamespaceDto(
         entity.getId(),
         entity.getDisplayName(),
         entity.getDescription(),
         false,
+        entity.getTemporalClusterId() == null
+            ? TemporalClusterBootstrapRunner.DEFAULT_CLUSTER_ID
+            : entity.getTemporalClusterId(),
+        runtimeStatus,
         entity.getCreatedAt(),
         entity.getUpdatedAt());
   }
@@ -205,5 +232,16 @@ public class NamespaceAdminService {
     }
     String trimmed = value.trim();
     return trimmed.isEmpty() ? null : trimmed;
+  }
+
+  private String resolveTemporalClusterId(String clusterId) {
+    String resolved =
+        clusterId == null || clusterId.isBlank()
+            ? TemporalClusterBootstrapRunner.DEFAULT_CLUSTER_ID
+            : clusterId.trim();
+    if (!temporalClusterRepository.existsById(resolved)) {
+      throw new IllegalArgumentException("Temporal cluster not found: " + resolved);
+    }
+    return resolved;
   }
 }

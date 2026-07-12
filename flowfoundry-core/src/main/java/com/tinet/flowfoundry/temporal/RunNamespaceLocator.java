@@ -25,15 +25,15 @@ public class RunNamespaceLocator {
   private static final Duration RUN_NS_TTL = Duration.ofDays(30);
 
   private final StringRedisTemplate redis;
-  private final TemporalClients temporalClients;
+  private final TemporalConnectionRegistry connectionRegistry;
   private final DeploymentContractRegistry contractRegistry;
 
   public RunNamespaceLocator(
       StringRedisTemplate redis,
-      TemporalClients temporalClients,
+      TemporalConnectionRegistry connectionRegistry,
       DeploymentContractRegistry contractRegistry) {
     this.redis = redis;
-    this.temporalClients = temporalClients;
+    this.connectionRegistry = connectionRegistry;
     this.contractRegistry = contractRegistry;
   }
 
@@ -82,7 +82,8 @@ public class RunNamespaceLocator {
 
   private boolean existsIn(String namespace, WorkflowExecution execution) {
     try {
-      temporalClients
+      connectionRegistry
+          .clientsForPlatformNamespace(namespace)
           .serviceStubs()
           .blockingStub()
           .describeWorkflowExecution(

@@ -19,6 +19,7 @@
     <module>flowfoundry-sdk-bom</module>
     <module>flowfoundry-sdk</module>
     <module>flowfoundry-sdk-client</module>
+    <module>flowfoundry-plugin-runner</module>
   </modules>
 
   <distributionManagement>

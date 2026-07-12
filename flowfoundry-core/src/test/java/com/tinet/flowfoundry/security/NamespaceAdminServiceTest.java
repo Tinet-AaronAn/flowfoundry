@@ -6,6 +6,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.tinet.flowfoundry.security.AdminContracts.CreateNamespaceRequest;
 import com.tinet.flowfoundry.security.AdminContracts.UpdateNamespaceRequest;
 import com.tinet.flowfoundry.workflow.WorkflowDefinitionEntity;
+import com.tinet.flowfoundry.temporal.TemporalClusterBootstrapRunner;
+import com.tinet.flowfoundry.temporal.TemporalClusterEntity;
+import com.tinet.flowfoundry.temporal.TemporalClusterRepository;
 import com.tinet.flowfoundry.workflow.WorkflowDefinitionRepository;
 import com.tinet.flowfoundry.workflow.WorkflowStatus;
 import java.time.Instant;
@@ -31,17 +34,35 @@ class NamespaceAdminServiceTest {
   @Autowired private PlatformNamespaceRepository namespaceRepository;
   @Autowired private WorkflowDefinitionRepository workflowRepository;
   @Autowired private PlatformApiKeyRepository apiKeyRepository;
+  @Autowired private TemporalClusterRepository temporalClusterRepository;
 
   @BeforeEach
   void seedNamespace() {
+    seedDefaultCluster();
     namespaceAdminService.ensureRegistered("test-ns", "Test NS", "Test namespace");
+  }
+
+  private void seedDefaultCluster() {
+    if (temporalClusterRepository.existsById(TemporalClusterBootstrapRunner.DEFAULT_CLUSTER_ID)) {
+      return;
+    }
+    Instant now = Instant.now();
+    TemporalClusterEntity cluster = new TemporalClusterEntity();
+    cluster.setId(TemporalClusterBootstrapRunner.DEFAULT_CLUSTER_ID);
+    cluster.setDisplayName("Default");
+    cluster.setHost("127.0.0.1:7233");
+    cluster.setUiBaseUrl("http://127.0.0.1:8080");
+    cluster.setDefaultCluster(true);
+    cluster.setCreatedAt(now);
+    cluster.setUpdatedAt(now);
+    temporalClusterRepository.save(cluster);
   }
 
   @Test
   void createsAndListsNamespace() {
     var created =
         namespaceAdminService.create(
-            new CreateNamespaceRequest("demo-app", "Demo App", "Second namespace"));
+            new CreateNamespaceRequest("demo-app", "Demo App", "Second namespace", null));
     assertThat(created.id()).isEqualTo("demo-app");
     assertThat(created.displayName()).isEqualTo("Demo App");
     assertThat(namespaceAdminService.list()).extracting("id").contains("demo-app", "ai-collection-strategy");
@@ -49,9 +70,9 @@ class NamespaceAdminServiceTest {
 
   @Test
   void updatesNamespaceMetadata() {
-    namespaceAdminService.create(new CreateNamespaceRequest("alpha", "Alpha", null));
+    namespaceAdminService.create(new CreateNamespaceRequest("alpha", "Alpha", null, null));
     var updated =
-        namespaceAdminService.update("alpha", new UpdateNamespaceRequest("Alpha Updated", "desc"));
+        namespaceAdminService.update("alpha", new UpdateNamespaceRequest("Alpha Updated", "desc", null));
     assertThat(updated.displayName()).isEqualTo("Alpha Updated");
     assertThat(updated.description()).isEqualTo("desc");
   }
@@ -59,13 +80,13 @@ class NamespaceAdminServiceTest {
   @Test
   void allowsUpdatingRegisteredNamespace() {
     var updated =
-        namespaceAdminService.update("test-ns", new UpdateNamespaceRequest("Renamed", "desc"));
+        namespaceAdminService.update("test-ns", new UpdateNamespaceRequest("Renamed", "desc", null));
     assertThat(updated.displayName()).isEqualTo("Renamed");
   }
 
   @Test
   void rejectsDeletingNamespaceWithWorkflows() {
-    namespaceAdminService.create(new CreateNamespaceRequest("busy-ns", "Busy", null));
+    namespaceAdminService.create(new CreateNamespaceRequest("busy-ns", "Busy", null, null));
     WorkflowDefinitionEntity workflow = new WorkflowDefinitionEntity();
     workflow.setId("workflow_test");
     workflow.setName("Demo");
@@ -83,7 +104,7 @@ class NamespaceAdminServiceTest {
 
   @Test
   void rejectsDeletingNamespaceReferencedByApiKey() {
-    namespaceAdminService.create(new CreateNamespaceRequest("keyed-ns", "Keyed", null));
+    namespaceAdminService.create(new CreateNamespaceRequest("keyed-ns", "Keyed", null, null));
     PlatformApiKeyEntity apiKey = new PlatformApiKeyEntity();
     apiKey.setId("app-key");
     apiKey.setDisplayName("App");
@@ -103,7 +124,7 @@ class NamespaceAdminServiceTest {
 
   @Test
   void deletesUnusedNamespace() {
-    namespaceAdminService.create(new CreateNamespaceRequest("temp-ns", "Temp", null));
+    namespaceAdminService.create(new CreateNamespaceRequest("temp-ns", "Temp", null, null));
     assertThat(namespaceRepository.existsById("temp-ns")).isTrue();
     namespaceAdminService.delete("temp-ns");
     assertThat(namespaceRepository.existsById("temp-ns")).isFalse();

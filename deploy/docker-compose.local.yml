@@ -89,7 +89,7 @@ services:
 
   worker:
     build:
-      context: ../flowfoundry-app/modules/ai-collection-strategy
+      context: ../examples/ai-collection-strategy
       dockerfile: Dockerfile
     depends_on:
       redis:
@@ -111,7 +111,7 @@ services:
     ports:
       - "8081:8080"
     volumes:
-      - ../flowfoundry-app/modules/ai-collection-strategy/config/activities-registry.yaml:/config/activities-registry.yaml:ro
+      - ../examples/ai-collection-strategy/config/activities-registry.yaml:/config/activities-registry.yaml:ro
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://127.0.0.1:8080/actuator/health"]
       interval: 10s

@@ -1,0 +1,18 @@
+plugin:
+  id: ai-collection-strategy
+  version: 1.0.4
+  name: AI 催收策略
+  description: 官方示例 — 外呼催收多轮策略插件
+  basePackages:
+    - com.tinet.flowfoundry.demo.aicollection
+  requires:
+    sdkVersion: ">=1.0.4"
+  temporal:
+    namespace: ai-collection-strategy
+  capabilities:
+    typedWorkflows: true
+  runtime:
+    replicas: 1
+    resources:
+      memory: 1Gi
+      cpu: "1"

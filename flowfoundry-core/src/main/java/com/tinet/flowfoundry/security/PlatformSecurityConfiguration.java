@@ -47,6 +47,7 @@ public class PlatformSecurityConfiguration {
             auth ->
                 auth.requestMatchers(
                         "/actuator/**",
+                        "/error",
                         "/",
                         "/index.html",
                         "/modeler/**",
@@ -54,6 +55,7 @@ public class PlatformSecurityConfiguration {
                         "/assets/**",
                         "/api/platform/public-config",
                         "/api/platform/auth.js",
+                        "/api/internal/plugins/**",
                         "/api/admin/**")
                     .permitAll()
                     .anyRequest()

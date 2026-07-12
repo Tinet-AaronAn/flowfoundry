@@ -7,7 +7,7 @@ import com.tinet.flowfoundry.run.FlowRunContracts.FlowNodeRunDto;
 import com.tinet.flowfoundry.run.FlowRunContracts.FlowRunEventDto;
 import com.tinet.flowfoundry.run.FlowRunService;
 import com.tinet.flowfoundry.temporal.RunNamespaceLocator;
-import com.tinet.flowfoundry.temporal.TemporalClients;
+import com.tinet.flowfoundry.temporal.TemporalConnectionRegistry;
 import com.tinet.flowfoundry.interpreter.FlowInterpreterWorkflow;
 import com.tinet.flowfoundry.interpreter.model.HumanTaskNodeState;
 import com.tinet.flowfoundry.interpreter.model.InterpreterState;
@@ -34,17 +34,17 @@ import org.springframework.web.util.UriUtils;
 @Service
 public class FlowRunStatusService {
 
-  private final TemporalClients temporalClients;
+  private final TemporalConnectionRegistry connectionRegistry;
   private final RunNamespaceLocator runNamespaceLocator;
   private final TemporalProperties temporalProperties;
   private final FlowRunService flowRunService;
 
   public FlowRunStatusService(
-      TemporalClients temporalClients,
+      TemporalConnectionRegistry connectionRegistry,
       RunNamespaceLocator runNamespaceLocator,
       TemporalProperties temporalProperties,
       FlowRunService flowRunService) {
-    this.temporalClients = temporalClients;
+    this.connectionRegistry = connectionRegistry;
     this.runNamespaceLocator = runNamespaceLocator;
     this.temporalProperties = temporalProperties;
     this.flowRunService = flowRunService;
@@ -52,7 +52,8 @@ public class FlowRunStatusService {
 
   public RunStatusResponse getRunStatus(String workflowId) {
     String namespace = runNamespaceLocator.locate(workflowId);
-    WorkflowClient workflowClient = temporalClients.workflowClient(namespace);
+    WorkflowClient workflowClient =
+        connectionRegistry.clientsForPlatformNamespace(namespace).workflowClient(namespace);
     DescribeWorkflowExecutionResponse describe = describeExecution(namespace, workflowId);
     WorkflowExecution execution = describe.getWorkflowExecutionInfo().getExecution();
     WorkflowExecutionStatus temporalStatus = describe.getWorkflowExecutionInfo().getStatus();
@@ -82,7 +83,7 @@ public class FlowRunStatusService {
     }
 
     String status = resolveStatus(interpreter, temporalStatus);
-    String uiBaseUrl = temporalProperties.resolvedUiBaseUrl();
+    String uiBaseUrl = connectionRegistry.uiBaseUrlForPlatformNamespace(namespace);
     String historyUrl = buildTemporalHistoryUrl(namespace, uiBaseUrl, workflowId, execution.getRunId());
     List<ChildWorkflowRunSummary> pendingChildWorkflows =
         summarizePendingChildWorkflows(describe, namespace, uiBaseUrl);
@@ -152,7 +153,8 @@ public class FlowRunStatusService {
       List<HumanTaskNodeState> humanTasks = List.of();
       try {
         FlowInterpreterWorkflow stub =
-            temporalClients
+            connectionRegistry
+                .clientsForPlatformNamespace(namespace)
                 .workflowClient(namespace)
                 .newWorkflowStub(FlowInterpreterWorkflow.class, workflowId);
         interpreter = stub.getState();
@@ -233,7 +235,8 @@ public class FlowRunStatusService {
   }
 
   private List<HistoryEvent> fetchHistoryEvents(String namespace, WorkflowExecution execution) {
-    WorkflowServiceStubs stubs = temporalClients.serviceStubs();
+    WorkflowServiceStubs stubs =
+        connectionRegistry.clientsForPlatformNamespace(namespace).serviceStubs();
     GetWorkflowExecutionHistoryResponse history =
         stubs
             .blockingStub()
@@ -251,7 +254,8 @@ public class FlowRunStatusService {
 
   private DescribeWorkflowExecutionResponse describeExecution(
       String namespace, String workflowId, WorkflowExecution executionHint) {
-    WorkflowServiceStubs stubs = temporalClients.serviceStubs();
+    WorkflowServiceStubs stubs =
+        connectionRegistry.clientsForPlatformNamespace(namespace).serviceStubs();
     WorkflowExecution execution =
         executionHint != null
             ? executionHint

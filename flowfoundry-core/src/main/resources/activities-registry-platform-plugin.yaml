@@ -1,0 +1,6 @@
+# Platform-only registry for plugin runtime mode: no bundled business activities.
+# Uses the same Temporal namespace as the official demo so core platform workers can poll it.
+version: "1.0"
+namespace: ai-collection-strategy
+defaultTaskQueue: flowfoundry-platform
+activities: []

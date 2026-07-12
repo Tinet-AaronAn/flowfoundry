@@ -14,9 +14,12 @@
         if (!backdrop) return;
         backdrop.classList.remove('open');
         backdrop.setAttribute('aria-hidden', 'true');
-        backdrop.querySelector('.app-dialog')?.classList.remove('has-choices', 'has-form');
+        backdrop.querySelector('.app-dialog')?.classList.remove('has-choices', 'has-form', 'has-log-viewer');
         $('appDialogInput')?.classList.add('hidden');
         $('appDialogTextarea')?.classList.add('hidden');
+        if ($('appDialogTextarea')) {
+          $('appDialogTextarea').readOnly = false;
+        }
         $('appDialogChoices')?.classList.add('hidden');
         $('appDialogForm')?.classList.add('hidden');
         const choicesHost = $('appDialogChoices');
@@ -38,9 +41,11 @@
         confirmLabel,
         cancelLabel,
         danger = false,
-        textareaClass = ''
+        textareaClass = '',
+        readonly = false
       } = {}) {
         const backdrop = $('appDialogBackdrop');
+        const dialogEl = backdrop?.querySelector('.app-dialog');
         const titleEl = $('appDialogTitle');
         const messageEl = $('appDialogMessage');
         const inputEl = $('appDialogInput');
@@ -50,6 +55,8 @@
         if (!backdrop || !titleEl || !confirmBtn || !cancelBtn) {
           return Promise.resolve(input === 'none' ? false : null);
         }
+
+        dialogEl?.classList.remove('has-log-viewer');
 
         titleEl.textContent = title || '';
         if (messageEl) {
@@ -64,8 +71,13 @@
         let field = null;
         if (input === 'textarea' && textareaEl) {
           textareaEl.value = value ?? '';
+          textareaEl.readOnly = !!readonly;
           textareaEl.className = `app-dialog-field textarea${textareaClass ? ` ${textareaClass}` : ''}`;
           textareaEl.classList.remove('hidden');
+          if (textareaClass.includes('log-viewer')) {
+            dialogEl?.classList.add('has-log-viewer');
+            if (messageEl) messageEl.hidden = true;
+          }
           field = textareaEl;
         } else if (input !== 'none' && inputEl) {
           inputEl.value = value ?? '';

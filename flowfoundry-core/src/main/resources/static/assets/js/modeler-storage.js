@@ -105,6 +105,16 @@
 
       function normalizeLoadedModel(model) {
         if (!model?.nodes) return;
+        if (!model.process) {
+          model.process = {
+            id: model.id || 'Process',
+            name: model.name || 'Process',
+            isExecutable: true,
+            edgeRouting: 'orthogonal'
+          };
+        } else if (!model.process.edgeRouting) {
+          model.process.edgeRouting = 'orthogonal';
+        }
         model.nodes.forEach(n => {
           if (n.kind === 'userTask') n.kind = 'humanTask';
           normalizeHumanTaskMode(n);
@@ -325,10 +335,19 @@
         state.future = [];
         state.selected = { type: 'process', id: null };
         syncModelHeader();
-        if (navigate) switchView('modeler');
-        renderAll();
-        if (navigate || state.currentView === 'modeler') scheduleFitView();
-        message(t('workflow.message.opened', { name: workflow.name, version: selectedVersion.version }));
+        if (navigate) {
+          switchView('modeler');
+          renderAll();
+          scheduleFitView();
+        } else if (state.currentView === 'modeler') {
+          renderAll();
+          scheduleFitView();
+        } else {
+          renderWorkflowList();
+        }
+        if (navigate || state.currentView === 'modeler') {
+          message(t('workflow.message.opened', { name: workflow.name, version: selectedVersion.version }));
+        }
       }
 
       async function createWorkflowVersion(id) {

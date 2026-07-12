@@ -66,10 +66,14 @@ public final class AdminContracts {
       String displayName,
       String description,
       boolean system,
+      String temporalClusterId,
+      String temporalRuntimeStatus,
       Instant createdAt,
       Instant updatedAt) {}
 
-  public record CreateNamespaceRequest(String id, String displayName, String description) {}
+  public record CreateNamespaceRequest(
+      String id, String displayName, String description, String temporalClusterId) {}
 
-  public record UpdateNamespaceRequest(String displayName, String description) {}
+  public record UpdateNamespaceRequest(
+      String displayName, String description, String temporalClusterId) {}
 }

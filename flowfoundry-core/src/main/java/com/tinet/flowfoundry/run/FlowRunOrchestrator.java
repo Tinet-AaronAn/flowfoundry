@@ -9,7 +9,7 @@ import com.tinet.flowfoundry.interpreter.runtime.RunSource;
 import com.tinet.flowfoundry.temporal.DeploymentContract;
 import com.tinet.flowfoundry.temporal.DeploymentContractRegistry;
 import com.tinet.flowfoundry.temporal.RunNamespaceLocator;
-import com.tinet.flowfoundry.temporal.TemporalClients;
+import com.tinet.flowfoundry.temporal.TemporalConnectionRegistry;
 import com.tinet.flowfoundry.workflow.WorkflowRunId;
 import io.temporal.api.common.v1.WorkflowExecution;
 import io.temporal.client.WorkflowClient;
@@ -23,19 +23,19 @@ import org.springframework.stereotype.Service;
 public class FlowRunOrchestrator {
 
   private final FlowCompiler compiler;
-  private final TemporalClients temporalClients;
+  private final TemporalConnectionRegistry connectionRegistry;
   private final DeploymentContractRegistry contractRegistry;
   private final RunNamespaceLocator runNamespaceLocator;
   private final FlowRunService flowRunService;
 
   public FlowRunOrchestrator(
       FlowCompiler compiler,
-      TemporalClients temporalClients,
+      TemporalConnectionRegistry connectionRegistry,
       DeploymentContractRegistry contractRegistry,
       RunNamespaceLocator runNamespaceLocator,
       FlowRunService flowRunService) {
     this.compiler = compiler;
-    this.temporalClients = temporalClients;
+    this.connectionRegistry = connectionRegistry;
     this.contractRegistry = contractRegistry;
     this.runNamespaceLocator = runNamespaceLocator;
     this.flowRunService = flowRunService;
@@ -59,7 +59,7 @@ public class FlowRunOrchestrator {
             : requireRunWorkflowId(runWorkflowId);
 
     DeploymentContract contract = contractRegistry.resolveForNamespace(namespace);
-    WorkflowClient workflowClient = temporalClients.workflowClient(namespace);
+    WorkflowClient workflowClient = connectionRegistry.clientsForPlatformNamespace(namespace).workflowClient(namespace);
     FlowInterpreterWorkflow workflow =
         workflowClient.newWorkflowStub(
             FlowInterpreterWorkflow.class,

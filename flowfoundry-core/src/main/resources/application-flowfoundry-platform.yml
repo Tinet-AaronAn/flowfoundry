@@ -1,4 +1,8 @@
 spring:
+  servlet:
+    multipart:
+      max-file-size: ${FLOWFOUNDRY_PLUGIN_MAX_FILE_SIZE:200MB}
+      max-request-size: ${FLOWFOUNDRY_PLUGIN_MAX_REQUEST_SIZE:210MB}
   web:
     resources:
       # 本地开发：静态资源不缓存，避免 redeploy 后浏览器仍用旧 CSS/JS
@@ -37,6 +41,10 @@ temporal:
   ui-base-url: ${TEMPORAL_UI_BASE_URL:http://127.0.0.1:8080}
   max-concurrent-activities: ${TEMPORAL_MAX_CONCURRENT_ACTIVITIES:50}
   max-concurrent-workflows: ${TEMPORAL_MAX_CONCURRENT_WORKFLOWS:100}
+  admin:
+    auto-register-namespace: ${TEMPORAL_AUTO_REGISTER_NAMESPACE:false}
+    default-retention-days: ${TEMPORAL_DEFAULT_RETENTION_DAYS:3}
+    describe-task-queue-timeout-seconds: ${TEMPORAL_DESCRIBE_TASK_QUEUE_TIMEOUT_SECONDS:5}
 
 activity:
   script-runtime:
@@ -58,6 +66,19 @@ flowfoundry:
   run-mode: platform
   activity-registry:
     path: ${ACTIVITY_REGISTRY_PATH:classpath:activities-registry.yaml}
+  plugins:
+    dir: ${FLOWFOUNDRY_PLUGINS_DIR:${user.home}/.flowfoundry/plugins}
+    max-replicas: ${FLOWFOUNDRY_PLUGIN_MAX_REPLICAS:50}
+    runtime:
+      enabled: ${FLOWFOUNDRY_PLUGIN_RUNTIME_ENABLED:false}
+      kubernetes-namespace: ${FLOWFOUNDRY_PLUGIN_K8S_NAMESPACE:flowfoundry-plugins}
+      runner-image: ${FLOWFOUNDRY_PLUGIN_RUNNER_IMAGE:flowfoundry-plugin-runner:local}
+      platform-url: ${FLOWFOUNDRY_PLUGIN_PLATFORM_URL:http://host.docker.internal:8081}
+      download-token-secret: ${FLOWFOUNDRY_PLUGIN_DOWNLOAD_SECRET:local-plugin-download-secret}
+      reconcile-interval-ms: ${FLOWFOUNDRY_PLUGIN_RECONCILE_MS:15000}
+      termination-grace-seconds: ${FLOWFOUNDRY_PLUGIN_TERMINATION_GRACE_SECONDS:60}
+      redis-host: ${FLOWFOUNDRY_PLUGIN_REDIS_HOST:host.docker.internal}
+      runner-temporal-host: ${FLOWFOUNDRY_PLUGIN_RUNNER_TEMPORAL_HOST:host.docker.internal:7233}
   modeler:
     embed-enabled: ${FLOWFOUNDRY_MODELER_EMBED_ENABLED:true}
     api-base: ${FLOWFOUNDRY_MODELER_API_BASE:/api}

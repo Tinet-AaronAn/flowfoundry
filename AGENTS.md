@@ -7,7 +7,8 @@
 | 角色 | 端口 | 说明 |
 |------|------|------|
 | **flowfoundry-core（平台）** | **8081** | 建模器、Workflow API、Activity Registry（含业务 yaml）、API Keys |
-| **flowfoundry-app 场景（Worker）** | **8082** | Temporal Worker + iframe 业务壳 + App BFF；平台 API 经 SDK Client |
+| **示例 Worker（可选）** | **8082** | `examples/ai-collection-strategy`：Temporal Worker + iframe 壳 + App BFF |
+| **插件 runner（可选）** | K8s Pod | 平台托管插件 Worker；见 `plugin-runtime-dev.sh` |
 | **Temporal UI** | 8080 | 见 [docs/service-urls.md](docs/service-urls.md) |
 
 - 平台管理页：http://127.0.0.1:8081/
@@ -25,7 +26,7 @@
 修改 `flowfoundry-core/`、`flowfoundry-sdk/` 或 `examples/` 内任意文件后，**在结束任务前**必须：
 
 1. 确保 `./scripts/local-dev.sh infra` 或 `up` 已拉起 Docker 基础设施
-2. 运行 `./scripts/redeploy-worker.sh`（平台 :8081）与 `./scripts/redeploy-app.sh`（Worker :8082）
+2. 运行 `./scripts/redeploy-worker.sh`（平台 :8081）；若改业务 Worker 则 `./scripts/redeploy-app.sh`（:8082）；若插件模式则 `FLOWFOUNDRY_PLUGIN_RUNTIME_ENABLED=true ./scripts/redeploy-worker.sh` 或 `./scripts/plugin-runtime-dev.sh`
 3. 确认 `curl --noproxy '*' http://127.0.0.1:8081/actuator/health` 与 `:8082` 均返回 UP
 4. 告知测试人员：**平台请刷新 http://127.0.0.1:8081/**；iframe 业务壳见 http://127.0.0.1:8082/app/workflow-admin.html
 
@@ -46,6 +47,8 @@
 
 - [docs/service-urls.md](docs/service-urls.md) — **服务地址与路径权威表**
 - [docs/local-development.md](docs/local-development.md) — 本地调试
+- [docs/plugin-development-guide.md](docs/plugin-development-guide.md) — **插件开发**
+- [docs/plugin-runtime-design.md](docs/plugin-runtime-design.md) — 插件运行时设计
 - [docs/production-deployment.md](docs/production-deployment.md) — 生产部署
 - [docs/project-structure.md](docs/project-structure.md)
 

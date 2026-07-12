@@ -7,54 +7,37 @@
 | # | 议题 | 决定 |
 |---|------|------|
 | 1 | SDK 是否含平台 HTTP 客户端 | **需要**。所有 App 对 FlowFoundry 平台的 HTTP 调用**必须经 SDK Client 从 App 后端发出**；**禁止**业务前端直连 `:8081` |
-| 2 | 官方示例是否保留在平台仓库 | **保留 1 个**（`ai-collection-strategy`，迁至 `examples/`） |
+| 2 | 官方示例是否保留在平台仓库 | **保留 1 个**（`examples/ai-collection-strategy`） |
 | 3 | Maven 发布仓库 | **GitHub Packages**（`com.tinet.flowfoundry`） |
 | 4 | 版本统一 | 提供 **`flowfoundry-sdk-bom`**，业务 App 通过 BOM import 对齐 SDK / Client / 传递依赖版本 |
 
 ---
 
-## 1. 背景与问题
+## 1. 架构概览
 
-### 1.1 现状
-
-当前仓库为 Maven 单体结构：
+本仓库采用 **平台 + SDK + 官方示例** 分层：
 
 ```text
 flowfoundry/
-├── flowfoundry-core/          # 平台（建模器、API、解释器、Temporal 管理）
-└── flowfoundry-app/           # 业务场景聚合（packaging=pom）
-    └── modules/
-        └── ai-collection-strategy/   # 示例场景，依赖整个 flowfoundry-core
+├── flowfoundry-sdk/                    # BOM、Worker 运行时、平台 HTTP Client、plugin-runner
+├── flowfoundry-core/                   # 平台服务（:8081）
+└── examples/
+    └── ai-collection-strategy/         # 官方示例（Worker App 或插件包）
 ```
 
-业务场景模块的 `pom.xml` 直接依赖 `flowfoundry-core` 全量 artifact，带来依赖过重、仓库耦合、职责混淆、无法独立分发 SDK 等问题（详见初版 §1.1）。
-
-### 1.2 目标
-
-```text
-平台团队维护 flowfoundry（core）
-  → 发布 flowfoundry-sdk-bom + flowfoundry-sdk + flowfoundry-sdk-client 至 GitHub Packages
-
-业务团队维护独立 flowfoundry-app 仓库
-  → import BOM，依赖 flowfoundry-sdk / flowfoundry-sdk-client
-  → App 后端经 SDK Client 访问 flowfoundry-core；前端只调 App 自身 API
-  → Temporal Worker 经 SDK Worker 扩展点执行 Activity
-
-本仓库 examples/ 保留 1 个官方示例（ai-collection-strategy）
-```
+业务团队在 **独立 Git 仓库** 开发交付物：import `flowfoundry-sdk-bom`，依赖 `flowfoundry-sdk` + `flowfoundry-sdk-client`，**禁止**依赖 `flowfoundry-core`。也可将 Activity 打成**插件包**由平台 K8s runner 托管（见 [plugin-development-guide.md](./plugin-development-guide.md)）。
 
 **设计原则**：
 
 1. **平台与业务物理分离**：业务代码不进平台仓库；平台实现不进业务仓库。
 2. **SDK 是唯一契约**：Worker 扩展点、Registry schema、**平台 HTTP 契约**均通过 SDK 暴露。
 3. **BFF 边界**：业务前端 → App 后端（同源）→ SDK Client → 平台 `:8081`；不暴露平台 API Key 给浏览器。
-4. **运行时仍通过 Temporal 协作**：App Worker 与平台解释器共享 namespace / task queue。
+4. **运行时仍通过 Temporal 协作**：App Worker / 插件 runner 与平台解释器共享 namespace / task queue。
 5. **Namespace 由平台管理**：App 在 Registry / 配置中声明同名 namespace，但不能自助创建平台 namespace；须管理员先登记（或本地依赖平台 bootstrap）。详见 [workflow-development-guide.md §4.5](./workflow-development-guide.md#45-namespace-前置条件必读)。
-6. **渐进迁移**：monorepo 内先拆模块并验证，再发布 GitHub Packages。
 
 ---
 
-## 2. 目标架构
+## 2. 运行时架构
 
 ### 2.1 平台仓库三件套 + SDK 子模块
 
@@ -63,10 +46,11 @@ flowfoundry/（平台仓库）
 ├── flowfoundry-sdk/                    # packaging=pom
 │   ├── flowfoundry-sdk-bom/            # 版本 BOM（发布）
 │   ├── flowfoundry-sdk/                # Worker 运行时（发布）
-│   └── flowfoundry-sdk-client/         # 平台 HTTP 客户端（发布）
+│   ├── flowfoundry-sdk-client/         # 平台 HTTP 客户端（发布）
+│   └── flowfoundry-plugin-runner/      # 插件 runner 宿主（平台 K8s 镜像）
 ├── flowfoundry-core/                   # 平台服务 JAR（:8081）
 └── examples/
-    └── ai-collection-strategy/           # 唯一官方示例
+    └── ai-collection-strategy/         # 唯一官方示例（Worker App 或插件包）
 ```
 
 ### 2.2 运行时关系（含 BFF）
@@ -94,7 +78,7 @@ flowfoundry/（平台仓库）
 
 - 业务 App **不**启动平台 REST API，也**不**在浏览器配置 `apiBase: http://platform:8081/api`。
 - 建模器 iframe 的 `apiBase` 指向 **App BFF**（如 `http://127.0.0.1:8082/app/api/flowfoundry`），由 BFF 经 SDK Client 转发至平台。
-- `GET /api/platform/public-config` 等初始化请求同样经 App BFF 代理（示例 `workflow-admin.html` 需改造）。
+- `GET /api/platform/public-config` 等初始化请求经 App BFF 代理（示例 `workflow-admin.html` 已配置 `apiBase: /app/api/flowfoundry`）。
 
 ### 2.3 模块依赖方向
 
@@ -106,7 +90,7 @@ flowfoundry-core                           examples/*
        ▲
        │ depends（core 复用 SDK 中的 API DTO 与契约类型）
 
-外部 flowfoundry-app 仓库
+独立业务 App 仓库
   ├── import flowfoundry-sdk-bom
   ├── flowfoundry-sdk          （Worker）
   └── flowfoundry-sdk-client   （平台 HTTP）
@@ -202,7 +186,7 @@ BOM 锁定：`flowfoundry-sdk`、`flowfoundry-sdk-client`、`temporal-sdk`、与
 
 ---
 
-## 4. 独立 flowfoundry-app 仓库标准结构
+## 4. 独立业务 App 仓库标准结构
 
 ### 4.1 目录模板
 
@@ -279,15 +263,7 @@ platform:
 
 ---
 
-## 6. 本仓库演进计划
-
-### 6.1 目录变更
-
-| 现在 | 目标 |
-|------|------|
-| `flowfoundry-app/` | `examples/`（packaging=pom，仅含 ai-collection-strategy） |
-| `flowfoundry-app/modules/ai-collection-strategy/` | `examples/ai-collection-strategy/` |
-| （无） | `flowfoundry-sdk/`（bom + sdk + sdk-client） |
+## 6. 本仓库当前结构
 
 父 `pom.xml` modules：
 
@@ -299,30 +275,13 @@ platform:
 </modules>
 ```
 
-### 6.2 分阶段实施
+| 路径 | 说明 |
+|------|------|
+| `flowfoundry-sdk/` | `flowfoundry-sdk-bom`、`flowfoundry-sdk`、`flowfoundry-sdk-client`、`flowfoundry-plugin-runner` |
+| `flowfoundry-core/` | 平台服务 JAR（:8081） |
+| `examples/ai-collection-strategy/` | 唯一官方示例；Worker App 或 `-Pplugin` 插件包 |
 
-```text
-Phase 1 — SDK 模块抽取（monorepo 内）
-  ├── 新建 flowfoundry-sdk/{bom,sdk,sdk-client}
-  ├── 从 core 迁出 Worker 扩展点 + contract DTO
-  ├── 实现 FlowFoundryPlatformClient + BFF 控制器
-  ├── core 依赖 sdk；Controller 改用 contract DTO
-  ├── examples/ai-collection-strategy 仅依赖 BOM + sdk + sdk-client
-  ├── 改造 workflow-admin.html：apiBase / public-config 走 App BFF
-  └── 全量测试 + 8081/8082 联调
-
-Phase 2 — 发布 GitHub Packages
-  ├── CI workflow：mvn deploy（sdk-bom、sdk、sdk-client）
-  ├── 文档：settings.xml、PACKAGE_README、版本发布流程
-  └── 提供 archetype 或以 examples/ai-collection-strategy 为 clone 模板
-
-Phase 3 — 清理
-  ├── 删除旧 flowfoundry-app 聚合模块
-  ├── redeploy-app.sh 默认路径改为 examples/
-  └── service-urls.md 更新 BFF 路径说明
-```
-
-> **不再外置示例仓库**（评审结论：官方示例保留 1 个在平台仓库）。
+SDK 发布至 GitHub Packages，见 [sdk-maven-publish.md](./sdk-maven-publish.md)。官方示例保留在平台仓库，不另建示例仓库。
 
 ---
 
@@ -398,15 +357,16 @@ mvn test package（从 GitHub Packages 解析 SDK）
 
 ---
 
-## 9. 验收标准（开发完成后）
+## 9. 验收标准
 
-- [ ] `examples/ai-collection-strategy` 仅依赖 BOM + sdk + sdk-client，`dependency:tree` 无 `flowfoundry-core`
-- [ ] `flowfoundry-core` 依赖 SDK contract 类型，平台测试全绿
-- [ ] `FlowFoundryPlatformClient` 覆盖 §3.2 最小 API 集
-- [ ] `workflow-admin.html` 无直连 `:8081/api/*`；建模器 `apiBase` 指向 App BFF
-- [ ] 本地 8081 + 8082 联调：画布保存、Run、查 Run 状态均经 BFF → SDK Client → 平台
-- [ ] `flowfoundry-sdk-bom`、`flowfoundry-sdk`、`flowfoundry-sdk-client` 发布至 GitHub Packages
-- [ ] 空目录按 §4 模板新建外部 App，仅从 GitHub Packages 拉 SDK 即可完成集成
+- `examples/ai-collection-strategy` 仅依赖 BOM + sdk + sdk-client，`dependency:tree` 无 `flowfoundry-core`
+- `flowfoundry-core` 依赖 SDK contract 类型，平台测试全绿
+- `FlowFoundryPlatformClient` 覆盖 §3.2 最小 API 集
+- `workflow-admin.html` 无直连 `:8081/api/*`；建模器 `apiBase` 指向 App BFF
+- 本地 8081 + 8082 联调：画布保存、Run、查 Run 状态均经 BFF → SDK Client → 平台
+- `flowfoundry-sdk-bom`、`flowfoundry-sdk`、`flowfoundry-sdk-client` 发布至 GitHub Packages
+- 按 §4 模板新建外部 App，仅从 GitHub Packages 拉 SDK 即可完成集成
+- 插件包模式：`./scripts/plugin-runtime-dev.sh` 上传启动后 K8s runner 可 poll task queue
 
 ---
 
@@ -415,6 +375,7 @@ mvn test package（从 GitHub Packages 解析 SDK）
 | 文档 | 关系 |
 |------|------|
 | [workflow-development-guide.md](./workflow-development-guide.md) | 业务开发操作指南 |
+| [plugin-development-guide.md](./plugin-development-guide.md) | 插件包开发与平台托管 Worker |
 | [project-structure.md](./project-structure.md) | 仓库目录说明 |
 | [service-urls.md](./service-urls.md) | 端口与 BFF 路径 |
 | [business-orchestration-architecture.md](./business-orchestration-architecture.md) | 平台定位 |

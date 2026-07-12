@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 部署 flowfoundry-app 业务 Worker（Temporal + iframe 壳，无平台 API）— http://127.0.0.1:8082/
+# 部署示例 Worker App（examples/ai-collection-strategy，Temporal + iframe 壳，无平台 API）— http://127.0.0.1:8082/
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"

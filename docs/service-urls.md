@@ -7,7 +7,7 @@
 | 用途 | 地址 | 说明 |
 |------|------|------|
 | **平台管理（flowfoundry-core）** | http://127.0.0.1:8081/ | 建模器、Workflow API、Activity Registry（含业务 yaml）；`redeploy-worker.sh` |
-| **业务 Worker（flowfoundry-app）** | http://127.0.0.1:8082/ | Temporal Worker + iframe 壳 + **App BFF**；**无**直连平台的 `/api/*` |
+| **示例 Worker App** | http://127.0.0.1:8082/ | `examples/ai-collection-strategy`：Temporal Worker + iframe 壳 + **App BFF**；**无**直连平台的 `/api/*` |
 | **App BFF（平台 API 代理）** | http://127.0.0.1:8082/app/api/flowfoundry/ | 业务前端唯一平台 API 入口；后端经 `flowfoundry-sdk-client` 转发至 :8081 |
 | **iframe 嵌入建模器** | http://127.0.0.1:8081/modeler/embed.html | 由 :8082 业务壳 iframe 引用 |
 | **业务壳页面** | http://127.0.0.1:8082/app/workflow-admin.html | 催收场景演示 |
@@ -41,6 +41,8 @@
 | 平台 SDK 注解 | `EnableFlowFoundry`（平台）、`EnableFlowFoundryWorker`（业务 Worker） |
 | 数据库迁移 | `flowfoundry-core/src/main/resources/db/migration/` |
 | Activity 注册表（催收） | `examples/ai-collection-strategy/config/activities-registry.yaml` |
+| 插件描述符（催收示例） | `examples/ai-collection-strategy/src/plugin/META-INF/flowfoundry-plugin.yaml` |
+| 插件包产物 | `examples/ai-collection-strategy/target/*-plugin.jar` |
 
 ## Namespace（统一模型）
 
@@ -79,12 +81,28 @@
 
 App 开发前置与检查清单见 [workflow-development-guide.md §4.5](./workflow-development-guide.md#45-namespace-前置条件必读)。
 
+## 插件运行时（可选）
+
+启用 `FLOWFOUNDRY_PLUGIN_RUNTIME_ENABLED=true` 后，业务 Worker 可由 K8s runner Pod 承载，详见 [plugin-development-guide.md](./plugin-development-guide.md)。
+
+| 用途 | 路径 / 命令 |
+|------|-------------|
+| 插件管理 API | `http://127.0.0.1:8081/api/admin/plugins`（`X-API-Key: local-admin-key`） |
+| 建模器管理页 | http://127.0.0.1:8081/ → 侧栏 **插件** |
+| K8s namespace | `flowfoundry-plugins`（`kubectl get pods -n flowfoundry-plugins`） |
+| 启用插件模式 | `./scripts/plugin-runtime-dev.sh` |
+| 构建示例插件 jar | `./scripts/build-ai-collection-plugin.sh` |
+| Runner 镜像 | `flowfoundry-plugin-runner:local` |
+
+插件模式使用 `activities-registry-platform-plugin.yaml`；勿与 `:8082` Worker 同时 poll 同一 task queue。
+
 ## 本地调试命令
 
 ```bash
 ./scripts/local-dev.sh up          # Docker 基础设施 + 平台 :8081 + 业务 :8082
 ./scripts/redeploy-worker.sh         # 仅重启平台 :8081
 ./scripts/redeploy-app.sh          # 仅重启业务 :8082
+./scripts/plugin-runtime-dev.sh    # 插件运行时模式重启 :8081
 ./scripts/check-progress.sh        # 健康检查
 ```
 

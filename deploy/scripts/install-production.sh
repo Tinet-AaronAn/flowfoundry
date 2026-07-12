@@ -26,12 +26,12 @@ kubectl exec -n temporal deploy/temporal-admintools -- \
 
 echo "==> Building Activity Worker image (local)"
 cd "$ROOT"
-mvn -q -pl flowfoundry-app/modules/ai-collection-strategy -am -DskipTests package
-docker build -t flowfoundry-app:1.0.0 flowfoundry-app/modules/ai-collection-strategy
+mvn -q -pl examples/ai-collection-strategy -am -DskipTests package
+docker build -t ai-collection-strategy-worker:1.0.0 examples/ai-collection-strategy
 
 echo "==> Deploy Activity Worker"
 kubectl create configmap activities-registry \
-  --from-file=activities-registry.yaml="$ROOT/flowfoundry-app/modules/ai-collection-strategy/config/activities-registry.yaml" \
+  --from-file=activities-registry.yaml="$ROOT/examples/ai-collection-strategy/config/activities-registry.yaml" \
   -n bpm --dry-run=client -o yaml | kubectl apply -f -
 kubectl apply -f "$ROOT/deploy/k8s/ai-collection-strategy-worker.yaml"
 

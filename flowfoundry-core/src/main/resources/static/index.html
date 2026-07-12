@@ -44,6 +44,8 @@
             <div class="nav-group hidden" id="navSystemGroup">
               <div class="nav-group-title">SYSTEM</div>
               <button class="nav-link" id="navAdminNamespaces" onclick="switchView('namespaces')" data-i18n="nav.namespaces">Namespaces</button>
+              <button class="nav-link" id="navAdminTemporal" onclick="switchView('temporal')" data-i18n="nav.temporal">Temporal</button>
+              <button class="nav-link" id="navAdminPlugins" onclick="switchView('plugins')" data-i18n="nav.plugins">Plugins</button>
               <button class="nav-link" id="navAdminApiKeys" onclick="switchView('admin')" data-i18n="nav.apiKeys">API Keys</button>
             </div>
           </div>
@@ -176,6 +178,7 @@
                       <th data-i18n="nsAdmin.col.id">Namespace ID</th>
                       <th data-i18n="nsAdmin.col.displayName">Display name</th>
                       <th data-i18n="nsAdmin.col.description">Description</th>
+                      <th data-i18n="temporal.col.status">Runtime Status</th>
                       <th data-i18n="nsAdmin.col.created">Created</th>
                       <th data-i18n="nsAdmin.col.updated">Updated</th>
                       <th data-i18n="admin.col.actions">Actions</th>
@@ -186,6 +189,150 @@
                   </tbody>
                 </table>
               </div>
+            </div>
+          </section>
+          <section class="admin-list view" id="temporalView">
+            <div class="page-header">
+              <h1 data-i18n="temporal.title">Temporal Runtime</h1>
+              <div class="spacer"></div>
+              <button class="secondary" onclick="openTemporalUi()" data-i18n="temporal.openUi">Open Temporal UI</button>
+              <button class="secondary" onclick="refreshTemporalView(true)" data-i18n="admin.refresh">Refresh</button>
+            </div>
+            <div id="temporalAccessDenied" class="app-notice app-notice-warning hidden">
+              <div class="app-notice-text" data-i18n="admin.accessDenied">Admin API is only available from 127.0.0.1 on this machine.</div>
+            </div>
+            <div id="temporalPanels">
+              <div class="temporal-tabs">
+                <button class="secondary temporal-tab active" id="temporalTabOverview" onclick="setTemporalTab('overview')" data-i18n="temporal.tab.overview">Overview</button>
+                <button class="secondary temporal-tab" id="temporalTabNamespaces" onclick="setTemporalTab('namespaces')" data-i18n="temporal.tab.namespaces">Namespaces</button>
+                <button class="secondary temporal-tab" id="temporalTabWorkers" onclick="setTemporalTab('workers')" data-i18n="temporal.tab.workers">Workers</button>
+                <button class="secondary temporal-tab" id="temporalTabSchedules" onclick="setTemporalTab('schedules')" data-i18n="temporal.tab.schedules">Schedules</button>
+                <button class="secondary temporal-tab" id="temporalTabClusters" onclick="setTemporalTab('clusters')" data-i18n="temporal.tab.clusters">Clusters</button>
+              </div>
+              <div id="temporalPanelOverview"></div>
+              <div id="temporalPanelNamespaces" class="hidden">
+                <div class="workflow-filters">
+                  <input id="temporalNamespaceSearch" class="workflow-search" data-i18n-placeholder="temporal.searchNamespaces" placeholder="Search namespaces..." oninput="renderTemporalNamespacesTable()" />
+                </div>
+                <div class="table admin-table-wrap">
+                  <table class="admin-table">
+                    <thead>
+                      <tr>
+                        <th data-i18n="nsAdmin.col.id">Namespace ID</th>
+                        <th data-i18n="nsAdmin.col.displayName">Display name</th>
+                        <th data-i18n="temporal.col.cluster">Cluster</th>
+                        <th data-i18n="temporal.col.platform">Platform</th>
+                        <th data-i18n="temporal.col.temporal">Temporal</th>
+                        <th data-i18n="temporal.col.worker">Worker</th>
+                        <th data-i18n="temporal.col.status">Status</th>
+                        <th data-i18n="admin.col.actions">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="temporalNamespacesTable"></tbody>
+                  </table>
+                </div>
+              </div>
+              <div id="temporalPanelWorkers" class="hidden">
+                <div class="table admin-table-wrap">
+                  <table class="admin-table">
+                    <thead>
+                      <tr>
+                        <th data-i18n="temporal.col.app">App</th>
+                        <th data-i18n="nsAdmin.col.id">Namespace</th>
+                        <th data-i18n="temporal.col.cluster">Cluster</th>
+                        <th data-i18n="temporal.col.taskQueue">Task Queue</th>
+                        <th data-i18n="temporal.col.heartbeat">Heartbeat</th>
+                        <th data-i18n="temporal.col.wfPollers">WF Pollers</th>
+                        <th data-i18n="temporal.col.actPollers">ACT Pollers</th>
+                        <th data-i18n="temporal.col.platformQueue">Platform Queue</th>
+                      </tr>
+                    </thead>
+                    <tbody id="temporalWorkersTable"></tbody>
+                  </table>
+                </div>
+              </div>
+              <div id="temporalPanelSchedules" class="hidden">
+                <div class="table admin-table-wrap">
+                  <table class="admin-table">
+                    <thead>
+                      <tr>
+                        <th data-i18n="temporal.col.scheduleId">Schedule ID</th>
+                        <th data-i18n="nsAdmin.col.id">Namespace</th>
+                        <th data-i18n="temporal.col.workflowId">Workflow ID</th>
+                        <th data-i18n="temporal.col.state">State</th>
+                        <th data-i18n="temporal.col.nextRun">Next Run</th>
+                        <th data-i18n="admin.col.actions">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="temporalSchedulesTable"></tbody>
+                  </table>
+                </div>
+              </div>
+              <div id="temporalPanelClusters" class="hidden">
+                <div class="workflow-filters">
+                  <button onclick="createTemporalCluster()" data-i18n="temporal.createCluster">New Cluster</button>
+                </div>
+                <div class="table admin-table-wrap">
+                  <table class="admin-table">
+                    <thead>
+                      <tr>
+                        <th data-i18n="temporal.col.clusterId">Cluster ID</th>
+                        <th data-i18n="nsAdmin.col.displayName">Display name</th>
+                        <th data-i18n="temporal.prompt.host">Host</th>
+                        <th data-i18n="temporal.col.default">Default</th>
+                        <th data-i18n="temporal.col.reachable">Reachable</th>
+                        <th data-i18n="temporal.col.version">Version</th>
+                        <th data-i18n="admin.col.actions">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody id="temporalClustersTable"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </section>
+          <section class="admin-list view" id="pluginsView">
+            <div class="page-header">
+              <h1 data-i18n="plugin.title">Plugin Management</h1>
+              <div class="spacer"></div>
+              <button class="secondary" onclick="refreshPluginsView()" data-i18n="admin.refresh">Refresh</button>
+            </div>
+            <div id="pluginsAccessDenied" class="app-notice app-notice-warning hidden">
+              <div class="app-notice-text" data-i18n="admin.accessDenied">Admin API is only available from 127.0.0.1 on this machine.</div>
+            </div>
+            <div id="pluginsPanels">
+              <div id="pluginAlertsPanel" class="temporal-alerts"></div>
+              <div class="plugin-upload-wrap">
+                <label class="plugin-upload-dropzone" id="pluginUploadDropzone" for="pluginUploadInput">
+                  <span data-i18n="plugin.uploadHint">Drag a plugin jar here or click to upload</span>
+                  <input id="pluginUploadInput" type="file" accept=".jar,application/java-archive" class="visually-hidden" onchange="onPluginFileInputChange(event)" />
+                </label>
+              </div>
+              <div class="workflow-filters">
+                <input id="pluginSearch" class="workflow-search" data-i18n-placeholder="plugin.searchPlaceholder" placeholder="Search plugins..." oninput="renderPluginsTable()" />
+              </div>
+              <div class="table admin-table-wrap">
+                <table class="admin-table">
+                  <thead>
+                    <tr>
+                      <th data-i18n="plugin.col.id">Plugin ID</th>
+                      <th data-i18n="plugin.col.version">Version</th>
+                      <th data-i18n="plugin.col.name">Name</th>
+                      <th data-i18n="plugin.col.status">Status</th>
+                      <th data-i18n="plugin.col.namespace">Namespace</th>
+                      <th data-i18n="plugin.col.taskQueue">Task Queue</th>
+                      <th data-i18n="plugin.col.replicas">Replicas</th>
+                      <th data-i18n="plugin.col.pollers">Pollers</th>
+                      <th data-i18n="plugin.col.typed">Typed WF</th>
+                      <th data-i18n="admin.col.actions">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="pluginsTable">
+                    <tr><td colspan="10" class="admin-empty">Loading...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div id="pluginDetailPanel" class="plugin-detail-panel"></div>
             </div>
           </section>
           <section class="modeler view" id="modelerView">
@@ -454,6 +601,8 @@
     <script src="assets/js/modeler-bootstrap.js?v=@flowfoundry.static.version@"></script>
     <script src="assets/js/modeler-admin.js?v=@flowfoundry.static.version@"></script>
     <script src="assets/js/modeler-namespaces.js?v=@flowfoundry.static.version@"></script>
+    <script src="assets/js/modeler-temporal.js?v=@flowfoundry.static.version@"></script>
+    <script src="assets/js/modeler-plugins.js?v=@flowfoundry.static.version@"></script>
     <script>
       initI18n();
       initNamespaceContext().then(() => {

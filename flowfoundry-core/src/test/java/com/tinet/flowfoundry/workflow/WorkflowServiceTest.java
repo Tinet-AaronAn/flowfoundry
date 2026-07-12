@@ -17,6 +17,7 @@ import com.tinet.flowfoundry.registry.ActivityCatalogService;
 import com.tinet.flowfoundry.registry.ActivityRegistry;
 import com.tinet.flowfoundry.temporal.DeploymentContractRegistry;
 import com.tinet.flowfoundry.temporal.StartTimerScheduleService;
+import com.tinet.flowfoundry.temporal.TemporalConnectionRegistry;
 import com.tinet.flowfoundry.temporal.TemporalClients;
 import io.temporal.serviceclient.WorkflowServiceStubs;
 import java.util.List;
@@ -63,10 +64,17 @@ class WorkflowServiceTest {
       ActivityRegistry registry = activityCatalog.forNamespace("test-ns");
       TemporalClients temporalClients =
           new TemporalClients(Mockito.mock(WorkflowServiceStubs.class));
+      TemporalConnectionRegistry connectionRegistry =
+          new TemporalConnectionRegistry(null, null, null) {
+            @Override
+            public TemporalClients clientsForPlatformNamespace(String namespaceId) {
+              return temporalClients;
+            }
+          };
       DeploymentContractRegistry contractRegistry =
           new DeploymentContractRegistry(null, activityCatalog);
       return new StartTimerScheduleService(
-          new FlowCompiler(activityCatalog), temporalClients, contractRegistry);
+          new FlowCompiler(activityCatalog), connectionRegistry, contractRegistry);
     }
   }
 

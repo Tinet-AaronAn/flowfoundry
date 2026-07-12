@@ -1,6 +1,6 @@
 # FlowFoundry Modeler Frontend
 
-静态资源位于 `flowfoundry-core/src/main/resources/static/`，由场景可执行 JAR（如 `flowfoundry-app/modules/ai-collection-strategy`）打包发布。`index.html` 只保留页面结构，样式和行为按职责拆分到 `assets/` 下。
+静态资源位于 `flowfoundry-core/src/main/resources/static/`，由平台 JAR（`:8081`）发布。`index.html` 只保留页面结构，样式和行为按职责拆分到 `assets/` 下。
 
 本地联调地址：http://127.0.0.1:8081/（见 [docs/service-urls.md](../../../../../../docs/service-urls.md)）
 
@@ -42,7 +42,7 @@
 
 3. 或直接 iframe：`/modeler/embed.html?workflowId=...&version=...&mode=design`
 
-示例业务壳页面：`flowfoundry-app/modules/ai-collection-strategy/src/main/resources/static/app/workflow-admin.html`
+示例业务壳页面：`examples/ai-collection-strategy/src/main/resources/static/app/workflow-admin.html`（由 Worker App `:8082` 提供，经 BFF 访问平台 API）
 
 ## 后续演进
 

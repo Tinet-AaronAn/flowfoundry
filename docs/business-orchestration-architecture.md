@@ -383,13 +383,13 @@ QuantumBPM 的简洁流程抽象值得 FlowFoundry 吸收：
 
 - `flowfoundry-core/.../temporal/TemporalWorkerBootstrap.java`
   - Worker 启动和 Temporal SDK 接入方式；业务通过 `TemporalWorkerExtension` 注册。
-- `flowfoundry-app/modules/ai-collection-strategy/.../CallCampaignActivities.java`
+- `examples/ai-collection-strategy/.../CallCampaignActivities.java`
   - Activity 接口和 `@ActivityMethod` 命名方式。
-- `flowfoundry-app/modules/ai-collection-strategy/.../CallCampaignActivitiesImpl.java`
+- `examples/ai-collection-strategy/.../CallCampaignActivitiesImpl.java`
   - Activity 实现层封装业务逻辑的方式。
 - `flowfoundry-core/.../idempotency/IdempotentActivityExecutor.java`
   - 统一幂等执行模板。
-- `flowfoundry-app/modules/ai-collection-strategy/config/activities-registry.yaml`
+- `examples/ai-collection-strategy/config/activities-registry.yaml`
   - Activity Registry 配置示例。
 
 后续可以把当前 BPMN / QuantumBPM 风格映射思路升级为：

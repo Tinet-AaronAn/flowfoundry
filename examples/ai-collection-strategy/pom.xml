@@ -50,6 +50,40 @@
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
       </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>plugin-package</id>
+            <phase>package</phase>
+            <goals>
+              <goal>jar</goal>
+            </goals>
+            <configuration>
+              <classifier>plugin</classifier>
+              <excludes>
+                <exclude>com/tinet/flowfoundry/demo/aicollection/AiCollectionStrategyApplication.class</exclude>
+                <exclude>application.yml</exclude>
+                <exclude>static/**</exclude>
+              </excludes>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
     </plugins>
   </build>
+
+  <profiles>
+    <profile>
+      <id>plugin</id>
+      <build>
+        <resources>
+          <resource>
+            <directory>src/plugin</directory>
+          </resource>
+        </resources>
+      </build>
+    </profile>
+  </profiles>
 </project>

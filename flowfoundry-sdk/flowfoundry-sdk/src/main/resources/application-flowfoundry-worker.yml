@@ -1,4 +1,4 @@
-# 业务 Worker 模式（flowfoundry-app 场景模块）。平台 HTTP 由 flowfoundry-core :8081 提供。
+# 业务 Worker 模式（examples/ 或独立业务 App）。平台 HTTP 由 flowfoundry-core :8081 提供。
 flowfoundry:
   run-mode: worker
 

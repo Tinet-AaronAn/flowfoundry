@@ -10,6 +10,7 @@ import com.tinet.flowfoundry.interpreter.model.ExecutionPlan;
 import com.tinet.flowfoundry.interpreter.model.HumanTaskCompletion;
 import com.tinet.flowfoundry.interpreter.runtime.RunSource;
 import com.tinet.flowfoundry.interpreter.runtime.RunSourceResolver;
+import com.tinet.flowfoundry.plugin.PluginActivitySourceResolver;
 import com.tinet.flowfoundry.registry.ActivityCatalogService;
 import com.tinet.flowfoundry.registry.ActivityRegistry;
 import com.tinet.flowfoundry.run.FlowRunContracts;
@@ -18,7 +19,7 @@ import com.tinet.flowfoundry.run.FlowRunOrchestrator;
 import com.tinet.flowfoundry.run.FlowRunService;
 import com.tinet.flowfoundry.security.NamespaceAccessService;
 import com.tinet.flowfoundry.temporal.RunNamespaceLocator;
-import com.tinet.flowfoundry.temporal.TemporalClients;
+import com.tinet.flowfoundry.temporal.TemporalConnectionRegistry;
 import com.tinet.flowfoundry.workflow.WorkflowRunId;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -34,9 +35,10 @@ import org.springframework.web.bind.annotation.RestController;
 public class FlowController {
 
   private final FlowCompiler compiler;
-  private final TemporalClients temporalClients;
+  private final TemporalConnectionRegistry connectionRegistry;
   private final RunNamespaceLocator runNamespaceLocator;
   private final ActivityCatalogService activityCatalog;
+  private final PluginActivitySourceResolver pluginActivitySourceResolver;
   private final FlowRunStatusService runStatusService;
   private final FlowRunService flowRunService;
   private final FlowRunOrchestrator flowRunOrchestrator;
@@ -44,17 +46,19 @@ public class FlowController {
 
   public FlowController(
       FlowCompiler compiler,
-      TemporalClients temporalClients,
+      TemporalConnectionRegistry connectionRegistry,
       RunNamespaceLocator runNamespaceLocator,
       ActivityCatalogService activityCatalog,
+      PluginActivitySourceResolver pluginActivitySourceResolver,
       FlowRunStatusService runStatusService,
       FlowRunService flowRunService,
       FlowRunOrchestrator flowRunOrchestrator,
       NamespaceAccessService namespaceAccess) {
     this.compiler = compiler;
-    this.temporalClients = temporalClients;
+    this.connectionRegistry = connectionRegistry;
     this.runNamespaceLocator = runNamespaceLocator;
     this.activityCatalog = activityCatalog;
+    this.pluginActivitySourceResolver = pluginActivitySourceResolver;
     this.runStatusService = runStatusService;
     this.flowRunService = flowRunService;
     this.flowRunOrchestrator = flowRunOrchestrator;
@@ -62,10 +66,12 @@ public class FlowController {
   }
 
   @GetMapping("/activities")
-  public ActivityRegistry activities() {
+  public ActivityCatalogResponse activities() {
     String namespace = namespaceAccess.resolveActiveNamespace();
     namespaceAccess.requireAccess(namespace);
-    return activityCatalog.forNamespace(namespace);
+    return new ActivityCatalogResponse(
+        activityCatalog.forNamespace(namespace),
+        pluginActivitySourceResolver.forNamespace(namespace));
   }
 
   @PostMapping("/flows/compile")
@@ -120,7 +126,8 @@ public class FlowController {
     namespaceAccess.requireAuthenticatedNamespace();
     requireRunWorkflowId(workflowId);
     String namespace = runNamespaceLocator.locate(workflowId);
-    temporalClients
+    connectionRegistry
+        .clientsForPlatformNamespace(namespace)
         .workflowClient(namespace)
         .newWorkflowStub(FlowInterpreterWorkflow.class, workflowId)
         .completeHumanTask(completion);

@@ -5,6 +5,8 @@ import com.tinet.flowfoundry.registry.ActivityCatalogService;
 import com.tinet.flowfoundry.registry.ActivityRegistry;
 import com.tinet.flowfoundry.registry.ActivityRegistryLoader;
 import com.tinet.flowfoundry.activity.ScriptRuntimeProperties;
+import com.tinet.flowfoundry.plugin.PluginProperties;
+import com.tinet.flowfoundry.plugin.runtime.PluginRuntimeProperties;
 import com.tinet.flowfoundry.script.ScriptCatalogProperties;
 import com.tinet.flowfoundry.security.PlatformSecurityProperties;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
@@ -25,7 +27,9 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
   PlatformSecurityProperties.class,
   TemporalProperties.class,
   ScriptRuntimeProperties.class,
-  ScriptCatalogProperties.class
+  ScriptCatalogProperties.class,
+  PluginProperties.class,
+  PluginRuntimeProperties.class
 })
 public class FlowFoundryCoreConfiguration {
 

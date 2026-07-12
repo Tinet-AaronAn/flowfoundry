@@ -32,15 +32,15 @@ public class StartTimerScheduleService {
   private static final Logger log = LoggerFactory.getLogger(StartTimerScheduleService.class);
 
   private final FlowCompiler compiler;
-  private final TemporalClients temporalClients;
+  private final TemporalConnectionRegistry connectionRegistry;
   private final DeploymentContractRegistry contractRegistry;
 
   public StartTimerScheduleService(
       FlowCompiler compiler,
-      TemporalClients temporalClients,
+      TemporalConnectionRegistry connectionRegistry,
       DeploymentContractRegistry contractRegistry) {
     this.compiler = compiler;
-    this.temporalClients = temporalClients;
+    this.connectionRegistry = connectionRegistry;
     this.contractRegistry = contractRegistry;
   }
 
@@ -52,7 +52,7 @@ public class StartTimerScheduleService {
       return;
     }
     DeploymentContract contract = contractRegistry.resolveForNamespace(namespace);
-    ScheduleClient scheduleClient = temporalClients.scheduleClient(namespace);
+    ScheduleClient scheduleClient = connectionRegistry.clientsForPlatformNamespace(namespace).scheduleClient(namespace);
     ScheduleSpec spec = StartTimerScheduleMapper.toScheduleSpec(start, Instant.now());
     String businessKeyPrefix = namespace + ":" + plan.flowId();
     ScheduleActionStartWorkflow action =
@@ -107,7 +107,8 @@ public class StartTimerScheduleService {
   }
 
   private ScheduleClient businessScheduleClient() {
-    return temporalClients.scheduleClient(contractRegistry.localContract().namespace());
+    return connectionRegistry.clientsForPlatformNamespace(contractRegistry.localContract().namespace()).scheduleClient(
+        contractRegistry.localContract().namespace());
   }
 
   static String scheduleId(String workflowId) {

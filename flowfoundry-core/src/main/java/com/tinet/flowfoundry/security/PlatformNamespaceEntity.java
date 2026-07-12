@@ -26,6 +26,17 @@ public class PlatformNamespaceEntity {
   @Column(name = "updated_at", nullable = false)
   private Instant updatedAt;
 
+  @Column(name = "temporal_cluster_id", length = 64)
+  private String temporalClusterId;
+
+  public String getTemporalClusterId() {
+    return temporalClusterId;
+  }
+
+  public void setTemporalClusterId(String temporalClusterId) {
+    this.temporalClusterId = temporalClusterId;
+  }
+
   public String getId() {
     return id;
   }

@@ -16,7 +16,7 @@
         const namespaces = filteredAdminNamespaces();
         if (namespaces.length === 0) {
           const emptyText = adminNamespaces.length === 0 ? t('nsAdmin.empty') : t('nsAdmin.emptySearch');
-          tbody.innerHTML = `<tr><td colspan="6" class="admin-empty">${escapeHtml(emptyText)}</td></tr>`;
+          tbody.innerHTML = `<tr><td colspan="7" class="admin-empty">${escapeHtml(emptyText)}</td></tr>`;
           return;
         }
         tbody.innerHTML = namespaces.map(item => `
@@ -24,6 +24,7 @@
             <td><code>${escapeHtml(item.id || '')}</code></td>
             <td>${escapeHtml(item.displayName || '')}</td>
             <td>${escapeHtml(item.description || '-')}</td>
+            <td><span class="${temporalStatusClass(item.temporalRuntimeStatus)}">${escapeHtml(temporalStatusLabel(item.temporalRuntimeStatus))}</span></td>
             <td>${escapeHtml(formatInstant(item.createdAt))}</td>
             <td>${escapeHtml(formatInstant(item.updatedAt))}</td>
             <td class="admin-actions">
@@ -127,6 +128,12 @@
           });
           await refreshAdminNamespaces();
           await initNamespaceContext();
+          if (typeof refreshTemporalView === 'function') {
+            try {
+              await refreshTemporalView(false);
+              await offerTemporalNamespaceWizard(parsed.id);
+            } catch (ignored) {}
+          }
           message(t('nsAdmin.created', { name: parsed.displayName }), 'success');
         } catch (err) {
           message(err.message, 'error');

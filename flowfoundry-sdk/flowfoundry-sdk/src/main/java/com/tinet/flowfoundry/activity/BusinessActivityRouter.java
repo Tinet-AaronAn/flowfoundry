@@ -2,7 +2,7 @@ package com.tinet.flowfoundry.activity;
 
 import java.util.Map;
 
-/** Business-scenario Activity routing implemented in flowfoundry-app/modules/*. */
+/** Business-scenario Activity routing implemented in examples/ or independent business App modules. */
 public interface BusinessActivityRouter {
 
   boolean supports(String activityType);

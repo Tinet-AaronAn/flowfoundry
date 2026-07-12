@@ -1,15 +1,44 @@
+      async function fetchActivityCatalog() {
+        const res = await fetch(platformApiUrl('/activities'), { headers: platformApiHeaders() });
+        const data = await res.json();
+        state.activities = data.activities || [];
+        state.activityGroups = data.groups || [];
+        state.pluginSources = data.pluginSources || {};
+      }
+
+      /** Refresh palette/plugin badges without reloading workflow state or re-rendering canvas. */
+      async function refreshActivityCatalog() {
+        try {
+          await fetchActivityCatalog();
+        } catch (err) {
+          message(t('message.loadActivitiesFailed', { error: err.message }), 'error');
+          return;
+        }
+        renderPalette();
+        if (state.currentView === 'modeler') {
+          renderProperties();
+        }
+      }
+
       async function loadActivities() {
         try {
-          const res = await fetch(platformApiUrl('/activities'), { headers: platformApiHeaders() });
-          const data = await res.json();
-          state.activities = data.activities || [];
-          state.activityGroups = data.groups || [];
+          await fetchActivityCatalog();
         } catch (err) {
           message(t('message.loadActivitiesFailed', { error: err.message }), 'error');
         }
         await loadScriptCatalog();
-        await loadFromMemory();
-        renderAll();
+        try {
+          await loadFromMemory();
+          if (state.currentView === 'modeler') {
+            renderAll();
+          } else {
+            renderPalette();
+            renderWorkflowList();
+            renderNavigation();
+          }
+        } catch (err) {
+          console.error('loadActivities follow-up failed', err);
+        }
       }
 
       async function loadScriptCatalog() {
@@ -82,9 +111,11 @@
         applyPropertiesCollapsed();
         updateCompiledPlanButton();
         applyI18n();
-        renderCanvas();
-        renderMinimap();
-        renderProperties();
+        if (state.currentView === 'modeler' && state.model?.nodes) {
+          renderCanvas();
+          renderMinimap();
+          renderProperties();
+        }
         renderWorkflowList();
         if (state.currentView === 'runs') renderRunsView();
         renderNavigation();
@@ -98,6 +129,8 @@
         $('navRuns')?.classList.toggle('active', state.currentView === 'runs');
         $('navAdminApiKeys')?.classList.toggle('active', state.currentView === 'admin');
         $('navAdminNamespaces')?.classList.toggle('active', state.currentView === 'namespaces');
+        $('navAdminTemporal')?.classList.toggle('active', state.currentView === 'temporal');
+        $('navAdminPlugins')?.classList.toggle('active', state.currentView === 'plugins');
       }
 
       function applyViewLayout() {
@@ -116,6 +149,11 @@
         $('runsView')?.classList.toggle('active', view === 'runs');
         $('adminView')?.classList.toggle('active', view === 'admin');
         $('namespacesView')?.classList.toggle('active', view === 'namespaces');
+        $('temporalView')?.classList.toggle('active', view === 'temporal');
+        $('pluginsView')?.classList.toggle('active', view === 'plugins');
+        if (view !== 'plugins' && typeof stopPluginAutoRefresh === 'function') {
+          stopPluginAutoRefresh();
+        }
         renderNavigation();
         if (view === 'workflows') renderWorkflowList();
         if (view === 'runs') renderRunsView();
@@ -126,6 +164,15 @@
         if (view === 'namespaces') {
           dismissNotice();
           renderNamespacesView();
+        }
+        if (view === 'temporal') {
+          dismissNotice();
+          renderTemporalView();
+        }
+        if (view === 'plugins') {
+          dismissNotice();
+          initPluginUploadDropzone();
+          renderPluginsView();
         }
         if (view === 'modeler') {
           syncModelHeader();
@@ -265,6 +312,7 @@
       }
 
       function renderCanvas() {
+        if (state.currentView !== 'modeler' || !state.model?.nodes) return;
         const { content, canvas, readonly } = activeCanvasElements();
         if (!content) return;
         if (!state.isDragging) {
@@ -519,6 +567,7 @@
       }
 
       function renderEdges() {
+        if (state.currentView !== 'modeler' || !state.model?.edges) return;
         const { edges: svg, readonly } = activeCanvasElements();
         if (!svg) return;
         svg.innerHTML = '<defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#2587e6"/></marker></defs>';
@@ -752,7 +801,7 @@
       }
 
       function edgePath(points, flow = {}) {
-        const style = state.model.process.edgeRouting || 'orthogonal';
+        const style = state.model?.process?.edgeRouting || 'orthogonal';
         if (style === 'curved') return curvedEdgePath(points);
         return roundedOrthogonalPath(orthogonalRoutePoints(points, flow));
       }
@@ -909,18 +958,19 @@
       }
 
       function renderProcessProperties() {
+        const process = state.model?.process || {};
         $('propTitle').textContent = 'Process';
         $('propType').textContent = '';
         $('properties').innerHTML = `
           <div class="prop-section"><h3>General</h3>
-            <label>Process Name</label><input value="${escapeAttr(state.model.process.name)}" oninput="updateProcess('name', this.value)" />
-            <label>Process ID</label><input value="${escapeAttr(state.model.process.id)}" oninput="updateProcess('id', this.value)" />
+            <label>Process Name</label><input value="${escapeAttr(process.name || '')}" oninput="updateProcess('name', this.value)" />
+            <label>Process ID</label><input value="${escapeAttr(process.id || '')}" oninput="updateProcess('id', this.value)" />
             <label>Edge Routing</label>
             <select id="edgeRouting" onchange="updateProcess('edgeRouting', this.value)">
-              <option value="orthogonal" ${(state.model.process.edgeRouting || 'orthogonal') === 'orthogonal' ? 'selected' : ''}>Orthogonal rounded</option>
-              <option value="curved" ${state.model.process.edgeRouting === 'curved' ? 'selected' : ''}>Curved</option>
+              <option value="orthogonal" ${(process.edgeRouting || 'orthogonal') === 'orthogonal' ? 'selected' : ''}>Orthogonal rounded</option>
+              <option value="curved" ${process.edgeRouting === 'curved' ? 'selected' : ''}>Curved</option>
             </select>
-            <label class="switch-row"><input type="checkbox" ${state.model.process.isExecutable ? 'checked' : ''} onchange="updateProcess('isExecutable', this.checked)" /> Executable</label>
+            <label class="switch-row"><input type="checkbox" ${process.isExecutable ? 'checked' : ''} onchange="updateProcess('isExecutable', this.checked)" /> Executable</label>
             <div class="help">When off, the engine will not run this process, useful for reference-only diagrams.</div>
           </div>
           <div class="prop-section"><h3>Flow Actions</h3>
@@ -1171,6 +1221,7 @@
           <label>${escapeHtml(t('prop.activityId'))}</label>
           <input class="readonly-field" readonly tabindex="-1" value="${escapeAttr(n.activityType || '')}" placeholder="${escapeAttr(t('prop.activityIdPlaceholder'))}" />
           ${selected?.description ? `<div class="help">${escapeHtml(selected.description)}</div>` : ''}
+          ${typeof pluginActivityBadge === 'function' ? pluginActivityBadge(n.activityType) : ''}
           <label>${escapeHtml(t('prop.timeout'))}</label>
           <input value="${escapeAttr(n.timeout || defaultTimeout)}" placeholder="${escapeAttr(defaultTimeout || '60s')}" oninput="updateTaskTimeout(this.value)" />
           <div class="help">${escapeHtml(t('prop.timeoutHelp'))}</div>

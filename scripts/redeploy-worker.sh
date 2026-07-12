@@ -11,7 +11,12 @@ SCENARIO="${SCENARIO:-ai-collection-strategy}"
 PLATFORM_PORT="${PLATFORM_PORT:-8081}"
 MAVEN_MODULE="flowfoundry-core"
 JAR="$ROOT/flowfoundry-core/target/flowfoundry-core-1.0.4-exec.jar"
-REGISTRY="${ACTIVITY_REGISTRY_PATH:-$ROOT/examples/${SCENARIO}/config/activities-registry.yaml}"
+if [[ "${FLOWFOUNDRY_PLUGIN_RUNTIME_ENABLED:-false}" == "true" ]]; then
+  # Plugin mode: platform only loads core activities; business activities come from uploaded plugins.
+  REGISTRY="${ACTIVITY_REGISTRY_PATH:-$ROOT/flowfoundry-core/src/main/resources/activities-registry-platform-plugin.yaml}"
+else
+  REGISTRY="${ACTIVITY_REGISTRY_PATH:-$ROOT/examples/${SCENARIO}/config/activities-registry.yaml}"
+fi
 RUN_DIR="$ROOT/.local/run"
 LOG="$RUN_DIR/platform.log"
 PIDFILE="$RUN_DIR/platform.pid"

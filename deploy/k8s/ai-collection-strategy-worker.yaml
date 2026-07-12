@@ -67,8 +67,8 @@ metadata:
   namespace: bpm
 data:
   activities-registry.yaml: |
-    # Mounted from flowfoundry-app/modules/ai-collection-strategy/config/activities-registry.yaml at deploy time
-    # kubectl create configmap activities-registry --from-file=activities-registry.yaml=flowfoundry-app/modules/ai-collection-strategy/config/activities-registry.yaml -n bpm ...
+    # Mounted from examples/ai-collection-strategy/config/activities-registry.yaml at deploy time
+    # kubectl create configmap activities-registry --from-file=activities-registry.yaml=examples/ai-collection-strategy/config/activities-registry.yaml -n bpm ...
 ---
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler

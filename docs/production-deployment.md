@@ -89,7 +89,7 @@ Worker **不再**通过环境变量配置 `TEMPORAL_NAMESPACE` / `TEMPORAL_TASK_
 
 ```bash
 kubectl create configmap activities-registry \
-  --from-file=activities-registry.yaml=flowfoundry-app/modules/ai-collection-strategy/config/activities-registry.yaml \
+  --from-file=activities-registry.yaml=examples/ai-collection-strategy/config/activities-registry.yaml \
   -n bpm --dry-run=client -o yaml | kubectl apply -f -
 
 kubectl apply -f deploy/k8s/ai-collection-strategy-worker.yaml
